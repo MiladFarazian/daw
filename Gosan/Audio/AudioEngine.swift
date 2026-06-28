@@ -63,19 +63,23 @@ final class AudioEngine {
             for clip in track.clips {
                 guard let file = try? AVAudioFile(forReading: clip.asset.url) else { continue }
                 let sampleRate = file.processingFormat.sampleRate
-                let clipEnd = clip.startTime + clip.asset.duration
+                let clipEnd = clip.startTime + clip.duration
                 guard clipEnd > position else { continue }
 
+                // How far into the clip's visible region playback begins.
                 let intoClip = max(0, position - clip.startTime)
-                let startFrame = AVAudioFramePosition(intoClip * sampleRate)
-                let remaining = file.length - startFrame
-                guard remaining > 0 else { continue }
+                let startFrame = AVAudioFramePosition((clip.offset + intoClip) * sampleRate)
+                let available = file.length - startFrame
+                guard available > 0 else { continue }
+                let wanted = AVAudioFramePosition((clip.duration - intoClip) * sampleRate)
+                let frames = AVAudioFrameCount(max(0, min(wanted, available)))
+                guard frames > 0 else { continue }
 
                 let whenSeconds = max(0, clip.startTime - position)
                 let when = AVAudioTime(hostTime: t0.hostTime + AVAudioTime.hostTime(forSeconds: whenSeconds))
                 node.player.scheduleSegment(file,
                                             startingFrame: startFrame,
-                                            frameCount: AVAudioFrameCount(remaining),
+                                            frameCount: frames,
                                             at: when)
             }
             node.player.play(at: t0)

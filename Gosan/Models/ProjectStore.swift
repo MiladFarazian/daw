@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 import AppKit
+import UniformTypeIdentifiers
 
 /// The in-memory project: tracks, transport state, and the audio engine.
 /// (Phase 1 keeps this in memory; SwiftData + a `.daw` document package come later.)
@@ -26,6 +27,8 @@ final class ProjectStore: ObservableObject {
     @Published var useTaste = true
     @Published var lastNudge: [String] = []
     private var lastPrompt: GeneratePrompt?
+
+    @Published var isExporting = false
 
     let settings: AppSettings
     let taste: TasteEngine
@@ -271,5 +274,71 @@ final class ProjectStore: ObservableObject {
         guard let index = tracks.firstIndex(where: { $0.id == track.id }) else { return }
         change(&tracks[index])
         engine.applyMix(tracks: tracks)
+    }
+
+    func deleteTrack(_ track: Track) {
+        tracks.removeAll { $0.id == track.id }
+    }
+
+    // MARK: - Clip editing
+
+    private let minClipDuration: TimeInterval = 0.1
+
+    /// Move a clip along the timeline by a pixel delta.
+    func moveClip(_ clip: Clip, on track: Track, byPixels dx: CGFloat) {
+        let delta = TimeInterval(dx) / pixelsPerSecond
+        updateClip(clip, on: track) { $0.startTime = max(0, $0.startTime + delta) }
+    }
+
+    /// Drag the left edge: trims into / out of the asset head while holding the right edge fixed.
+    func trimClipStart(_ clip: Clip, on track: Track, byPixels dx: CGFloat) {
+        let delta = TimeInterval(dx) / pixelsPerSecond
+        updateClip(clip, on: track) { c in
+            let d = min(max(delta, -c.offset), c.duration - minClipDuration)
+            c.offset += d
+            c.startTime = max(0, c.startTime + d)
+            c.duration -= d
+        }
+    }
+
+    /// Drag the right edge: extends/trims the visible length within the asset.
+    func trimClipEnd(_ clip: Clip, on track: Track, byPixels dx: CGFloat) {
+        let delta = TimeInterval(dx) / pixelsPerSecond
+        updateClip(clip, on: track) { c in
+            let maxExtend = c.asset.duration - c.offset - c.duration
+            c.duration += min(max(delta, -(c.duration - minClipDuration)), maxExtend)
+        }
+    }
+
+    private func updateClip(_ clip: Clip, on track: Track, _ change: (inout Clip) -> Void) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }),
+              let ci = tracks[ti].clips.firstIndex(where: { $0.id == clip.id }) else { return }
+        change(&tracks[ti].clips[ci])
+    }
+
+    // MARK: - Export
+
+    func exportMixdown() {
+        guard !tracks.isEmpty, !isExporting else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.wav]
+        panel.nameFieldStringValue = "\(name).wav"
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let snapshot = tracks
+        let duration = totalDuration
+        isExporting = true
+        Task.detached(priority: .userInitiated) {
+            do {
+                try AudioExporter.render(tracks: snapshot, duration: duration, to: url)
+                await MainActor.run { self.isExporting = false }
+            } catch {
+                await MainActor.run {
+                    self.isExporting = false
+                    self.lastError = "Export failed: \(error.localizedDescription)"
+                }
+            }
+        }
     }
 }

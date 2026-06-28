@@ -62,6 +62,16 @@ struct TransportBar: View {
             Button { project.requestImport() } label: {
                 Label("Import", systemImage: "plus")
             }
+
+            Button { project.exportMixdown() } label: {
+                if project.isExporting {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                }
+            }
+            .disabled(project.tracks.isEmpty || project.isExporting)
+            .help("Bounce the mix to a WAV file")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)

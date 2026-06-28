@@ -23,9 +23,17 @@ final class AudioAsset: Identifiable, @unchecked Sendable {
 struct Clip: Identifiable {
     let id = UUID()
     var asset: AudioAsset
-    var startTime: TimeInterval = 0
+    var startTime: TimeInterval = 0   // position on the timeline
+    var offset: TimeInterval = 0      // trim in from the asset's head
+    var duration: TimeInterval        // visible length (≤ asset.duration - offset)
     var name: String { asset.name }
-    var duration: TimeInterval { asset.duration }
+
+    init(asset: AudioAsset, startTime: TimeInterval = 0) {
+        self.asset = asset
+        self.startTime = startTime
+        self.offset = 0
+        self.duration = asset.duration
+    }
 }
 
 /// One horizontal lane with its own mixer settings.

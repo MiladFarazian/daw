@@ -15,7 +15,8 @@ stay the producer. See the design:
 ## Status
 
 **Phase 1 — DAW bones** ✅ import audio (picker or drag-and-drop), multi-track waveform timeline,
-synchronized AVAudioEngine playback, transport (play/stop/seek + spacebar), per-track volume/mute/solo, zoom.
+synchronized AVAudioEngine playback, transport (play/stop/seek + spacebar), per-track volume/mute/solo, zoom,
+**drag clips to move, drag edges to trim, delete tracks, and bounce the mix to WAV** (offline render).
 
 **Phase 2 — Music.ai integration** ✅ (first slice). Right-click any clip → **Split into Stems**
 (each stem lands as a new track) or **Analyze** (key · BPM · chords). Jobs run async with a progress
