@@ -25,11 +25,22 @@ struct TransportBar: View {
             .keyboardShortcut(.space, modifiers: [])
             .help(project.isPlaying ? "Stop" : "Play")
 
-            Button { recorder.toggle() } label: {
+            Button { project.toggleRecord() } label: {
                 Image(systemName: recorder.isRecording ? "stop.circle.fill" : "record.circle")
                     .foregroundStyle(recorder.isRecording ? .red : .primary)
             }
-            .help(recorder.isRecording ? "Stop recording" : "Record a take")
+            .help(recorder.isRecording ? "Stop recording" : "Record a take (plays existing tracks)")
+
+            Button { project.toggleMonitoring() } label: {
+                Image(systemName: "headphones")
+                    .foregroundStyle(recorder.isMonitoring ? .green : .secondary)
+            }
+            .help("Monitor input (hear yourself — use headphones to avoid feedback)")
+
+            if recorder.isRecording {
+                InputLevelMeter(level: recorder.inputLevel)
+                    .frame(width: 46, height: 6)
+            }
 
             Text(timecode(project.currentTime))
                 .font(.system(.body, design: .monospaced))
@@ -82,5 +93,21 @@ struct TransportBar: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
+    }
+}
+
+/// A tiny horizontal input-level meter.
+struct InputLevelMeter: View {
+    let level: Float
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(.secondary.opacity(0.25))
+                Capsule()
+                    .fill(level > 0.9 ? Color.red : .green)
+                    .frame(width: geo.size.width * CGFloat(min(1, max(0, level))))
+            }
+        }
     }
 }

@@ -5,7 +5,6 @@ import UniformTypeIdentifiers
 struct EditorView: View {
     @EnvironmentObject var project: ProjectStore
     @EnvironmentObject var preview: PreviewPlayer
-    @EnvironmentObject var recorder: Recorder
 
     var body: some View {
         VStack(spacing: 0) {
@@ -46,10 +45,6 @@ struct EditorView: View {
             Button("OK", role: .cancel) { project.lastError = nil }
         } message: {
             Text(project.lastError ?? "")
-        }
-        .onAppear {
-            recorder.onFinish = { project.importRecordedFile($0) }
-            recorder.onError = { project.lastError = $0 }
         }
     }
 }

@@ -11,9 +11,11 @@ struct GosanApp: App {
     init() {
         let settings = AppSettings()
         let taste = TasteEngine()
+        let recorder = Recorder()
         _settings = StateObject(wrappedValue: settings)
         _taste = StateObject(wrappedValue: taste)
-        _project = StateObject(wrappedValue: ProjectStore(settings: settings, taste: taste))
+        _recorder = StateObject(wrappedValue: recorder)
+        _project = StateObject(wrappedValue: ProjectStore(settings: settings, taste: taste, recorder: recorder))
     }
 
     var body: some Scene {

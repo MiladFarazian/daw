@@ -14,7 +14,8 @@ stay the producer. See the design:
 
 ## Status
 
-**Phase 1 — DAW bones** ✅ import audio (picker or drag-and-drop), **record from the mic** to a new track,
+**Phase 1 — DAW bones** ✅ import audio (picker or drag-and-drop), **record from the mic** (overdub —
+existing tracks play while you record, take lands at the playhead; input monitoring + level meter),
 multi-track waveform timeline, synchronized AVAudioEngine playback, transport (play/stop/seek + spacebar),
 per-track volume/mute/solo, zoom, **drag clips to move, drag edges to trim, delete tracks, and bounce the
 mix to WAV** (offline render).

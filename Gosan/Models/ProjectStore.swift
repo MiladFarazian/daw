@@ -32,12 +32,18 @@ final class ProjectStore: ObservableObject {
 
     let settings: AppSettings
     let taste: TasteEngine
+    let recorder: Recorder
     private let engine = AudioEngine()
     private var ticker: Timer?
+    private var recordPosition: TimeInterval = 0
 
-    init(settings: AppSettings, taste: TasteEngine) {
+    init(settings: AppSettings, taste: TasteEngine, recorder: Recorder) {
         self.settings = settings
         self.taste = taste
+        self.recorder = recorder
+        recorder.onStarted = { [weak self] in self?.handleRecordingStarted() }
+        recorder.onFinish = { [weak self] url in self?.placeRecording(url, at: self?.recordPosition ?? 0) }
+        recorder.onError = { [weak self] message in self?.lastError = message }
     }
 
     private var jobManager: JobManager? {
@@ -80,21 +86,46 @@ final class ProjectStore: ObservableObject {
         addNamedTrack(name: asset.name, asset: asset)
     }
 
-    /// Import a just-recorded file (already in the library) as a new track.
-    func importRecordedFile(_ url: URL) {
+    // MARK: - Recording
+
+    func toggleRecord() {
+        recorder.isRecording ? stopRecording() : startRecording()
+    }
+
+    func toggleMonitoring() { recorder.toggleMonitoring() }
+
+    private func startRecording() {
+        if isPlaying { stop() }
+        recordPosition = currentTime >= totalDuration ? 0 : currentTime
+        currentTime = recordPosition
+        recorder.startRecording() // calls back to handleRecordingStarted when capture begins
+    }
+
+    private func stopRecording() {
+        recorder.stopRecording()  // fires onFinish → placeRecording
+        stop()
+    }
+
+    /// Once capture is live, roll the existing tracks so you can perform along.
+    private func handleRecordingStarted() {
+        if !tracks.isEmpty { play() }
+    }
+
+    /// Drop the finished take on a new track at the position recording started.
+    private func placeRecording(_ url: URL, at position: TimeInterval) {
         Task.detached(priority: .userInitiated) {
             guard let waveform = WaveformLoader.load(url: url) else { return }
             let asset = AudioAsset(url: url,
                                    duration: waveform.duration,
                                    sampleRate: waveform.sampleRate,
                                    peaks: waveform.peaks)
-            await MainActor.run { self.addNamedTrack(name: "Recording", asset: asset) }
+            await MainActor.run { self.addNamedTrack(name: "Recording", asset: asset, at: position) }
         }
     }
 
-    private func addNamedTrack(name: String, asset: AudioAsset) {
+    private func addNamedTrack(name: String, asset: AudioAsset, at position: TimeInterval = 0) {
         var track = Track(name: name, colorIndex: tracks.count)
-        track.clips = [Clip(asset: asset)]
+        track.clips = [Clip(asset: asset, startTime: position)]
         tracks.append(track)
         engine.prepare(tracks: tracks)
     }
