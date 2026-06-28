@@ -5,6 +5,7 @@ enum AIError: LocalizedError {
     case http(Int, String)
     case malformed(String)
     case jobFailed(String)
+    case sidecarUnreachable(String)
 
     var errorDescription: String? {
         switch self {
@@ -16,6 +17,9 @@ enum AIError: LocalizedError {
             return "Unexpected response from Music.ai: \(what)"
         case .jobFailed(let why):
             return "Job failed: \(why)"
+        case .sidecarUnreachable(let url):
+            return "Couldn't reach the Suno sidecar at \(url). Start a local Suno API "
+                + "(e.g. gcui-art/suno-api) and set its URL in Settings, or use “Open in Suno (manual).”"
         }
     }
 }

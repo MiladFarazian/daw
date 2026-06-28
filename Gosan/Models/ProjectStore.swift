@@ -26,6 +26,7 @@ final class ProjectStore: ObservableObject {
     @Published var candidates: [CandidateAsset] = []
     @Published var useTaste = true
     @Published var lastNudge: [String] = []
+    @Published var sidecarReachable: Bool?
     private var lastPrompt: GeneratePrompt?
 
     @Published var isExporting = false
@@ -243,6 +244,13 @@ final class ProjectStore: ObservableObject {
     }
 
     // MARK: - Suno generation
+
+    /// Probe whether the Suno sidecar is up, for the Generate panel's status dot.
+    func checkSidecar() {
+        let client = SunoSidecarClient(baseURL: settings.sunoSidecarURL)
+        sidecarReachable = nil
+        Task { sidecarReachable = await client.isReachable() }
+    }
 
     func generate(_ prompt: GeneratePrompt) {
         // Bias toward learned taste (the original prompt is what we reinforce on keep).

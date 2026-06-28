@@ -16,6 +16,20 @@ struct SunoSidecarClient {
 
     func generate(_ prompt: GeneratePrompt,
                   progress: @escaping (String) -> Void) async throws -> [GeneratedCandidate] {
+        do {
+            return try await runGenerate(prompt, progress: progress)
+        } catch let error as URLError where Self.isConnectionError(error.code) {
+            throw AIError.sidecarUnreachable(baseURL.absoluteString)
+        }
+    }
+
+    private static func isConnectionError(_ code: URLError.Code) -> Bool {
+        [.cannotConnectToHost, .cannotFindHost, .networkConnectionLost,
+         .notConnectedToInternet, .timedOut, .dnsLookupFailed].contains(code)
+    }
+
+    private func runGenerate(_ prompt: GeneratePrompt,
+                             progress: @escaping (String) -> Void) async throws -> [GeneratedCandidate] {
         progress("Submitting to Suno")
         var req = URLRequest(url: baseURL.appendingPathComponent("api/generate"))
         req.httpMethod = "POST"

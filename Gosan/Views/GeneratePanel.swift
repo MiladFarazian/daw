@@ -15,6 +15,21 @@ struct GeneratePanel: View {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !project.isGenerating
     }
 
+    private var sidecarColor: Color {
+        switch project.sidecarReachable {
+        case .some(true): return .green
+        case .some(false): return .red
+        case .none: return .secondary
+        }
+    }
+    private var sidecarText: String {
+        switch project.sidecarReachable {
+        case .some(true): return "Suno sidecar connected"
+        case .some(false): return "Sidecar not reachable — start it, or use “Open in Suno (manual)” below"
+        case .none: return "Checking sidecar…"
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -22,6 +37,11 @@ struct GeneratePanel: View {
                 Spacer()
                 Button { dismiss() } label: { Image(systemName: "xmark.circle.fill") }
                     .buttonStyle(.plain).foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 6) {
+                Circle().fill(sidecarColor).frame(width: 7, height: 7)
+                Text(sidecarText).font(.caption).foregroundStyle(.secondary)
             }
 
             Text("Describe the vibe — instruments, mood, genre, tempo. Your taste, their horsepower.")
@@ -84,6 +104,7 @@ struct GeneratePanel: View {
         }
         .padding(20)
         .frame(width: 520)
+        .onAppear { project.checkSidecar() }
     }
 
     private func candidateRow(_ candidate: CandidateAsset) -> some View {
