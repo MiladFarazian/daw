@@ -25,6 +25,17 @@ struct GosanApp: App {
                 .frame(minWidth: 920, minHeight: 560)
         }
         .windowResizability(.contentMinSize)
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("New Project") { project.newProject() }
+                    .keyboardShortcut("n", modifiers: .command)
+                Button("Open…") { project.openProject() }
+                    .keyboardShortcut("o", modifiers: .command)
+                Divider()
+                Button("Save…") { project.saveProject() }
+                    .keyboardShortcut("s", modifiers: .command)
+            }
+        }
 
         Settings {
             SettingsView()

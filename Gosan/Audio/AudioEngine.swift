@@ -89,4 +89,14 @@ final class AudioEngine {
     func stop() {
         for node in nodes.values { node.player.stop() }
     }
+
+    /// Tear down all track nodes (used when switching projects).
+    func reset() {
+        stop()
+        for node in nodes.values {
+            engine.detach(node.player)
+            engine.detach(node.mixer)
+        }
+        nodes.removeAll()
+    }
 }

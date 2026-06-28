@@ -341,4 +341,111 @@ final class ProjectStore: ObservableObject {
             }
         }
     }
+
+    // MARK: - Project save / load
+
+    private static let projectType = UTType(filenameExtension: "gosan") ?? .json
+
+    func newProject() {
+        stop()
+        engine.reset()
+        tracks = []
+        candidates = []
+        name = "Untitled"
+        currentTime = 0
+    }
+
+    func saveProject() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [Self.projectType]
+        panel.nameFieldStringValue = "\(name).gosan"
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let data = try JSONEncoder().encode(snapshotDocument())
+            try data.write(to: url)
+            name = url.deletingPathExtension().lastPathComponent
+        } catch {
+            lastError = "Save failed: \(error.localizedDescription)"
+        }
+    }
+
+    func openProject() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [Self.projectType]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let document = try JSONDecoder().decode(ProjectDocument.self, from: Data(contentsOf: url))
+            Task { await applyDocument(document) }
+        } catch {
+            lastError = "Open failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func snapshotDocument() -> ProjectDocument {
+        ProjectDocument(
+            name: name, tempo: tempo, pixelsPerSecond: pixelsPerSecond,
+            tracks: tracks.map { track in
+                ProjectDocument.TrackData(
+                    name: track.name, colorIndex: track.colorIndex,
+                    volume: track.volume, pan: track.pan,
+                    isMuted: track.isMuted, isSoloed: track.isSoloed,
+                    clips: track.clips.map { clip in
+                        ProjectDocument.ClipData(
+                            assetFile: clip.asset.url.lastPathComponent,
+                            assetName: clip.asset.name,
+                            sampleRate: clip.asset.sampleRate,
+                            assetDuration: clip.asset.duration,
+                            startTime: clip.startTime, offset: clip.offset, duration: clip.duration)
+                    })
+            })
+    }
+
+    private func applyDocument(_ document: ProjectDocument) async {
+        stop()
+        engine.reset()
+        let importsDir = try? LibraryStorage.importsDirectory()
+        var assetCache: [String: AudioAsset] = [:]
+        var rebuilt: [Track] = []
+
+        for trackData in document.tracks {
+            var track = Track(name: trackData.name, colorIndex: trackData.colorIndex)
+            track.volume = trackData.volume
+            track.pan = trackData.pan
+            track.isMuted = trackData.isMuted
+            track.isSoloed = trackData.isSoloed
+
+            var clips: [Clip] = []
+            for clipData in trackData.clips {
+                let asset: AudioAsset
+                if let cached = assetCache[clipData.assetFile] {
+                    asset = cached
+                } else if let dir = importsDir {
+                    let url = dir.appendingPathComponent(clipData.assetFile)
+                    let peaks = await Task.detached(priority: .userInitiated) {
+                        WaveformLoader.load(url: url)?.peaks ?? []
+                    }.value
+                    asset = AudioAsset(url: url, duration: clipData.assetDuration,
+                                       sampleRate: clipData.sampleRate, peaks: peaks)
+                    assetCache[clipData.assetFile] = asset
+                } else {
+                    continue
+                }
+                var clip = Clip(asset: asset, startTime: clipData.startTime)
+                clip.offset = clipData.offset
+                clip.duration = clipData.duration
+                clips.append(clip)
+            }
+            track.clips = clips
+            rebuilt.append(track)
+        }
+
+        name = document.name
+        tempo = document.tempo
+        pixelsPerSecond = document.pixelsPerSecond
+        currentTime = 0
+        tracks = rebuilt
+        engine.prepare(tracks: rebuilt)
+    }
 }
