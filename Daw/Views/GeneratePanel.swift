@@ -4,6 +4,7 @@ import SwiftUI
 struct GeneratePanel: View {
     @EnvironmentObject var project: ProjectStore
     @EnvironmentObject var preview: PreviewPlayer
+    @EnvironmentObject var taste: TasteEngine
     @Environment(\.dismiss) private var dismiss
 
     @State private var text = ""
@@ -32,7 +33,12 @@ struct GeneratePanel: View {
                 .padding(6)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(.secondary.opacity(0.3)))
 
-            Toggle("Instrumental", isOn: $instrumental)
+            HStack(spacing: 16) {
+                Toggle("Instrumental", isOn: $instrumental)
+                Toggle("Use my taste", isOn: $project.useTaste)
+                    .help("Nudge the prompt toward what you've kept before.")
+                Spacer()
+            }
 
             HStack(spacing: 10) {
                 Button { project.generate(prompt) } label: {
@@ -48,6 +54,12 @@ struct GeneratePanel: View {
 
                 if project.isGenerating { ProgressView().controlSize(.small) }
                 Spacer()
+            }
+
+            if !project.lastNudge.isEmpty {
+                Label("Nudged toward: \(project.lastNudge.joined(separator: ", "))", systemImage: "wand.and.stars")
+                    .font(.caption)
+                    .foregroundStyle(.tint)
             }
 
             Divider()
@@ -67,6 +79,8 @@ struct GeneratePanel: View {
                 }
                 .frame(maxHeight: 210)
             }
+
+            tasteSection
         }
         .padding(20)
         .frame(width: 520)
@@ -86,9 +100,51 @@ struct GeneratePanel: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            Button { project.discardCandidate(candidate) } label: {
+                Image(systemName: "hand.thumbsdown")
+            }
+            .help("Discard (teaches your taste what to avoid)")
             Button("Add to timeline") { project.addCandidate(candidate) }
+                .help("Keep (teaches your taste what you like)")
         }
         .padding(8)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor)))
+    }
+
+    @ViewBuilder
+    private var tasteSection: some View {
+        let top = taste.topDescriptors
+        if top.isEmpty && taste.preferredBPM == nil {
+            EmptyView()
+        } else {
+            Divider()
+            HStack(spacing: 6) {
+                Image(systemName: "wand.and.stars").foregroundStyle(.tint)
+                Text("Your taste")
+                    .font(.subheadline.weight(.semibold))
+                Text("· \(taste.profile.keepCount) kept")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    if let bpm = taste.preferredBPM {
+                        tasteChip("~\(bpm) bpm")
+                    }
+                    ForEach(top.prefix(8), id: \.descriptor) { item in
+                        tasteChip(item.descriptor)
+                    }
+                }
+            }
+        }
+    }
+
+    private func tasteChip(_ label: String) -> some View {
+        Text(label)
+            .font(.caption)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(.tint.opacity(0.15)))
+            .foregroundStyle(.tint)
     }
 }

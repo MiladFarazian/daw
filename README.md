@@ -20,6 +20,12 @@ a vibe → get candidates in a variant tray → audition each → add the keeper
 Suno session-wrapper, with **Open in Suno (manual)** (copies the prompt, opens Suno, drag the result back)
 as a zero-setup fallback.
 
+**Phase 4 — Taste Engine v1** ✅. Keeping (Add) or discarding (👎) a candidate teaches a local taste
+profile. With **Use my taste** on, future prompts are silently nudged toward your strongest kept
+descriptors and average tempo — and the panel shows exactly what it added ("Nudged toward: …"). Your
+profile is visible as chips in the panel and resettable in Settings. Stored locally; the more you use it,
+the more output drifts toward *you*.
+
 ### Suno setup (for one-click generation)
 
 Run a local Suno API wrapper such as [`gcui-art/suno-api`](https://github.com/gcui-art/suno-api) signed in
@@ -53,7 +59,7 @@ no signing), `make clean`.
 ```
 Daw/
   App/      DawApp entry, palette + helpers
-  Models/   AudioAsset / Clip / Track, ProjectStore, AppSettings
+  Models/   AudioAsset / Clip / Track, ProjectStore, AppSettings, TasteEngine + TasteProfile
   Audio/    AudioEngine (AVAudioEngine graph), WaveformLoader, LibraryStorage, Keychain, PreviewPlayer
     AI/     MusicAIClient + JobManager (stems/analyze), SunoSidecarClient, AI/Suno types
   Views/    Editor, TransportBar, Timeline, TrackHeader, ClipLane/Waveform, Settings, GeneratePanel

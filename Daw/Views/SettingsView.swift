@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var settings: AppSettings
+    @EnvironmentObject var taste: TasteEngine
 
     var body: some View {
         Form {
@@ -23,6 +24,12 @@ struct SettingsView: View {
                 Text("Run a local Suno API wrapper (e.g. gcui-art/suno-api) on your own account and point this at it. If it's not running, use “Open in Suno (manual)” instead.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+            Section("Taste") {
+                LabeledContent("Learned from",
+                               value: "\(taste.profile.keepCount) kept · \(taste.profile.rejectCount) discarded")
+                Button("Reset taste profile", role: .destructive) { taste.reset() }
+                    .disabled(taste.profile.keepCount == 0 && taste.profile.rejectCount == 0)
             }
         }
         .formStyle(.grouped)

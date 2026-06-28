@@ -23,13 +23,18 @@ final class ProjectStore: ObservableObject {
     // Suno generation state.
     @Published var isGenerating = false
     @Published var candidates: [CandidateAsset] = []
+    @Published var useTaste = true
+    @Published var lastNudge: [String] = []
+    private var lastPrompt: GeneratePrompt?
 
     let settings: AppSettings
+    let taste: TasteEngine
     private let engine = AudioEngine()
     private var ticker: Timer?
 
-    init(settings: AppSettings) {
+    init(settings: AppSettings, taste: TasteEngine) {
         self.settings = settings
+        self.taste = taste
     }
 
     private var jobManager: JobManager? {
@@ -151,6 +156,18 @@ final class ProjectStore: ObservableObject {
     // MARK: - Suno generation
 
     func generate(_ prompt: GeneratePrompt) {
+        // Bias toward learned taste (the original prompt is what we reinforce on keep).
+        let effective: GeneratePrompt
+        if useTaste {
+            let biased = taste.bias(prompt)
+            effective = biased.prompt
+            lastNudge = biased.added
+        } else {
+            effective = prompt
+            lastNudge = []
+        }
+        lastPrompt = prompt
+
         let client = SunoSidecarClient(baseURL: settings.sunoSidecarURL)
         let progress = JobProgress(label: "Generate · \(prompt.shortLabel)")
         let jobID = progress.id
@@ -160,7 +177,7 @@ final class ProjectStore: ObservableObject {
 
         Task {
             do {
-                let generated = try await client.generate(prompt) { status in
+                let generated = try await client.generate(effective) { status in
                     Task { @MainActor in self.setJobStatus(jobID, status) }
                 }
                 for candidate in generated {
@@ -177,9 +194,17 @@ final class ProjectStore: ObservableObject {
         }
     }
 
-    /// Add a generated candidate to the timeline as a new track.
+    /// Keep a candidate: add it to the timeline and reinforce your taste.
     func addCandidate(_ candidate: CandidateAsset) {
         addNamedTrack(name: candidate.title, asset: candidate.asset)
+        if let prompt = lastPrompt { taste.recordKeep(prompt) }
+        candidates.removeAll { $0.id == candidate.id }
+    }
+
+    /// Reject a candidate: drop it and nudge your taste away from this prompt.
+    func discardCandidate(_ candidate: CandidateAsset) {
+        if let prompt = lastPrompt { taste.recordReject(prompt) }
+        candidates.removeAll { $0.id == candidate.id }
     }
 
     /// Manual bridge: copy the compiled prompt and open Suno. Result is dragged back in.

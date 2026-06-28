@@ -34,6 +34,7 @@ struct EditorView: View {
                 GeneratePanel()
                     .environmentObject(project)
                     .environmentObject(preview)
+                    .environmentObject(project.taste)
             case .analysis(let result):
                 AnalysisSheet(analysis: result)
             }
