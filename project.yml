@@ -1,0 +1,31 @@
+name: Daw
+options:
+  bundleIdPrefix: com.miladfarazian
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_STYLE: Automatic
+targets:
+  Daw:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Daw
+        excludes:
+          - "Daw.entitlements"
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_NAME: Daw
+        PRODUCT_BUNDLE_IDENTIFIER: com.miladfarazian.daw
+        CODE_SIGN_ENTITLEMENTS: Daw/Daw.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        INFOPLIST_KEY_NSHumanReadableCopyright: "© 2026 Milad Farazian"
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.music"
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Daw records audio for your tracks."

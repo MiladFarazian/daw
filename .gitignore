@@ -1,0 +1,12 @@
+# Xcode project is generated from project.yml via `make generate` (XcodeGen)
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+build/
+.build/
+*.xcuserstate
+*.swiftpm
+
+# macOS
+.DS_Store
