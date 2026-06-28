@@ -1,4 +1,8 @@
-# daw — Working Vision
+# Gosan — Working Vision
+
+> *Gosan*: the minstrel poet-musicians of Parthian/Persian folklore who carried songs by ear and made
+> them their own — the spirit of this tool's "your taste, their horsepower."
+
 
 > A GarageBand-style DAW whose superpower isn't more knobs — it's a **taste engine**.
 > Suno generates raw musical ideas, Moises/Music.ai dissects and finishes audio, and you

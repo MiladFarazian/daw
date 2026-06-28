@@ -1,4 +1,4 @@
-# daw — Technical Spec (native macOS)
+# Gosan — Technical Spec (native macOS)
 
 Companion to `docs/VISION.md`. This is the **how**. Decisions locked 2026-06-28: native macOS app,
 spec-first, all hero workflows as composable capabilities, Suno via a session-wrapper on Milad's own

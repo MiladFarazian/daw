@@ -17,7 +17,7 @@ enum TasteStore {
                                                in: .userDomainMask,
                                                appropriateFor: nil,
                                                create: true)
-        let directory = base.appendingPathComponent("Daw", isDirectory: true)
+        let directory = base.appendingPathComponent("Gosan", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory.appendingPathComponent("taste.json")
     }

@@ -1,4 +1,4 @@
-name: Daw
+name: Gosan
 options:
   bundleIdPrefix: com.miladfarazian
   deploymentTarget:
@@ -11,21 +11,22 @@ settings:
     SWIFT_VERSION: "5.0"
     CODE_SIGN_STYLE: Automatic
 targets:
-  Daw:
+  Gosan:
     type: application
     platform: macOS
     deploymentTarget: "15.0"
     sources:
-      - path: Daw
+      - path: Gosan
         excludes:
-          - "Daw.entitlements"
+          - "Gosan.entitlements"
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_NAME: Daw
-        PRODUCT_BUNDLE_IDENTIFIER: com.miladfarazian.daw
-        CODE_SIGN_ENTITLEMENTS: Daw/Daw.entitlements
+        PRODUCT_NAME: Gosan
+        PRODUCT_BUNDLE_IDENTIFIER: com.miladfarazian.gosan
+        CODE_SIGN_ENTITLEMENTS: Gosan/Gosan.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_HARDENED_RUNTIME: YES
         INFOPLIST_KEY_NSHumanReadableCopyright: "© 2026 Milad Farazian"
         INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.music"
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Daw records audio for your tracks."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Gosan records audio for your tracks."

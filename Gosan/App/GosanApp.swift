@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct DawApp: App {
+struct GosanApp: App {
     @StateObject private var settings: AppSettings
     @StateObject private var taste: TasteEngine
     @StateObject private var project: ProjectStore

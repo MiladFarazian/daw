@@ -3,7 +3,7 @@ import Security
 
 /// Minimal Keychain wrapper for storing the Music.ai API key.
 enum Keychain {
-    private static let service = "com.miladfarazian.daw"
+    private static let service = "com.miladfarazian.gosan"
 
     static func set(_ account: String, _ value: String) {
         let base: [String: Any] = [

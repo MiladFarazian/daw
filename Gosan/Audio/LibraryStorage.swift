@@ -8,7 +8,7 @@ enum LibraryStorage {
                                                in: .userDomainMask,
                                                appropriateFor: nil,
                                                create: true)
-        let directory = base.appendingPathComponent("Daw/Imports", isDirectory: true)
+        let directory = base.appendingPathComponent("Gosan/Imports", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
     }
