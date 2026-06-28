@@ -29,6 +29,8 @@ final class ProjectStore: ObservableObject {
     private var lastPrompt: GeneratePrompt?
 
     @Published var isExporting = false
+    @Published var selectedClipID: UUID?
+    @Published var snapEnabled = true
 
     let settings: AppSettings
     let taste: TasteEngine
@@ -368,10 +370,26 @@ final class ProjectStore: ObservableObject {
 
     private let minClipDuration: TimeInterval = 0.1
 
-    /// Move a clip along the timeline by a pixel delta.
+    func selectClip(_ id: UUID?) { selectedClipID = id }
+
+    /// Snap a time to the nearest 1/4-beat when snapping is on.
+    private func snapped(_ time: TimeInterval) -> TimeInterval {
+        guard snapEnabled, tempo > 0 else { return max(0, time) }
+        let grid = (60.0 / tempo) / 4
+        return max(0, (time / grid).rounded() * grid)
+    }
+
+    /// Move a clip along the timeline by a pixel delta (snapped on release).
     func moveClip(_ clip: Clip, on track: Track, byPixels dx: CGFloat) {
         let delta = TimeInterval(dx) / pixelsPerSecond
-        updateClip(clip, on: track) { $0.startTime = max(0, $0.startTime + delta) }
+        updateClip(clip, on: track) { $0.startTime = self.snapped($0.startTime + delta) }
+    }
+
+    func deleteClip(_ clip: Clip, on track: Track) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        tracks[ti].clips.removeAll { $0.id == clip.id }
+        if tracks[ti].clips.isEmpty { tracks.remove(at: ti) }
+        if selectedClipID == clip.id { selectedClipID = nil }
     }
 
     /// Drag the left edge: trims into / out of the asset head while holding the right edge fixed.

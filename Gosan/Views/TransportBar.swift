@@ -67,6 +67,12 @@ struct TransportBar: View {
 
             Spacer()
 
+            Button { project.snapEnabled.toggle() } label: {
+                Image(systemName: "ruler")
+                    .foregroundStyle(project.snapEnabled ? .green : .secondary)
+            }
+            .help("Snap clips to the beat grid")
+
             HStack(spacing: 6) {
                 Image(systemName: "minus.magnifyingglass").foregroundStyle(.secondary)
                 Slider(value: $project.pixelsPerSecond, in: 24...200).frame(width: 130)

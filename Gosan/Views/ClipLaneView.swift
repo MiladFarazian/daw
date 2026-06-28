@@ -32,8 +32,11 @@ struct ClipLaneView: View {
                             Label("Master", systemImage: "dial.high")
                         }
                         Divider()
+                        Button(role: .destructive) { project.deleteClip(clip, on: track) } label: {
+                            Label("Delete Clip", systemImage: "trash")
+                        }
                         Button(role: .destructive) { project.deleteTrack(track) } label: {
-                            Label("Delete Track", systemImage: "trash")
+                            Label("Delete Track", systemImage: "trash.slash")
                         }
                     }
             }
@@ -56,6 +59,7 @@ struct ClipView: View {
 
     private let handleWidth: CGFloat = 9
 
+    private var isSelected: Bool { project.selectedClipID == clip.id }
     private var baseWidth: CGFloat { max(2, CGFloat(clip.duration) * pps) }
     private var visualX: CGFloat { CGFloat(clip.startTime) * pps + dragX + trimLeadingX }
     private var visualWidth: CGFloat { max(handleWidth * 2, baseWidth - trimLeadingX + trimTrailingX) }
@@ -69,8 +73,9 @@ struct ClipView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 6).fill(color.opacity(0.22))
-            RoundedRectangle(cornerRadius: 6).strokeBorder(color.opacity(0.7), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 6).fill(color.opacity(isSelected ? 0.34 : 0.22))
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(color.opacity(isSelected ? 1 : 0.7), lineWidth: isSelected ? 2 : 1)
 
             WaveformView(peaks: clip.asset.peaks, color: color,
                          startFraction: startFraction, endFraction: endFraction)
@@ -98,8 +103,12 @@ struct ClipView: View {
     private var moveGesture: some Gesture {
         DragGesture()
             .onChanged { dragX = $0.translation.width }
-            .onEnded { _ in
-                project.moveClip(clip, on: track, byPixels: dragX)
+            .onEnded { value in
+                if abs(value.translation.width) < 3 {
+                    project.selectClip(clip.id)   // a click, not a drag
+                } else {
+                    project.moveClip(clip, on: track, byPixels: dragX)
+                }
                 dragX = 0
             }
     }

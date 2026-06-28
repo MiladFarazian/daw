@@ -17,8 +17,8 @@ stay the producer. See the design:
 **Phase 1 — DAW bones** ✅ import audio (picker or drag-and-drop), **record from the mic** (overdub —
 existing tracks play while you record, take lands at the playhead; input monitoring + level meter),
 multi-track waveform timeline, synchronized AVAudioEngine playback, transport (play/stop/seek + spacebar),
-per-track volume/mute/solo, zoom, **drag clips to move, drag edges to trim, delete tracks, and bounce the
-mix to WAV** (offline render).
+per-track volume/mute/solo, zoom, **drag clips to move (beat-grid snapping), drag edges to trim, click to
+select, delete clips or tracks, and bounce the mix to WAV** (offline render).
 
 **Phase 2 — Music.ai integration** ✅. Right-click any clip → **Split into Stems**, **Analyze**
 (key · BPM · chords), **Enhance** (de-reverb / denoise), **Master**, or the **Vocal Rescue** recipe
