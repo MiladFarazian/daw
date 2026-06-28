@@ -55,6 +55,10 @@ struct TransportBar: View {
                 Image(systemName: "plus.magnifyingglass").foregroundStyle(.secondary)
             }
 
+            Button { project.activeSheet = .generate } label: {
+                Label("Generate", systemImage: "sparkles")
+            }
+
             Button { project.requestImport() } label: {
                 Label("Import", systemImage: "plus")
             }

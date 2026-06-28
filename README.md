@@ -15,6 +15,18 @@ synchronized AVAudioEngine playback, transport (play/stop/seek + spacebar), per-
 (each stem lands as a new track) or **Analyze** (key · BPM · chords). Jobs run async with a progress
 indicator in the transport bar; the API key is stored in your Keychain.
 
+**Phase 3 — Suno generation** ✅ (first slice). **Generate** in the transport bar opens a panel: describe
+a vibe → get candidates in a variant tray → audition each → add the keepers to the timeline. Uses a local
+Suno session-wrapper, with **Open in Suno (manual)** (copies the prompt, opens Suno, drag the result back)
+as a zero-setup fallback.
+
+### Suno setup (for one-click generation)
+
+Run a local Suno API wrapper such as [`gcui-art/suno-api`](https://github.com/gcui-art/suno-api) signed in
+to your own Suno account (it holds your session cookie), then set its URL in **Settings → Suno**
+(default `http://127.0.0.1:3000`). No sidecar? Use **Open in Suno (manual)** — it needs nothing but the
+Suno subscription you already have.
+
 ### Music.ai setup (needed for the AI actions)
 
 1. Get an API key from the [Music.ai](https://music.ai) developer dashboard (it has a free tier).
@@ -42,8 +54,8 @@ no signing), `make clean`.
 Daw/
   App/      DawApp entry, palette + helpers
   Models/   AudioAsset / Clip / Track, ProjectStore, AppSettings
-  Audio/    AudioEngine (AVAudioEngine graph), WaveformLoader, LibraryStorage, Keychain
-    AI/     MusicAIClient, JobManager, AI types (stems / analyze)
-  Views/    Editor, TransportBar, Timeline, TrackHeader, ClipLane/Waveform, Settings
+  Audio/    AudioEngine (AVAudioEngine graph), WaveformLoader, LibraryStorage, Keychain, PreviewPlayer
+    AI/     MusicAIClient + JobManager (stems/analyze), SunoSidecarClient, AI/Suno types
+  Views/    Editor, TransportBar, Timeline, TrackHeader, ClipLane/Waveform, Settings, GeneratePanel
 docs/       VISION.md, SPEC.md
 ```

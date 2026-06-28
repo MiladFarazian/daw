@@ -4,6 +4,7 @@ import SwiftUI
 struct DawApp: App {
     @StateObject private var settings: AppSettings
     @StateObject private var project: ProjectStore
+    @StateObject private var preview = PreviewPlayer()
 
     init() {
         let settings = AppSettings()
@@ -16,6 +17,7 @@ struct DawApp: App {
             EditorView()
                 .environmentObject(project)
                 .environmentObject(settings)
+                .environmentObject(preview)
                 .frame(minWidth: 920, minHeight: 560)
         }
         .windowResizability(.contentMinSize)

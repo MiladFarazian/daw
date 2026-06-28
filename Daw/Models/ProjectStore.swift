@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import AppKit
 
 /// The in-memory project: tracks, transport state, and the audio engine.
 /// (Phase 1 keeps this in memory; SwiftData + a `.daw` document package come later.)
@@ -17,7 +18,11 @@ final class ProjectStore: ObservableObject {
     // AI job state, surfaced in the UI.
     @Published var activeJobs: [JobProgress] = []
     @Published var lastError: String?
-    @Published var presentedAnalysis: AnalysisResult?
+    @Published var activeSheet: EditorSheet?
+
+    // Suno generation state.
+    @Published var isGenerating = false
+    @Published var candidates: [CandidateAsset] = []
 
     let settings: AppSettings
     private let engine = AudioEngine()
@@ -86,7 +91,7 @@ final class ProjectStore: ObservableObject {
     /// Analyze a clip (key / BPM / chords …) and present the result.
     func analyze(_ clip: Clip) {
         runJob(label: "Analyze · \(clip.name)", workflow: settings.analyzeWorkflow, asset: clip.asset) { result, baseName in
-            self.presentedAnalysis = AnalysisResult(title: baseName, result: result)
+            self.activeSheet = .analysis(AnalysisResult(title: baseName, result: result))
         }
     }
 
@@ -122,17 +127,68 @@ final class ProjectStore: ObservableObject {
 
         for (stemName, urlString) in stems {
             guard let url = URL(string: urlString) else { continue }
-            let (tempURL, _) = try await URLSession.shared.download(from: url)
-            let ext = url.pathExtension.isEmpty ? "wav" : url.pathExtension
-            let local = try LibraryStorage.adopt(tempURL: tempURL, suggestedName: "\(baseName)-\(stemName).\(ext)")
-            guard let waveform = await Task.detached(priority: .userInitiated, operation: {
-                WaveformLoader.load(url: local)
-            }).value else { continue }
-            let asset = AudioAsset(url: local,
-                                   duration: waveform.duration,
-                                   sampleRate: waveform.sampleRate,
-                                   peaks: waveform.peaks)
+            let asset = try await assetFromRemote(url, name: "\(baseName)-\(stemName)", defaultExt: "wav")
             addNamedTrack(name: "\(baseName) · \(stemName)", asset: asset)
+        }
+    }
+
+    /// Download a remote audio URL into the library and build an AudioAsset (with waveform).
+    private func assetFromRemote(_ url: URL, name: String, defaultExt: String) async throws -> AudioAsset {
+        let (tempURL, _) = try await URLSession.shared.download(from: url)
+        let ext = url.pathExtension.isEmpty ? defaultExt : url.pathExtension
+        let local = try LibraryStorage.adopt(tempURL: tempURL, suggestedName: "\(name).\(ext)")
+        guard let waveform = await Task.detached(priority: .userInitiated, operation: {
+            WaveformLoader.load(url: local)
+        }).value else {
+            throw AIError.malformed("could not decode \(name)")
+        }
+        return AudioAsset(url: local,
+                          duration: waveform.duration,
+                          sampleRate: waveform.sampleRate,
+                          peaks: waveform.peaks)
+    }
+
+    // MARK: - Suno generation
+
+    func generate(_ prompt: GeneratePrompt) {
+        let client = SunoSidecarClient(baseURL: settings.sunoSidecarURL)
+        let progress = JobProgress(label: "Generate · \(prompt.shortLabel)")
+        let jobID = progress.id
+        activeJobs.append(progress)
+        isGenerating = true
+        candidates.removeAll()
+
+        Task {
+            do {
+                let generated = try await client.generate(prompt) { status in
+                    Task { @MainActor in self.setJobStatus(jobID, status) }
+                }
+                for candidate in generated {
+                    let asset = try await assetFromRemote(candidate.audioURL, name: candidate.title, defaultExt: "mp3")
+                    candidates.append(CandidateAsset(id: candidate.id, title: candidate.title, asset: asset))
+                }
+                removeJob(jobID)
+                isGenerating = false
+            } catch {
+                removeJob(jobID)
+                isGenerating = false
+                lastError = error.localizedDescription
+            }
+        }
+    }
+
+    /// Add a generated candidate to the timeline as a new track.
+    func addCandidate(_ candidate: CandidateAsset) {
+        addNamedTrack(name: candidate.title, asset: candidate.asset)
+    }
+
+    /// Manual bridge: copy the compiled prompt and open Suno. Result is dragged back in.
+    func openInSunoManually(_ prompt: GeneratePrompt) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(prompt.compiled, forType: .string)
+        if let url = URL(string: "https://suno.com/create") {
+            NSWorkspace.shared.open(url)
         }
     }
 

@@ -12,8 +12,15 @@ final class AppSettings: ObservableObject {
     @Published var analyzeWorkflow: String {
         didSet { UserDefaults.standard.set(analyzeWorkflow, forKey: "analyzeWorkflow") }
     }
+    @Published var sunoSidecarURLString: String {
+        didSet { UserDefaults.standard.set(sunoSidecarURLString, forKey: "sunoSidecarURL") }
+    }
 
     var hasAPIKey: Bool { !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    var sunoSidecarURL: URL {
+        URL(string: sunoSidecarURLString) ?? URL(string: "http://127.0.0.1:3000")!
+    }
 
     init() {
         apiKey = Keychain.get("musicai-api-key") ?? ""
@@ -22,5 +29,7 @@ final class AppSettings: ObservableObject {
             ?? "music-ai/stems-vocals-accompaniment"
         analyzeWorkflow = UserDefaults.standard.string(forKey: "analyzeWorkflow")
             ?? "music-ai/music-analysis"
+        sunoSidecarURLString = UserDefaults.standard.string(forKey: "sunoSidecarURL")
+            ?? "http://127.0.0.1:3000"
     }
 }

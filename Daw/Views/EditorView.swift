@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 /// Top-level editor: transport bar over the timeline (or an empty state).
 struct EditorView: View {
     @EnvironmentObject var project: ProjectStore
+    @EnvironmentObject var preview: PreviewPlayer
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,8 +28,15 @@ struct EditorView: View {
             project.importAudio(urls: urls)
             return true
         }
-        .sheet(item: $project.presentedAnalysis) { analysis in
-            AnalysisSheet(analysis: analysis)
+        .sheet(item: $project.activeSheet) { sheet in
+            switch sheet {
+            case .generate:
+                GeneratePanel()
+                    .environmentObject(project)
+                    .environmentObject(preview)
+            case .analysis(let result):
+                AnalysisSheet(analysis: result)
+            }
         }
         .alert("Something went wrong",
                isPresented: Binding(get: { project.lastError != nil },

@@ -18,6 +18,12 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            Section("Suno (session-wrapper)") {
+                TextField("Sidecar URL", text: $settings.sunoSidecarURLString)
+                Text("Run a local Suno API wrapper (e.g. gcui-art/suno-api) on your own account and point this at it. If it's not running, use “Open in Suno (manual)” instead.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .frame(width: 480, height: 340)
