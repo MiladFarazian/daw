@@ -134,42 +134,83 @@ final class ProjectStore: ObservableObject {
 
     /// Split a clip into stems; each returned stem becomes a new track.
     func splitStems(of clip: Clip) {
-        runJob(label: "Stems · \(clip.name)", workflow: settings.stemsWorkflow, asset: clip.asset) { result, baseName in
-            try await self.importStems(result, baseName: baseName)
+        let asset = clip.asset
+        Task {
+            do {
+                let result = try await runWorkflow(label: "Stems · \(clip.name)", workflow: settings.stemsWorkflow, asset: asset)
+                try await importStems(result, baseName: asset.name)
+            } catch { lastError = error.localizedDescription }
         }
     }
 
     /// Analyze a clip (key / BPM / chords …) and present the result.
     func analyze(_ clip: Clip) {
-        runJob(label: "Analyze · \(clip.name)", workflow: settings.analyzeWorkflow, asset: clip.asset) { result, baseName in
-            self.activeSheet = .analysis(AnalysisResult(title: baseName, result: result))
+        let asset = clip.asset
+        Task {
+            do {
+                let result = try await runWorkflow(label: "Analyze · \(clip.name)", workflow: settings.analyzeWorkflow, asset: asset)
+                activeSheet = .analysis(AnalysisResult(title: asset.name, result: result))
+            } catch { lastError = error.localizedDescription }
         }
     }
 
-    private func runJob(label: String,
-                        workflow: String,
-                        asset: AudioAsset,
-                        onSuccess: @escaping ([String: String], String) async throws -> Void) {
-        guard let manager = jobManager else {
-            lastError = AIError.noAPIKey.errorDescription
-            return
+    /// Clean up a take (de-reverb / denoise / clarity) onto a new track.
+    func enhanceVocal(_ clip: Clip) {
+        let asset = clip.asset
+        Task {
+            do {
+                let result = try await runWorkflow(label: "Enhance · \(clip.name)", workflow: settings.enhanceWorkflow, asset: asset)
+                let enhanced = try await assetFromResult(result, name: "\(asset.name)-enhanced")
+                addNamedTrack(name: "\(asset.name) · enhanced", asset: enhanced)
+            } catch { lastError = error.localizedDescription }
         }
+    }
+
+    /// AI master a clip onto a new track.
+    func master(_ clip: Clip) {
+        let asset = clip.asset
+        Task {
+            do {
+                let result = try await runWorkflow(label: "Master · \(clip.name)", workflow: settings.masterWorkflow, asset: asset)
+                let mastered = try await assetFromResult(result, name: "\(asset.name)-mastered")
+                addNamedTrack(name: "\(asset.name) · mastered", asset: mastered)
+            } catch { lastError = error.localizedDescription }
+        }
+    }
+
+    /// Hero recipe — Vocal Rescue: enhance the take, then master it, into one polished track.
+    func vocalRescue(_ clip: Clip) {
+        let asset = clip.asset
+        Task {
+            do {
+                let enhanceResult = try await runWorkflow(label: "Rescue · enhance · \(clip.name)", workflow: settings.enhanceWorkflow, asset: asset)
+                let enhanced = try await assetFromResult(enhanceResult, name: "\(asset.name)-enhanced")
+                let masterResult = try await runWorkflow(label: "Rescue · master · \(clip.name)", workflow: settings.masterWorkflow, asset: enhanced)
+                let rescued = try await assetFromResult(masterResult, name: "\(asset.name)-rescued")
+                addNamedTrack(name: "\(asset.name) · rescued", asset: rescued)
+            } catch { lastError = error.localizedDescription }
+        }
+    }
+
+    /// Run one Music.ai workflow on an asset, managing its progress entry; returns the result.
+    private func runWorkflow(label: String, workflow: String, asset: AudioAsset) async throws -> [String: String] {
+        guard let manager = jobManager else { throw AIError.noAPIKey }
         let progress = JobProgress(label: label)
         let jobID = progress.id
         activeJobs.append(progress)
-
-        Task {
-            do {
-                let result = try await manager.run(workflow: workflow, fileURL: asset.url, name: label) { status in
-                    Task { @MainActor in self.setJobStatus(jobID, status) }
-                }
-                try await onSuccess(result, asset.name)
-                removeJob(jobID)
-            } catch {
-                removeJob(jobID)
-                lastError = error.localizedDescription
-            }
+        defer { removeJob(jobID) }
+        return try await manager.run(workflow: workflow, fileURL: asset.url, name: label) { status in
+            Task { @MainActor in self.setJobStatus(jobID, status) }
         }
+    }
+
+    /// Pick the first output audio URL from a job result and download it as an asset.
+    private func assetFromResult(_ result: [String: String], name: String) async throws -> AudioAsset {
+        guard let urlString = result.values.first(where: { $0.hasPrefix("http") }),
+              let url = URL(string: urlString) else {
+            throw AIError.malformed("no output audio in result")
+        }
+        return try await assetFromRemote(url, name: name, defaultExt: "wav")
     }
 
     private func importStems(_ result: [String: String], baseName: String) async throws {

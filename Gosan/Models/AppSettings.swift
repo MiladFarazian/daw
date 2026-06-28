@@ -12,6 +12,12 @@ final class AppSettings: ObservableObject {
     @Published var analyzeWorkflow: String {
         didSet { UserDefaults.standard.set(analyzeWorkflow, forKey: "analyzeWorkflow") }
     }
+    @Published var enhanceWorkflow: String {
+        didSet { UserDefaults.standard.set(enhanceWorkflow, forKey: "enhanceWorkflow") }
+    }
+    @Published var masterWorkflow: String {
+        didSet { UserDefaults.standard.set(masterWorkflow, forKey: "masterWorkflow") }
+    }
     @Published var sunoSidecarURLString: String {
         didSet { UserDefaults.standard.set(sunoSidecarURLString, forKey: "sunoSidecarURL") }
     }
@@ -29,6 +35,10 @@ final class AppSettings: ObservableObject {
             ?? "music-ai/stems-vocals-accompaniment"
         analyzeWorkflow = UserDefaults.standard.string(forKey: "analyzeWorkflow")
             ?? "music-ai/music-analysis"
+        enhanceWorkflow = UserDefaults.standard.string(forKey: "enhanceWorkflow")
+            ?? "music-ai/vocal-enhancement"
+        masterWorkflow = UserDefaults.standard.string(forKey: "masterWorkflow")
+            ?? "music-ai/mastering"
         sunoSidecarURLString = UserDefaults.standard.string(forKey: "sunoSidecarURL")
             ?? "http://127.0.0.1:3000"
     }

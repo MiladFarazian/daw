@@ -20,9 +20,9 @@ multi-track waveform timeline, synchronized AVAudioEngine playback, transport (p
 per-track volume/mute/solo, zoom, **drag clips to move, drag edges to trim, delete tracks, and bounce the
 mix to WAV** (offline render).
 
-**Phase 2 — Music.ai integration** ✅ (first slice). Right-click any clip → **Split into Stems**
-(each stem lands as a new track) or **Analyze** (key · BPM · chords). Jobs run async with a progress
-indicator in the transport bar; the API key is stored in your Keychain.
+**Phase 2 — Music.ai integration** ✅. Right-click any clip → **Split into Stems**, **Analyze**
+(key · BPM · chords), **Enhance** (de-reverb / denoise), **Master**, or the **Vocal Rescue** recipe
+(enhance → master in one step). Jobs run async with a progress indicator; the API key is in your Keychain.
 
 **Phase 3 — Suno generation** ✅ (first slice). **Generate** in the transport bar opens a panel: describe
 a vibe → get candidates in a variant tray → audition each → add the keepers to the timeline. Uses a local

@@ -15,11 +15,21 @@ struct ClipLaneView: View {
             ForEach(track.clips) { clip in
                 ClipView(clip: clip, track: track, pps: pps, color: Palette.color(track.colorIndex))
                     .contextMenu {
+                        Button { project.vocalRescue(clip) } label: {
+                            Label("Vocal Rescue (enhance → master)", systemImage: "wand.and.stars")
+                        }
+                        Divider()
                         Button { project.splitStems(of: clip) } label: {
                             Label("Split into Stems", systemImage: "square.stack")
                         }
                         Button { project.analyze(clip) } label: {
                             Label("Analyze (key · BPM · chords)", systemImage: "magnifyingglass")
+                        }
+                        Button { project.enhanceVocal(clip) } label: {
+                            Label("Enhance (de-reverb · denoise)", systemImage: "sparkles")
+                        }
+                        Button { project.master(clip) } label: {
+                            Label("Master", systemImage: "dial.high")
                         }
                         Divider()
                         Button(role: .destructive) { project.deleteTrack(track) } label: {

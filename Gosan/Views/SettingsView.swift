@@ -15,6 +15,8 @@ struct SettingsView: View {
             Section("Workflow slugs") {
                 TextField("Stems workflow", text: $settings.stemsWorkflow)
                 TextField("Analyze workflow", text: $settings.analyzeWorkflow)
+                TextField("Enhance workflow", text: $settings.enhanceWorkflow)
+                TextField("Master workflow", text: $settings.masterWorkflow)
                 Text("Copy the exact slugs from your Music.ai Workflows page. The defaults are starting points and may need changing.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
