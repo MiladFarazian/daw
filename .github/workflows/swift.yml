@@ -21,3 +21,5 @@ jobs:
       run: |
         xcodebuild -project Gosan.xcodeproj -scheme Gosan -configuration Debug \
           -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
+    - name: Verify audio export + project format
+      run: make verify
