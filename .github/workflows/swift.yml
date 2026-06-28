@@ -1,7 +1,6 @@
-# This workflow will build a Swift project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-swift
-
-name: Swift
+# Builds the Gosan macOS app. The Xcode project is generated from project.yml via
+# XcodeGen, so we generate it, then compile with xcodebuild (no code signing on CI).
+name: Build
 
 on:
   push:
@@ -11,12 +10,14 @@ on:
 
 jobs:
   build:
-
-    runs-on: macos-latest
-
+    runs-on: macos-15
     steps:
     - uses: actions/checkout@v4
+    - name: Install XcodeGen
+      run: brew install xcodegen
+    - name: Generate Xcode project
+      run: xcodegen generate
     - name: Build
-      run: swift build -v
-    - name: Run tests
-      run: swift test -v
+      run: |
+        xcodebuild -project Gosan.xcodeproj -scheme Gosan -configuration Debug \
+          -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
