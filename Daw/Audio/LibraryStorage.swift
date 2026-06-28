@@ -22,4 +22,19 @@ enum LibraryStorage {
         try FileManager.default.copyItem(at: source, to: destination)
         return destination
     }
+
+    /// Move a freshly-downloaded temp file into the library under a friendly name.
+    static func adopt(tempURL: URL, suggestedName: String) throws -> URL {
+        let directory = try importsDirectory()
+        let destination = directory.appendingPathComponent("\(UUID().uuidString)-\(suggestedName)")
+        if FileManager.default.fileExists(atPath: destination.path) {
+            try FileManager.default.removeItem(at: destination)
+        }
+        do {
+            try FileManager.default.moveItem(at: tempURL, to: destination)
+        } catch {
+            try FileManager.default.copyItem(at: tempURL, to: destination)
+        }
+        return destination
+    }
 }

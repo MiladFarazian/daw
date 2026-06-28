@@ -3,6 +3,13 @@ import SwiftUI
 struct TransportBar: View {
     @EnvironmentObject var project: ProjectStore
 
+    private var jobsSummary: String {
+        if let only = project.activeJobs.first, project.activeJobs.count == 1 {
+            return "\(only.label) — \(only.status)…"
+        }
+        return "\(project.activeJobs.count) AI jobs running…"
+    }
+
     var body: some View {
         HStack(spacing: 14) {
             Button { project.seek(to: 0) } label: {
@@ -28,6 +35,17 @@ struct TransportBar: View {
                 Text("\(Int(project.tempo)) BPM")
             }
             .foregroundStyle(.secondary)
+
+            if !project.activeJobs.isEmpty {
+                Divider().frame(height: 18)
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text(jobsSummary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
 
             Spacer()
 

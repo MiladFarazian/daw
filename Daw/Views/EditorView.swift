@@ -27,6 +27,16 @@ struct EditorView: View {
             project.importAudio(urls: urls)
             return true
         }
+        .sheet(item: $project.presentedAnalysis) { analysis in
+            AnalysisSheet(analysis: analysis)
+        }
+        .alert("Something went wrong",
+               isPresented: Binding(get: { project.lastError != nil },
+                                    set: { if !$0 { project.lastError = nil } })) {
+            Button("OK", role: .cancel) { project.lastError = nil }
+        } message: {
+            Text(project.lastError ?? "")
+        }
     }
 }
 

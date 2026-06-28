@@ -2,6 +2,7 @@ import SwiftUI
 
 /// One track's lane, with its clips positioned by start time.
 struct ClipLaneView: View {
+    @EnvironmentObject var project: ProjectStore
     let track: Track
     let pps: Double
 
@@ -15,6 +16,18 @@ struct ClipLaneView: View {
                     .frame(width: max(2, CGFloat(clip.duration) * pps))
                     .padding(.vertical, 6)
                     .offset(x: CGFloat(clip.startTime) * pps)
+                    .contextMenu {
+                        Button {
+                            project.splitStems(of: clip)
+                        } label: {
+                            Label("Split into Stems", systemImage: "square.stack")
+                        }
+                        Button {
+                            project.analyze(clip)
+                        } label: {
+                            Label("Analyze (key · BPM · chords)", systemImage: "magnifyingglass")
+                        }
+                    }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
