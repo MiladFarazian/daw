@@ -80,6 +80,18 @@ final class ProjectStore: ObservableObject {
         addNamedTrack(name: asset.name, asset: asset)
     }
 
+    /// Import a just-recorded file (already in the library) as a new track.
+    func importRecordedFile(_ url: URL) {
+        Task.detached(priority: .userInitiated) {
+            guard let waveform = WaveformLoader.load(url: url) else { return }
+            let asset = AudioAsset(url: url,
+                                   duration: waveform.duration,
+                                   sampleRate: waveform.sampleRate,
+                                   peaks: waveform.peaks)
+            await MainActor.run { self.addNamedTrack(name: "Recording", asset: asset) }
+        }
+    }
+
     private func addNamedTrack(name: String, asset: AudioAsset) {
         var track = Track(name: name, colorIndex: tracks.count)
         track.clips = [Clip(asset: asset)]

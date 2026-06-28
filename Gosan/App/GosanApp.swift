@@ -6,6 +6,7 @@ struct GosanApp: App {
     @StateObject private var taste: TasteEngine
     @StateObject private var project: ProjectStore
     @StateObject private var preview = PreviewPlayer()
+    @StateObject private var recorder = Recorder()
 
     init() {
         let settings = AppSettings()
@@ -22,6 +23,7 @@ struct GosanApp: App {
                 .environmentObject(settings)
                 .environmentObject(preview)
                 .environmentObject(taste)
+                .environmentObject(recorder)
                 .frame(minWidth: 920, minHeight: 560)
         }
         .windowResizability(.contentMinSize)

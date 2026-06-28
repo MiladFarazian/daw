@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TransportBar: View {
     @EnvironmentObject var project: ProjectStore
+    @EnvironmentObject var recorder: Recorder
 
     private var jobsSummary: String {
         if let only = project.activeJobs.first, project.activeJobs.count == 1 {
@@ -23,6 +24,12 @@ struct TransportBar: View {
             }
             .keyboardShortcut(.space, modifiers: [])
             .help(project.isPlaying ? "Stop" : "Play")
+
+            Button { recorder.toggle() } label: {
+                Image(systemName: recorder.isRecording ? "stop.circle.fill" : "record.circle")
+                    .foregroundStyle(recorder.isRecording ? .red : .primary)
+            }
+            .help(recorder.isRecording ? "Stop recording" : "Record a take")
 
             Text(timecode(project.currentTime))
                 .font(.system(.body, design: .monospaced))
