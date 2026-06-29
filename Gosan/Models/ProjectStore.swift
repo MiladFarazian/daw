@@ -50,6 +50,8 @@ final class ProjectStore: ObservableObject {
     private var ticker: Timer?
     private var recordPosition: TimeInterval = 0
 
+    @Published var masterLevel: Float = 0
+
     init(settings: AppSettings, taste: TasteEngine, recorder: Recorder) {
         self.settings = settings
         self.taste = taste
@@ -57,6 +59,9 @@ final class ProjectStore: ObservableObject {
         recorder.onStarted = { [weak self] in self?.handleRecordingStarted() }
         recorder.onFinish = { [weak self] url in self?.placeRecording(url, at: self?.recordPosition ?? 0) }
         recorder.onError = { [weak self] message in self?.lastError = message }
+        engine.onLevel = { [weak self] level in
+            Task { @MainActor in self?.masterLevel = level }
+        }
     }
 
     private var jobManager: JobManager? {
@@ -380,6 +385,7 @@ final class ProjectStore: ObservableObject {
     func stop() {
         engine.stop()
         isPlaying = false
+        masterLevel = 0
         ticker?.invalidate()
         ticker = nil
     }

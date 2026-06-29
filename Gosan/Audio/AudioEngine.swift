@@ -18,11 +18,25 @@ final class AudioEngine {
     private lazy var normalClick = makeClick(freq: 1000, amp: 0.4)
     private lazy var accentClick = makeClick(freq: 1500, amp: 0.6)
 
+    /// Called on a realtime thread with the master output peak (0...1). Hop to main yourself.
+    var onLevel: ((Float) -> Void)?
+
     init() {
         engine.attach(mainMixer)
         engine.connect(mainMixer, to: engine.outputNode, format: nil)
         engine.attach(metronomePlayer)
         engine.connect(metronomePlayer, to: mainMixer, format: clickFormat)
+
+        mainMixer.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
+            guard let channels = buffer.floatChannelData else { return }
+            let n = Int(buffer.frameLength)
+            var peak: Float = 0
+            for c in 0..<Int(buffer.format.channelCount) {
+                let p = channels[c]
+                for i in 0..<n { let a = abs(p[i]); if a > peak { peak = a } }
+            }
+            self?.onLevel?(min(1, peak))
+        }
     }
 
     private func makeClick(freq: Double, amp: Float) -> AVAudioPCMBuffer? {

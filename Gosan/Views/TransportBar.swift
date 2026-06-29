@@ -71,6 +71,13 @@ struct TransportBar: View {
             }
             .help("Tempo (drives the beat grid + metronome)")
 
+            Divider().frame(height: 18)
+            HStack(spacing: 4) {
+                Image(systemName: "speaker.wave.2").font(.caption2).foregroundStyle(.secondary)
+                InputLevelMeter(level: project.masterLevel).frame(width: 54, height: 6)
+            }
+            .help("Master output level")
+
             if !project.activeJobs.isEmpty {
                 Divider().frame(height: 18)
                 HStack(spacing: 6) {
