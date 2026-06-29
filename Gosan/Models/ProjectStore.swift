@@ -78,6 +78,7 @@ final class ProjectStore: ObservableObject {
     private var recordPosition: TimeInterval = 0
 
     @Published var masterLevel: Float = 0
+    @Published var trackLevels: [UUID: Float] = [:]
 
     init(settings: AppSettings, taste: TasteEngine, recorder: Recorder) {
         self.settings = settings
@@ -88,6 +89,9 @@ final class ProjectStore: ObservableObject {
         recorder.onError = { [weak self] message in self?.lastError = message }
         engine.onLevel = { [weak self] level in
             Task { @MainActor in self?.masterLevel = level }
+        }
+        engine.onTrackLevel = { [weak self] id, level in
+            Task { @MainActor in self?.trackLevels[id] = level }
         }
     }
 
@@ -477,6 +481,7 @@ final class ProjectStore: ObservableObject {
         engine.stop()
         isPlaying = false
         masterLevel = 0
+        trackLevels = [:]
         ticker?.invalidate()
         ticker = nil
     }

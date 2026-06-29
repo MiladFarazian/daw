@@ -49,6 +49,8 @@ final class AudioEngine {
 
     /// Called on a realtime thread with the master output peak (0...1). Hop to main yourself.
     var onLevel: ((Float) -> Void)?
+    /// Called on a realtime thread with each track's post-effects peak (id, 0...1).
+    var onTrackLevel: ((UUID, Float) -> Void)?
 
     // Master bus: mainMixer → master EQ → peak limiter → output.
     private let masterEQ = AVAudioUnitEQ(numberOfBands: 3)
@@ -151,6 +153,19 @@ final class AudioEngine {
             engine.connect(reverb, to: delay, format: stereo)
             engine.connect(delay, to: mainMixer, format: stereo)
             nodes[track.id] = TrackNode(player: player, mixer: mixer, eq: eq, comp: comp, reverb: reverb, delay: delay)
+
+            // Post-effects level meter for this track.
+            let id = track.id
+            delay.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
+                guard let channels = buffer.floatChannelData else { return }
+                let n = Int(buffer.frameLength)
+                var peak: Float = 0
+                for c in 0..<Int(buffer.format.channelCount) {
+                    let p = channels[c]
+                    for i in 0..<n { let a = abs(p[i]); if a > peak { peak = a } }
+                }
+                self?.onTrackLevel?(id, min(1, peak))
+            }
         }
         applyMix(tracks: tracks)
         if !engine.isRunning { try? engine.start() }
@@ -246,6 +261,7 @@ final class AudioEngine {
     func reset() {
         stop()
         for node in nodes.values {
+            node.delay.removeTap(onBus: 0)
             [node.player, node.mixer, node.eq, node.comp, node.reverb, node.delay].forEach { engine.detach($0) }
         }
         nodes.removeAll()

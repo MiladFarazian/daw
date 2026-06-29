@@ -65,6 +65,10 @@ struct TrackHeaderView: View {
                 }
             }
             Spacer(minLength: 0)
+
+            TrackMeter(level: project.trackLevels[track.id] ?? 0)
+                .frame(width: 6)
+                .padding(.vertical, 10)
         }
         .padding(.horizontal, 10)
         .frame(maxHeight: .infinity)
@@ -116,5 +120,29 @@ struct TrackHeaderView: View {
                 Label("Delete Track", systemImage: "trash")
             }
         }
+    }
+}
+
+/// A thin vertical peak meter (green → yellow → red), filling from the bottom.
+struct TrackMeter: View {
+    let level: Float   // 0...1 peak
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .bottom) {
+                Capsule().fill(Color.black.opacity(0.22))
+                Capsule()
+                    .fill(color)
+                    .frame(height: geo.size.height * CGFloat(min(1, max(0, level))))
+            }
+        }
+        .animation(.linear(duration: 0.06), value: level)
+        .help("Track level")
+    }
+
+    private var color: Color {
+        if level > 0.9 { return .red }
+        if level > 0.7 { return .yellow }
+        return .green
     }
 }
