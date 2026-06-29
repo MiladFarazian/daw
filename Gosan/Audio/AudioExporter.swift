@@ -74,12 +74,19 @@ enum AudioExporter {
                 player = node
             }
 
-            // mixer → eq → comp → reverb → delay → main (effects after the mixer → stereo).
+            // mixer → eq → comp → reverb → delay → [plugins…] → main.
             engine.connect(mixer, to: eq, format: renderFormat)
             engine.connect(eq, to: comp, format: renderFormat)
             engine.connect(comp, to: reverb, format: renderFormat)
             engine.connect(reverb, to: delay, format: renderFormat)
-            engine.connect(delay, to: mainMixer, format: renderFormat)
+            var tail: AVAudioNode = delay
+            for ref in track.plugins {
+                guard let plugin = PluginHost.instantiate(ref) else { continue }
+                engine.attach(plugin)
+                engine.connect(tail, to: plugin, format: renderFormat)
+                tail = plugin
+            }
+            engine.connect(tail, to: mainMixer, format: renderFormat)
 
             let audible = soloing ? track.isSoloed : !track.isMuted
             mixer.outputVolume = audible ? track.volume : 0

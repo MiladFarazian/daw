@@ -612,6 +612,27 @@ final class ProjectStore: ObservableObject {
         engine.applyMix(tracks: tracks)
     }
 
+    // MARK: - Plugins (Audio Unit inserts)
+
+    func addPlugin(_ ref: PluginRef, to track: Track) {
+        guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
+        tracks[i].plugins.append(ref)
+        engine.reload(tracks: tracks)   // rebuild the chain with the new insert
+    }
+
+    func removePlugin(at index: Int, from track: Track) {
+        guard let i = tracks.firstIndex(where: { $0.id == track.id }),
+              tracks[i].plugins.indices.contains(index) else { return }
+        recordUndo()
+        tracks[i].plugins.remove(at: index)
+        engine.reload(tracks: tracks)
+    }
+
+    func pluginUnit(trackID: UUID, index: Int) -> AVAudioUnit? {
+        engine.pluginUnit(trackID: trackID, index: index)
+    }
+
     /// Render a track's clips + effects (EQ/comp/reverb/delay/volume/pan) to one audio
     /// file and add it as a new "(bounce)" track — non-destructive.
     func bounceTrack(_ track: Track) {
@@ -1204,7 +1225,8 @@ final class ProjectStore: ObservableObject {
                                                  duration: $0.duration, velocity: $0.velocity)
                     },
                     volumeAutomation: track.volumeAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
-                    panAutomation: track.panAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) })
+                    panAutomation: track.panAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
+                    plugins: track.plugins)
             },
             markers: markers,
             masterEqLow: masterEqLow, masterEqMid: masterEqMid, masterEqHigh: masterEqHigh,
@@ -1236,6 +1258,7 @@ final class ProjectStore: ObservableObject {
             }
             track.volumeAutomation = trackData.volumeAutomation.map { AutomationPoint(time: $0.time, value: $0.value) }
             track.panAutomation = trackData.panAutomation.map { AutomationPoint(time: $0.time, value: $0.value) }
+            track.plugins = trackData.plugins
 
             var clips: [Clip] = []
             for clipData in trackData.clips {

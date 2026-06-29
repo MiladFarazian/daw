@@ -114,6 +114,9 @@ struct TrackHeaderView: View {
             Button { project.activeSheet = .automation(track.id) } label: {
                 Label("Automation…", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
             }
+            Button { project.activeSheet = .plugins(track.id) } label: {
+                Label("Plugins…", systemImage: "puzzlepiece.extension")
+            }
             if track.isInstrument {
                 Divider()
                 Button { project.activeSheet = .pianoRoll(track.id) } label: {

@@ -20,7 +20,7 @@ generate:
 verify:
 	swiftc Gosan/Models/Models.swift Gosan/Models/ProjectDocument.swift \
 		Gosan/Audio/ProjectPackage.swift Gosan/Audio/ClipBuffer.swift Gosan/Audio/ClipProcessing.swift \
-		Gosan/Audio/MIDISupport.swift Gosan/Audio/AudioExporter.swift tools/AudioChecks.swift \
+		Gosan/Audio/MIDISupport.swift Gosan/Audio/PluginHost.swift Gosan/Audio/AudioExporter.swift tools/AudioChecks.swift \
 		-o $(TMPDIR)gosan-audiochecks -framework AVFoundation -framework AudioToolbox
 	$(TMPDIR)gosan-audiochecks
 

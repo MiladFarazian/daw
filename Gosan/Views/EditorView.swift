@@ -43,6 +43,8 @@ struct EditorView: View {
                 PianoRollView(trackID: id).environmentObject(project)
             case .automation(let id):
                 AutomationView(trackID: id).environmentObject(project)
+            case .plugins(let id):
+                PluginsView(trackID: id).environmentObject(project)
             case .analysis(let result):
                 AnalysisSheet(analysis: result)
             }

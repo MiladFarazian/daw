@@ -268,6 +268,21 @@ struct AudioChecks {
         print(String(format: "   (volume automation: early %.3f, late %.3f)", early, late))
         check("volume automation fades the mix down", early > 0.1 && late < early * 0.3)
 
+        // Y) Plugin host: audio still flows through an inserted Audio Unit (chain wiring).
+        var pluginTrack = Track(name: "Plugin", colorIndex: 0)
+        pluginTrack.clips = [Clip(asset: asset, startTime: 0.0)]
+        // Apple's built-in lowpass effect, inserted as a plugin (default cutoff passes 440 Hz).
+        pluginTrack.plugins = [PluginRef(name: "AULowpass",
+                                         type: kAudioUnitType_Effect,
+                                         subType: kAudioUnitSubType_LowPassFilter,
+                                         manufacturer: kAudioUnitManufacturer_Apple)]
+        let outY = tmp.appendingPathComponent("plugin.wav")
+        try? FileManager.default.removeItem(at: outY)
+        try AudioExporter.render(tracks: [pluginTrack], duration: 2.0, to: outY)
+        let pluginBody = try rms(outY, 0.3, 1.7)
+        print(String(format: "   (plugin chain: body %.3f)", pluginBody))
+        check("audio flows through an inserted Audio Unit plugin", pluginBody > 0.05)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }

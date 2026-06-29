@@ -15,6 +15,7 @@ final class AudioEngine {
         let comp: AVAudioUnitEffect
         let reverb: AVAudioUnitReverb
         let delay: AVAudioUnitDelay
+        let plugins: [AVAudioUnit]           // inserted AU effects (post-FX)
     }
     private var nodes: [UUID: TrackNode] = [:]
     private var midiWorkItems: [DispatchWorkItem] = []
@@ -158,14 +159,24 @@ final class AudioEngine {
                 player = node
             }
 
-            // source → mixer → eq → comp → reverb → delay → main. Effects sit after the mixer
-            // so they always see stereo (the AUs reject a mono input).
+            // source → mixer → eq → comp → reverb → delay → [plugins…] → main. Effects sit after
+            // the mixer so they always see stereo (the AUs reject a mono input).
             engine.connect(mixer, to: eq, format: stereo)
             engine.connect(eq, to: comp, format: stereo)
             engine.connect(comp, to: reverb, format: stereo)
             engine.connect(reverb, to: delay, format: stereo)
-            engine.connect(delay, to: mainMixer, format: stereo)
-            nodes[track.id] = TrackNode(player: player, synth: synth, mixer: mixer, eq: eq, comp: comp, reverb: reverb, delay: delay)
+            var pluginNodes: [AVAudioUnit] = []
+            var tail: AVAudioNode = delay
+            for ref in track.plugins {
+                guard let plugin = PluginHost.instantiate(ref) else { continue }
+                engine.attach(plugin)
+                engine.connect(tail, to: plugin, format: stereo)
+                tail = plugin
+                pluginNodes.append(plugin)
+            }
+            engine.connect(tail, to: mainMixer, format: stereo)
+            nodes[track.id] = TrackNode(player: player, synth: synth, mixer: mixer, eq: eq,
+                                        comp: comp, reverb: reverb, delay: delay, plugins: pluginNodes)
 
             // Post-effects level meter for this track.
             let id = track.id
@@ -325,8 +336,21 @@ final class AudioEngine {
             var units: [AVAudioNode] = [node.mixer, node.eq, node.comp, node.reverb, node.delay]
             if let player = node.player { units.append(player) }
             if let synth = node.synth { units.append(synth) }
+            units.append(contentsOf: node.plugins)
             units.forEach { engine.detach($0) }
         }
         nodes.removeAll()
+    }
+
+    /// Rebuild every track node (used after the plugin chain changes).
+    func reload(tracks: [Track]) {
+        reset()
+        prepare(tracks: tracks)
+    }
+
+    /// The live AVAudioUnit for a track's inserted plugin (for showing its UI).
+    func pluginUnit(trackID: UUID, index: Int) -> AVAudioUnit? {
+        guard let node = nodes[trackID], node.plugins.indices.contains(index) else { return nil }
+        return node.plugins[index]
     }
 }
