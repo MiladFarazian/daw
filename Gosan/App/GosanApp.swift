@@ -38,6 +38,28 @@ struct GosanApp: App {
                     .keyboardShortcut("z", modifiers: [.command, .shift])
                     .disabled(!project.canRedo)
             }
+            CommandMenu("Transport") {
+                Button(project.isPlaying ? "Stop" : "Play") { project.togglePlay() }
+                    .keyboardShortcut(.space, modifiers: [])
+                Button("Return to Start") { project.seek(to: 0) }
+                    .keyboardShortcut(.home, modifiers: [])
+                Button("Go to End") { project.seek(to: project.totalDuration) }
+                    .keyboardShortcut(.end, modifiers: [])
+                Divider()
+                Button("Nudge Back 1s") { project.seek(to: max(0, project.currentTime - 1)) }
+                    .keyboardShortcut(.leftArrow, modifiers: .option)
+                Button("Nudge Forward 1s") { project.seek(to: project.currentTime + 1) }
+                    .keyboardShortcut(.rightArrow, modifiers: .option)
+                Divider()
+                Button(project.loopEnabled ? "Disable Loop" : "Enable Loop") { project.toggleLoop() }
+                    .keyboardShortcut("l", modifiers: .command)
+                Button(project.metronomeEnabled ? "Metronome Off" : "Metronome On") {
+                    project.metronomeEnabled.toggle()
+                }
+                .keyboardShortcut("k", modifiers: .command)
+                Button("Open Mixer") { project.activeSheet = .mixer }
+                    .keyboardShortcut("m", modifiers: [.command, .shift])
+            }
             CommandGroup(replacing: .newItem) {
                 Button("New Project") { project.newProject() }
                     .keyboardShortcut("n", modifiers: .command)
