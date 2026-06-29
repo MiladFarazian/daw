@@ -14,14 +14,25 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Section("Moises workflow slugs") {
-                TextField("Stems workflow", text: $settings.stemsWorkflow)
-                TextField("Analyze workflow", text: $settings.analyzeWorkflow)
-                TextField("Enhance workflow", text: $settings.enhanceWorkflow)
-                TextField("Master workflow", text: $settings.masterWorkflow)
-                Text("Copy the exact slugs from your Moises (developer.moises.ai) Workflows page. The defaults are starting points and may need changing.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            Section("Moises workflows") {
+                Button("Load my workflows from Moises") { settings.loadWorkflows() }
+                    .disabled(!settings.hasAPIKey)
+                if let status = settings.workflowStatus {
+                    Text(status).font(.caption).foregroundStyle(.secondary)
+                }
+                if settings.availableWorkflows.isEmpty {
+                    TextField("Stems workflow", text: $settings.stemsWorkflow)
+                    TextField("Analyze workflow", text: $settings.analyzeWorkflow)
+                    TextField("Enhance workflow", text: $settings.enhanceWorkflow)
+                    TextField("Master workflow", text: $settings.masterWorkflow)
+                    Text("Paste your key above and click “Load my workflows” to pick from dropdowns instead of typing slugs.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    workflowPicker("Stems", $settings.stemsWorkflow)
+                    workflowPicker("Analyze", $settings.analyzeWorkflow)
+                    workflowPicker("Enhance", $settings.enhanceWorkflow)
+                    workflowPicker("Master", $settings.masterWorkflow)
+                }
             }
             Section("Suno (session-wrapper)") {
                 TextField("Sidecar URL", text: $settings.sunoSidecarURLString)
@@ -37,7 +48,13 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 340)
+        .frame(width: 480, height: 380)
+    }
+
+    private func workflowPicker(_ label: String, _ binding: Binding<String>) -> some View {
+        Picker(label, selection: binding) {
+            ForEach(settings.availableWorkflows) { wf in Text(wf.name).tag(wf.slug) }
+        }
     }
 }
 

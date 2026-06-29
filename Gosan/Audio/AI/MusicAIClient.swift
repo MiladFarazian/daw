@@ -14,6 +14,25 @@ struct MusicAIClient {
         return req
     }
 
+    /// List the account's workflows (slug + name) so the user can pick instead of typing.
+    func listWorkflows() async throws -> [WorkflowInfo] {
+        let (data, resp) = try await URLSession.shared.data(for: request("workflow", method: "GET"))
+        try Self.check(resp, data)
+        let object = try JSONSerialization.jsonObject(with: data)
+        let array: [[String: Any]]
+        if let a = object as? [[String: Any]] {
+            array = a
+        } else if let d = object as? [String: Any], let a = (d["workflows"] ?? d["data"]) as? [[String: Any]] {
+            array = a
+        } else {
+            throw AIError.malformed("workflow list")
+        }
+        return array.compactMap { item in
+            guard let slug = item["slug"] as? String else { return nil }
+            return WorkflowInfo(slug: slug, name: (item["name"] as? String) ?? slug)
+        }
+    }
+
     /// Ask for a temporary upload URL and the matching download URL.
     func uploadURLs() async throws -> (upload: URL, download: URL) {
         let (data, resp) = try await URLSession.shared.data(for: request("upload", method: "GET"))

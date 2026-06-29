@@ -24,6 +24,13 @@ enum AIError: LocalizedError {
     }
 }
 
+/// A Moises workflow (slug + display name) from `GET /workflow`.
+struct WorkflowInfo: Identifiable, Hashable {
+    let slug: String
+    let name: String
+    var id: String { slug }
+}
+
 /// Job lifecycle states returned by `GET /job/:id`.
 enum JobState: String {
     case queued = "QUEUED"

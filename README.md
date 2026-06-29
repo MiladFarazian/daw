@@ -57,14 +57,19 @@ subscription. No key needed if you just use **Send to Moises (manual)** with the
 For the one-click actions:
 1. Get a free API key from the [Moises developer platform](https://developer.moises.ai).
 2. **Gosan → Settings (⌘,)** → paste the key.
-3. Set the **workflow slugs** to match your Moises **Workflows** page (e.g.
-   `music-ai/stems-vocals-accompaniment`). Defaults are starting points; if a job errors, check the slug.
+3. In Settings, click **Load my workflows from Moises** — it verifies the key and turns the workflow
+   fields into dropdowns (no slug typing). Pick Stems / Analyze / Enhance / Master from your account.
 
 ### Suno setup (for one-click generation)
 
-Run a local Suno API wrapper such as [`gcui-art/suno-api`](https://github.com/gcui-art/suno-api) signed in
-to your own Suno account, then set its URL in **Settings → Suno** (default `http://127.0.0.1:3000`).
-No sidecar? Use **Open in Suno (manual)** — it needs nothing but your Suno subscription.
+One command (needs Node.js; get your cookie from suno.com DevTools):
+
+```sh
+SUNO_COOKIE='your-cookie' make suno-sidecar
+```
+
+Leave it running — Gosan → Generate shows a green dot. No sidecar? Use **Open in Suno (manual)** — it
+needs nothing but your Suno subscription. (If Suno's bot check blocks the sidecar, the manual bridge always works.)
 
 ## Build & run
 

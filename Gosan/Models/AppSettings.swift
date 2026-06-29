@@ -22,7 +22,28 @@ final class AppSettings: ObservableObject {
         didSet { UserDefaults.standard.set(sunoSidecarURLString, forKey: "sunoSidecarURL") }
     }
 
+    @Published var availableWorkflows: [WorkflowInfo] = []
+    @Published var workflowStatus: String?
+
     var hasAPIKey: Bool { !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    /// Fetch the account's workflows so Settings can offer dropdowns (and verify the key).
+    func loadWorkflows() {
+        guard hasAPIKey else { workflowStatus = "Add your Moises key first."; return }
+        workflowStatus = "Loading…"
+        let client = MusicAIClient(apiKey: apiKey)
+        Task {
+            do {
+                let workflows = try await client.listWorkflows()
+                availableWorkflows = workflows
+                workflowStatus = workflows.isEmpty
+                    ? "Connected, but no workflows — create some at developer.moises.ai."
+                    : "✓ \(workflows.count) workflows loaded."
+            } catch {
+                workflowStatus = error.localizedDescription
+            }
+        }
+    }
 
     var sunoSidecarURL: URL {
         URL(string: sunoSidecarURLString) ?? URL(string: "http://127.0.0.1:3000")!
