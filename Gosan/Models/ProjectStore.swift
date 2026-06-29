@@ -830,6 +830,34 @@ final class ProjectStore: ObservableObject {
         }
     }
 
+    /// Bake a pitch-shifted copy of a clip (length preserved), ± semitones.
+    func pitchShiftClip(_ clip: Clip, on track: Track, semitones: Float) {
+        let url = clip.asset.url, offset = clip.offset, duration = clip.duration
+        let keepDuration = clip.duration
+        isImporting = true
+        Task.detached(priority: .userInitiated) {
+            guard let dir = try? LibraryStorage.importsDirectory(),
+                  let pitched = ClipProcessing.pitchShift(url: url, offset: offset, duration: duration,
+                                                          semitones: semitones, outputDir: dir),
+                  let waveform = WaveformLoader.load(url: pitched) else {
+                await MainActor.run { self.isImporting = false; self.lastError = "Pitch shift failed." }
+                return
+            }
+            let asset = AudioAsset(url: pitched, duration: waveform.duration,
+                                   sampleRate: waveform.sampleRate, peaks: waveform.peaks)
+            await MainActor.run {
+                self.recordUndo()
+                self.updateClip(clip, on: track) {
+                    $0.asset = asset
+                    $0.offset = 0
+                    $0.duration = min(asset.duration, keepDuration)
+                }
+                self.engine.prepare(tracks: self.tracks)
+                self.isImporting = false
+            }
+        }
+    }
+
     /// Replace the clip's audio with a reversed copy of its current segment.
     func reverseClip(_ clip: Clip, on track: Track) {
         let url = clip.asset.url, offset = clip.offset, duration = clip.duration

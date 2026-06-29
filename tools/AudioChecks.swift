@@ -221,6 +221,16 @@ struct AudioChecks {
         print(String(format: "   (half/full track-volume ratio: %.2f, expect ~0.5)", volRatio))
         check("track volume bakes into bounce/export", volRatio > 0.4 && volRatio < 0.6)
 
+        // U) Pitch shift raises/lowers the fundamental (zero-crossing rate tracks pitch).
+        let zcBase = try zeroCrossings(toneURL, 0.5, 1.5)
+        let upURL = ClipProcessing.pitchShift(url: toneURL, offset: 0, duration: 2.0, semitones: 12, outputDir: tmp)
+        let downURL = ClipProcessing.pitchShift(url: toneURL, offset: 0, duration: 2.0, semitones: -12, outputDir: tmp)
+        let zcUp = (try? upURL.map { try zeroCrossings($0, 0.5, 1.5) } ?? 0) ?? 0
+        let zcDown = (try? downURL.map { try zeroCrossings($0, 0.5, 1.5) } ?? 0) ?? 0
+        print(String(format: "   (zero-crossings: base %d, +12st %d, -12st %d)", zcBase, zcUp, zcDown))
+        check("pitch up raises the fundamental", Double(zcUp) > Double(zcBase) * 1.5)
+        check("pitch down lowers the fundamental", zcDown > 0 && Double(zcDown) < Double(zcBase) * 0.7)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }
@@ -267,6 +277,28 @@ struct AudioChecks {
                 ? Float(sin(2 * .pi * 440 * Double(i) / sampleRate)) * 0.5 : 0
         }
         try file.write(from: buffer)
+    }
+
+    /// Count sign changes on channel 0 over [a, b] seconds — a cheap fundamental-pitch proxy.
+    static func zeroCrossings(_ url: URL, _ a: Double, _ b: Double) throws -> Int {
+        let file = try AVAudioFile(forReading: url)
+        let format = file.processingFormat
+        let sr = format.sampleRate
+        let start = AVAudioFramePosition(a * sr)
+        let frames = AVAudioFrameCount((b - a) * sr)
+        guard frames > 0, start < file.length,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return 0 }
+        file.framePosition = start
+        try file.read(into: buffer, frameCount: frames)
+        guard let p = buffer.floatChannelData?[0] else { return 0 }
+        let n = Int(buffer.frameLength)
+        var count = 0, prev: Float = 0
+        for i in 0..<n {
+            let s = p[i]
+            if i > 0 && ((prev < 0 && s >= 0) || (prev > 0 && s <= 0)) { count += 1 }
+            prev = s
+        }
+        return count
     }
 
     static func rms(_ url: URL, _ a: Double, _ b: Double) throws -> Float {

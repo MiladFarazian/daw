@@ -79,6 +79,16 @@ struct ClipLaneView: View {
                         } label: {
                             Label("Time-stretch", systemImage: "timeline.selection")
                         }
+                        Menu {
+                            Button("Down octave (−12)") { project.pitchShiftClip(clip, on: track, semitones: -12) }
+                            Button("Down 5th (−7)") { project.pitchShiftClip(clip, on: track, semitones: -7) }
+                            Button("Down 2 (−2)") { project.pitchShiftClip(clip, on: track, semitones: -2) }
+                            Button("Up 2 (+2)") { project.pitchShiftClip(clip, on: track, semitones: 2) }
+                            Button("Up 5th (+7)") { project.pitchShiftClip(clip, on: track, semitones: 7) }
+                            Button("Up octave (+12)") { project.pitchShiftClip(clip, on: track, semitones: 12) }
+                        } label: {
+                            Label("Pitch Shift", systemImage: "tuningfork")
+                        }
                         Divider()
                         Button { project.vocalRescue(clip) } label: {
                             Label("Vocal Rescue (enhance → master)", systemImage: "wand.and.stars")
