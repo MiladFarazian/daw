@@ -92,6 +92,11 @@ struct TransportBar: View {
                 Label("Generate", systemImage: "sparkles")
             }
 
+            Button { project.addEmptyTrack() } label: {
+                Label("Track", systemImage: "rectangle.stack.badge.plus")
+            }
+            .help("Add an empty track")
+
             Button { project.requestImport() } label: {
                 Label("Import", systemImage: "plus")
             }

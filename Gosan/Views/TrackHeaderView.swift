@@ -4,6 +4,9 @@ struct TrackHeaderView: View {
     @EnvironmentObject var project: ProjectStore
     let track: Track
 
+    @State private var isEditing = false
+    @State private var draft = ""
+
     var body: some View {
         HStack(spacing: 10) {
             RoundedRectangle(cornerRadius: 2)
@@ -11,9 +14,18 @@ struct TrackHeaderView: View {
                 .frame(width: 4)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(track.name)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
+                if isEditing {
+                    TextField("Name", text: $draft)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12, weight: .medium))
+                        .onSubmit { project.renameTrack(track, to: draft); isEditing = false }
+                } else {
+                    Text(track.name)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                        .onTapGesture(count: 2) { draft = track.name; isEditing = true }
+                        .help("Double-click to rename")
+                }
 
                 HStack(spacing: 6) {
                     Toggle("M", isOn: Binding(

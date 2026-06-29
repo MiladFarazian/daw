@@ -23,6 +23,14 @@ struct TimelineView: View {
                         .frame(height: trackHeight)
                     Divider()
                 }
+                Button { project.addEmptyTrack() } label: {
+                    Label("Add Track", systemImage: "plus")
+                        .font(.system(size: 11))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
             }
             .frame(width: headerWidth)

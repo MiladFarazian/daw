@@ -50,6 +50,10 @@ struct ClipLaneView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .dropDestination(for: URL.self) { urls, location in
+            project.importAudio(urls: urls, onto: track, at: Double(location.x) / pps)
+            return true
+        }
     }
 }
 

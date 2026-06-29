@@ -74,7 +74,12 @@ final class ProjectStore: ObservableObject {
         for url in urls { importOne(url) }
     }
 
-    private func importOne(_ url: URL) {
+    /// Drop one or more files onto an existing track at a timeline position.
+    func importAudio(urls: [URL], onto track: Track, at position: TimeInterval) {
+        for url in urls { importOne(url, ontoTrackID: track.id, at: max(0, position)) }
+    }
+
+    private func importOne(_ url: URL, ontoTrackID: UUID? = nil, at position: TimeInterval = 0) {
         isImporting = true
         let scoped = url.startAccessingSecurityScopedResource()
         Task.detached(priority: .userInitiated) { [self] in
@@ -89,7 +94,11 @@ final class ProjectStore: ObservableObject {
                                    sampleRate: waveform.sampleRate,
                                    peaks: waveform.peaks)
             await MainActor.run {
-                self.addTrack(with: asset)
+                if let trackID = ontoTrackID {
+                    self.addClip(asset: asset, toTrackID: trackID, at: position)
+                } else {
+                    self.addTrack(with: asset)
+                }
                 self.isImporting = false
             }
         }
@@ -97,6 +106,13 @@ final class ProjectStore: ObservableObject {
 
     private func addTrack(with asset: AudioAsset) {
         addNamedTrack(name: asset.name, asset: asset)
+    }
+
+    private func addClip(asset: AudioAsset, toTrackID: UUID, at position: TimeInterval) {
+        guard let index = tracks.firstIndex(where: { $0.id == toTrackID }) else { return }
+        recordUndo()
+        tracks[index].clips.append(Clip(asset: asset, startTime: position))
+        engine.prepare(tracks: tracks)
     }
 
     // MARK: - Recording
@@ -402,6 +418,19 @@ final class ProjectStore: ObservableObject {
     func deleteTrack(_ track: Track) {
         recordUndo()
         tracks.removeAll { $0.id == track.id }
+    }
+
+    func addEmptyTrack() {
+        recordUndo()
+        let track = Track(name: "Track \(tracks.count + 1)", colorIndex: tracks.count)
+        tracks.append(track)
+        engine.prepare(tracks: tracks)
+    }
+
+    func renameTrack(_ track: Track, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        mutate(track) { $0.name = trimmed }
     }
 
     // MARK: - Clip editing
