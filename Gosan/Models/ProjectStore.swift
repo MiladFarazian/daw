@@ -552,6 +552,40 @@ final class ProjectStore: ObservableObject {
         engine.prepare(tracks: tracks)
     }
 
+    func addInstrumentTrack() {
+        recordUndo()
+        var track = Track(name: "Instrument \(tracks.count + 1)", colorIndex: tracks.count)
+        track.isInstrument = true
+        tracks.append(track)
+        engine.prepare(tracks: tracks)
+    }
+
+    // MARK: - MIDI notes (instrument tracks)
+
+    func addNote(_ note: MIDINote, to track: Track) {
+        guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
+        tracks[i].notes.append(note)
+    }
+
+    func deleteNote(_ note: MIDINote, from track: Track) {
+        guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
+        tracks[i].notes.removeAll { $0.id == note.id }
+    }
+
+    func updateNote(_ note: MIDINote, on track: Track, _ change: (inout MIDINote) -> Void) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }),
+              let ni = tracks[ti].notes.firstIndex(where: { $0.id == note.id }) else { return }
+        recordUndo()
+        change(&tracks[ti].notes[ni])
+    }
+
+    func setProgram(_ track: Track, _ program: Int) {
+        guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        tracks[i].program = max(0, min(127, program))
+    }
+
     /// Render a track's clips + effects (EQ/comp/reverb/delay/volume/pan) to one audio
     /// file and add it as a new "(bounce)" track — non-destructive.
     func bounceTrack(_ track: Track) {
@@ -1137,6 +1171,11 @@ final class ProjectStore: ObservableObject {
                             startTime: clip.startTime, offset: clip.offset, duration: clip.duration,
                             fadeIn: clip.fadeIn, fadeOut: clip.fadeOut, fadeCurve: clip.fadeCurve,
                             gain: clip.gain, muted: clip.muted, customName: clip.customName)
+                    },
+                    isInstrument: track.isInstrument, program: track.program,
+                    notes: track.notes.map {
+                        ProjectDocument.NoteData(pitch: $0.pitch, start: $0.start,
+                                                 duration: $0.duration, velocity: $0.velocity)
                     })
             },
             markers: markers,
@@ -1162,6 +1201,11 @@ final class ProjectStore: ObservableObject {
             track.eqHigh = trackData.eqHigh
             track.isMuted = trackData.isMuted
             track.isSoloed = trackData.isSoloed
+            track.isInstrument = trackData.isInstrument
+            track.program = trackData.program
+            track.notes = trackData.notes.map {
+                MIDINote(pitch: $0.pitch, start: $0.start, duration: $0.duration, velocity: $0.velocity)
+            }
 
             var clips: [Clip] = []
             for clipData in trackData.clips {

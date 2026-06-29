@@ -49,6 +49,32 @@ struct Marker: Identifiable, Codable {
     var name: String
 }
 
+/// A MIDI note on an instrument track. Times are in seconds on the timeline.
+struct MIDINote: Identifiable, Equatable {
+    let id = UUID()
+    var pitch: Int                  // 0...127 (60 = middle C)
+    var start: TimeInterval
+    var duration: TimeInterval
+    var velocity: Int = 100         // 1...127
+}
+
+/// A breakpoint in an automation envelope (value is parameter-specific).
+struct AutomationPoint: Identifiable, Equatable {
+    let id = UUID()
+    var time: TimeInterval
+    var value: Float
+}
+
+/// An installed Audio Unit effect inserted on a track.
+struct PluginRef: Identifiable, Equatable, Codable {
+    var id = UUID()
+    var name: String
+    var type: UInt32
+    var subType: UInt32
+    var manufacturer: UInt32
+    var stateData: Data?            // archived full-state (kAudioUnitProperty_ClassInfo)
+}
+
 /// One horizontal lane with its own mixer settings.
 struct Track: Identifiable {
     let id = UUID()
@@ -66,10 +92,42 @@ struct Track: Identifiable {
     var isSoloed = false
     var clips: [Clip] = []
 
-    var endTime: TimeInterval { clips.map { $0.startTime + $0.duration }.max() ?? 0 }
+    // Instrument (MIDI) tracks
+    var isInstrument = false
+    var program: Int = 0         // General-MIDI program (0 = grand piano)
+    var notes: [MIDINote] = []
+
+    // Automation envelopes (empty = no automation; values 0...1 for volume, -1...1 for pan)
+    var volumeAutomation: [AutomationPoint] = []
+    var panAutomation: [AutomationPoint] = []
+
+    // Insert effects (Audio Unit plugins), in chain order
+    var plugins: [PluginRef] = []
+
+    var endTime: TimeInterval {
+        let clipEnd = clips.map { $0.startTime + $0.duration }.max() ?? 0
+        let noteEnd = notes.map { $0.start + $0.duration }.max() ?? 0
+        return max(clipEnd, noteEnd)
+    }
 
     init(name: String, colorIndex: Int) {
         self.name = name
         self.colorIndex = colorIndex
     }
+}
+
+/// Sample an automation envelope at `time` (linear between points; flat outside).
+func automationValue(_ points: [AutomationPoint], at time: TimeInterval, default def: Float) -> Float {
+    guard let first = points.first else { return def }
+    if time <= first.time { return first.value }
+    guard let last = points.last else { return def }
+    if time >= last.time { return last.value }
+    for i in 1..<points.count where points[i].time >= time {
+        let a = points[i - 1], b = points[i]
+        let span = b.time - a.time
+        if span <= 0 { return b.value }
+        let t = Float((time - a.time) / span)
+        return a.value + (b.value - a.value) * t
+    }
+    return last.value
 }

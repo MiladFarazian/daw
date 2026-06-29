@@ -26,14 +26,18 @@ struct TimelineView: View {
                             .frame(height: trackHeight)
                         Divider()
                     }
-                    Button { project.addEmptyTrack() } label: {
+                    Menu {
+                        Button { project.addEmptyTrack() } label: { Label("Audio Track", systemImage: "waveform") }
+                        Button { project.addInstrumentTrack() } label: { Label("Instrument Track", systemImage: "pianokeys") }
+                    } label: {
                         Label("Add Track", systemImage: "plus")
                             .font(.system(size: 11))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 6)
                     }
-                    .buttonStyle(.plain)
+                    .menuStyle(.borderlessButton)
                     .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
                 }
                 .frame(width: headerWidth)
                 .background(.bar)

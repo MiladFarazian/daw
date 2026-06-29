@@ -39,6 +39,8 @@ struct EditorView: View {
                 YouTubeSheet().environmentObject(project)
             case .mixer:
                 MixerView().environmentObject(project)
+            case .pianoRoll(let id):
+                PianoRollView(trackID: id).environmentObject(project)
             case .analysis(let result):
                 AnalysisSheet(analysis: result)
             }

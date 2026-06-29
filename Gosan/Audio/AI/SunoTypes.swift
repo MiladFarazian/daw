@@ -39,6 +39,7 @@ enum EditorSheet: Identifiable {
     case generate
     case youtube
     case mixer
+    case pianoRoll(UUID)
     case analysis(AnalysisResult)
 
     var id: String {
@@ -46,6 +47,7 @@ enum EditorSheet: Identifiable {
         case .generate: return "generate"
         case .youtube: return "youtube"
         case .mixer: return "mixer"
+        case .pianoRoll(let id): return "piano-\(id.uuidString)"
         case .analysis(let result): return result.id.uuidString
         }
     }

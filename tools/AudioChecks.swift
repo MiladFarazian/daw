@@ -244,6 +244,17 @@ struct AudioChecks {
         print(String(format: "   (normalize peak: %.3f → %.3f, target ~0.89)", beforePeak, afterPeak))
         check("normalize lifts a quiet mix to ~target peak", beforePeak < 0.6 && abs(afterPeak - 0.89) < 0.05)
 
+        // W) MIDI instrument track renders a note (built-in DLS synth), at the right time.
+        var midiTrack = Track(name: "MIDI", colorIndex: 0)
+        midiTrack.isInstrument = true
+        midiTrack.notes = [MIDINote(pitch: 60, start: 0.5, duration: 1.0, velocity: 110)]
+        let outW = tmp.appendingPathComponent("midi.wav")
+        try? FileManager.default.removeItem(at: outW)
+        try AudioExporter.render(tracks: [midiTrack], duration: 2.0, to: outW)
+        let midiHead = try rms(outW, 0.0, 0.4), midiBody = try rms(outW, 0.6, 1.4)
+        print(String(format: "   (MIDI render: head %.4f, note %.4f)", midiHead, midiBody))
+        check("MIDI instrument renders a note at the right time", midiBody > 0.005 && midiHead < midiBody * 0.4)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }

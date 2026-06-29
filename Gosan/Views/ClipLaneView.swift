@@ -13,6 +13,15 @@ struct ClipLaneView: View {
         ZStack(alignment: .topLeading) {
             Rectangle()
                 .fill(Color(nsColor: .underPageBackgroundColor).opacity(0.5))
+                .onTapGesture(count: 2) {
+                    if track.isInstrument { project.activeSheet = .pianoRoll(track.id) }
+                }
+
+            if track.isInstrument {
+                InstrumentLanePreview(track: track, pps: pps,
+                                      color: Palette.color(track.colorIndex))
+                    .allowsHitTesting(false)
+            }
 
             ForEach(track.clips) { clip in
                 ClipView(clip: clip, track: track, pps: pps, color: Palette.color(track.colorIndex))
@@ -133,6 +142,36 @@ struct ClipLaneView: View {
                 renameTarget = nil
             }
             Button("Cancel", role: .cancel) { renameTarget = nil }
+        }
+    }
+}
+
+/// A read-only mini piano-roll preview of an instrument track's notes in its lane.
+struct InstrumentLanePreview: View {
+    let track: Track
+    let pps: Double
+    let color: Color
+
+    private let lowPitch = 36, highPitch = 84
+
+    var body: some View {
+        GeometryReader { geo in
+            let span = CGFloat(highPitch - lowPitch)
+            ZStack(alignment: .topLeading) {
+                ForEach(track.notes) { note in
+                    let clamped = max(lowPitch, min(highPitch, note.pitch))
+                    let y = (1 - CGFloat(clamped - lowPitch) / span) * (geo.size.height - 4)
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(color)
+                        .frame(width: max(3, CGFloat(note.duration) * pps), height: 3)
+                        .offset(x: CGFloat(note.start) * pps, y: y + 2)
+                }
+                if track.notes.isEmpty {
+                    Text("Instrument — double-click to add notes")
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                        .padding(6)
+                }
+            }
         }
     }
 }

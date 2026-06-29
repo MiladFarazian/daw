@@ -111,6 +111,12 @@ struct TrackHeaderView: View {
                 Button("Cut Lows") { project.setEQ(track, low: -8, mid: 0, high: 0) }
                 Button("Telephone") { project.setEQ(track, low: -10, mid: 4, high: -8) }
             } label: { Label("EQ", systemImage: "slider.vertical.3") }
+            if track.isInstrument {
+                Divider()
+                Button { project.activeSheet = .pianoRoll(track.id) } label: {
+                    Label("Piano Roll…", systemImage: "pianokeys")
+                }
+            }
             Divider()
             Button { project.bounceTrack(track) } label: {
                 Label("Bounce to New Track", systemImage: "square.and.arrow.down.on.square")

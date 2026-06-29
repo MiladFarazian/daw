@@ -28,6 +28,16 @@ struct ProjectDocument: Codable {
         var isMuted: Bool
         var isSoloed: Bool
         var clips: [ClipData]
+        var isInstrument: Bool = false
+        var program: Int = 0
+        var notes: [NoteData] = []
+    }
+
+    struct NoteData: Codable {
+        var pitch: Int
+        var start: TimeInterval
+        var duration: TimeInterval
+        var velocity: Int = 100
     }
 
     struct ClipData: Codable {

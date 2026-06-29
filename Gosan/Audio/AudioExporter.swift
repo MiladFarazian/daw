@@ -27,10 +27,11 @@ enum AudioExporter {
         let mainMixer = engine.mainMixerNode
         let soloing = tracks.contains { $0.isSoloed }
 
-        // One player per track, scheduled at timeline positions.
         var players: [AVAudioPlayerNode] = []
+        var synths: [(au: AVAudioUnit, program: Int)] = []
+        var midiEvents: [MIDISupport.Event] = []
+
         for track in tracks {
-            let player = AVAudioPlayerNode()
             let mixer = AVAudioMixerNode()
             let eq = AVAudioUnitEQ(numberOfBands: 3)
             eq.bands[0].filterType = .lowShelf; eq.bands[0].frequency = 120; eq.bands[0].gain = track.eqLow; eq.bands[0].bypass = false
@@ -46,17 +47,31 @@ enum AudioExporter {
             reverb.wetDryMix = track.reverb * 100
             let delay = AVAudioUnitDelay()
             delay.delayTime = 0.33; delay.feedback = 30; delay.wetDryMix = track.delay * 100
-            [player, mixer, eq, comp, reverb, delay].forEach { engine.attach($0) }
+            [mixer, eq, comp, reverb, delay].forEach { engine.attach($0) }
             let threshold: Float = track.compress <= 0 ? 20 : 20 - track.compress * 50
             AudioUnitSetParameter(comp.audioUnit, kDynamicsProcessorParam_Threshold, kAudioUnitScope_Global, 0, threshold, 0)
             AudioUnitSetParameter(comp.audioUnit, kDynamicsProcessorParam_HeadRoom, kAudioUnitScope_Global, 0, 5, 0)
             AudioUnitSetParameter(comp.audioUnit, kDynamicsProcessorParam_AttackTime, kAudioUnitScope_Global, 0, 0.002, 0)
             AudioUnitSetParameter(comp.audioUnit, kDynamicsProcessorParam_ReleaseTime, kAudioUnitScope_Global, 0, 0.1, 0)
-            // Connect with the first clip's format so scheduled buffers match.
-            let trackFormat = track.clips.first
-                .flatMap { try? AVAudioFile(forReading: $0.asset.url).processingFormat }
-            // player → mixer → eq → comp → reverb → delay → main (effects after the mixer → stereo).
-            engine.connect(player, to: mixer, format: trackFormat)
+
+            // Source: a synth (instrument track) or a player (audio track) → mixer.
+            var player: AVAudioPlayerNode?
+            if track.isInstrument, let synth = MIDISupport.makeDLSSynth() {
+                engine.attach(synth)
+                engine.connect(synth, to: mixer, format: renderFormat)
+                synths.append((synth, track.program))
+                midiEvents += MIDISupport.events(for: track.notes, au: synth.audioUnit,
+                                                 from: from, sampleRate: sampleRate)
+            } else {
+                let node = AVAudioPlayerNode()
+                engine.attach(node)
+                let trackFormat = track.clips.first
+                    .flatMap { try? AVAudioFile(forReading: $0.asset.url).processingFormat }
+                engine.connect(node, to: mixer, format: trackFormat)
+                player = node
+            }
+
+            // mixer → eq → comp → reverb → delay → main (effects after the mixer → stereo).
             engine.connect(mixer, to: eq, format: renderFormat)
             engine.connect(eq, to: comp, format: renderFormat)
             engine.connect(comp, to: reverb, format: renderFormat)
@@ -67,33 +82,36 @@ enum AudioExporter {
             mixer.outputVolume = audible ? track.volume : 0
             mixer.pan = track.pan
 
-            for clip in track.clips {
-                guard !clip.muted, let file = try? AVAudioFile(forReading: clip.asset.url) else { continue }
-                let fileRate = file.processingFormat.sampleRate
-                guard clip.startTime + clip.duration > from else { continue }
-                let intoClip = max(0, from - clip.startTime)
-                let startFrame = AVAudioFramePosition((clip.offset + intoClip) * fileRate)
-                let available = file.length - startFrame
-                guard available > 0 else { continue }
-                let frames = AVAudioFrameCount(max(0, min((clip.duration - intoClip) * fileRate, Double(available))))
-                guard frames > 0 else { continue }
-                let whenSeconds = max(0, clip.startTime - from)
-                let when = AVAudioTime(sampleTime: AVAudioFramePosition(whenSeconds * sampleRate), atRate: sampleRate)
-                let fadeIn = max(0, clip.fadeIn - intoClip)
-                if let buffer = ClipBuffer.faded(file: file, startFrame: startFrame, frames: frames,
-                                                 fadeInFrames: Int(fadeIn * fileRate),
-                                                 fadeOutFrames: Int(clip.fadeOut * fileRate),
-                                                 gain: clip.gain, curve: clip.fadeCurve) {
-                    player.scheduleBuffer(buffer, at: when, options: [], completionHandler: nil)
+            if let player {
+                for clip in track.clips {
+                    guard !clip.muted, let file = try? AVAudioFile(forReading: clip.asset.url) else { continue }
+                    let fileRate = file.processingFormat.sampleRate
+                    guard clip.startTime + clip.duration > from else { continue }
+                    let intoClip = max(0, from - clip.startTime)
+                    let startFrame = AVAudioFramePosition((clip.offset + intoClip) * fileRate)
+                    let available = file.length - startFrame
+                    guard available > 0 else { continue }
+                    let frames = AVAudioFrameCount(max(0, min((clip.duration - intoClip) * fileRate, Double(available))))
+                    guard frames > 0 else { continue }
+                    let whenSeconds = max(0, clip.startTime - from)
+                    let when = AVAudioTime(sampleTime: AVAudioFramePosition(whenSeconds * sampleRate), atRate: sampleRate)
+                    let fadeIn = max(0, clip.fadeIn - intoClip)
+                    if let buffer = ClipBuffer.faded(file: file, startFrame: startFrame, frames: frames,
+                                                     fadeInFrames: Int(fadeIn * fileRate),
+                                                     fadeOutFrames: Int(clip.fadeOut * fileRate),
+                                                     gain: clip.gain, curve: clip.fadeCurve) {
+                        player.scheduleBuffer(buffer, at: when, options: [], completionHandler: nil)
+                    }
                 }
+                players.append(player)
             }
-            players.append(player)
         }
 
         try engine.enableManualRenderingMode(.offline, format: renderFormat,
                                              maximumFrameCount: 4096)
         try engine.start()
         players.forEach { $0.play() }
+        for synth in synths { MIDISupport.program(synth.au.audioUnit, synth.program) }
 
         let settings: [String: Any] = aac
             ? [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: sampleRate,
@@ -105,20 +123,35 @@ enum AudioExporter {
             throw ExportError.renderFailed
         }
 
-        while engine.manualRenderingSampleTime < totalFrames {
-            let remaining = totalFrames - engine.manualRenderingSampleTime
-            let toRender = min(AVAudioFrameCount(remaining), buffer.frameCapacity)
-            switch try engine.renderOffline(toRender, to: buffer) {
-            case .success:
-                try outputFile.write(from: buffer)
-            case .insufficientDataFromInputNode, .cannotDoInCurrentContext:
-                continue
-            case .error:
-                throw ExportError.renderFailed
-            @unknown default:
-                throw ExportError.renderFailed
+        // Render up to a target sample, writing each chunk.
+        func renderUpTo(_ target: AVAudioFramePosition) throws {
+            while engine.manualRenderingSampleTime < target {
+                let remaining = target - engine.manualRenderingSampleTime
+                let toRender = min(AVAudioFrameCount(remaining), buffer.frameCapacity)
+                switch try engine.renderOffline(toRender, to: buffer) {
+                case .success:
+                    try outputFile.write(from: buffer)
+                case .insufficientDataFromInputNode, .cannotDoInCurrentContext:
+                    continue
+                case .error:
+                    throw ExportError.renderFailed
+                @unknown default:
+                    throw ExportError.renderFailed
+                }
             }
         }
+
+        // Render to each MIDI event's time, fire it, then finish — sample-accurate.
+        let sortedEvents = midiEvents.sorted { $0.sample < $1.sample }
+        for event in sortedEvents where event.sample < totalFrames {
+            try renderUpTo(event.sample)
+            if event.isOn {
+                MIDISupport.noteOn(event.au, pitch: event.pitch, velocity: event.velocity)
+            } else {
+                MIDISupport.noteOff(event.au, pitch: event.pitch)
+            }
+        }
+        try renderUpTo(totalFrames)
 
         players.forEach { $0.stop() }
         engine.stop()

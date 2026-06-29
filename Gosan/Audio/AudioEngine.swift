@@ -8,7 +8,8 @@ final class AudioEngine {
     private let mainMixer = AVAudioMixerNode()
 
     private struct TrackNode {
-        let player: AVAudioPlayerNode
+        let player: AVAudioPlayerNode?       // audio tracks
+        let synth: AVAudioUnit?              // instrument (MIDI) tracks
         let mixer: AVAudioMixerNode
         let eq: AVAudioUnitEQ
         let comp: AVAudioUnitEffect
@@ -16,6 +17,7 @@ final class AudioEngine {
         let delay: AVAudioUnitDelay
     }
     private var nodes: [UUID: TrackNode] = [:]
+    private var midiWorkItems: [DispatchWorkItem] = []
 
     private static func makeCompressor() -> AVAudioUnitEffect {
         AVAudioUnitEffect(audioComponentDescription:
@@ -125,7 +127,6 @@ final class AudioEngine {
     /// Make sure every track has audio nodes attached and the mix reflects current state.
     func prepare(tracks: [Track]) {
         for track in tracks where nodes[track.id] == nil {
-            let player = AVAudioPlayerNode()
             let mixer = AVAudioMixerNode()
             let eq = AVAudioUnitEQ(numberOfBands: 3)
             configureEQ(eq)
@@ -137,22 +138,34 @@ final class AudioEngine {
             delay.delayTime = 0.33
             delay.feedback = 30
             delay.wetDryMix = 0
-            [player, mixer, eq, comp, reverb, delay].forEach { engine.attach($0) }
+            [mixer, eq, comp, reverb, delay].forEach { engine.attach($0) }
 
-            let format = track.clips.first
-                .flatMap { try? AVAudioFile(forReading: $0.asset.url).processingFormat }
-                ?? AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
-
-            // player → mixer → eq → comp → reverb → delay → main. Effects sit after the mixer
-            // so they always see stereo (the AUs reject a mono input).
             let stereo = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
-            engine.connect(player, to: mixer, format: format)
+
+            // Source: an instrument synth or an audio player → mixer.
+            var player: AVAudioPlayerNode?
+            var synth: AVAudioUnit?
+            if track.isInstrument, let s = MIDISupport.makeDLSSynth() {
+                engine.attach(s)
+                engine.connect(s, to: mixer, format: stereo)
+                synth = s
+            } else {
+                let node = AVAudioPlayerNode()
+                engine.attach(node)
+                let format = track.clips.first
+                    .flatMap { try? AVAudioFile(forReading: $0.asset.url).processingFormat } ?? stereo
+                engine.connect(node, to: mixer, format: format)
+                player = node
+            }
+
+            // source → mixer → eq → comp → reverb → delay → main. Effects sit after the mixer
+            // so they always see stereo (the AUs reject a mono input).
             engine.connect(mixer, to: eq, format: stereo)
             engine.connect(eq, to: comp, format: stereo)
             engine.connect(comp, to: reverb, format: stereo)
             engine.connect(reverb, to: delay, format: stereo)
             engine.connect(delay, to: mainMixer, format: stereo)
-            nodes[track.id] = TrackNode(player: player, mixer: mixer, eq: eq, comp: comp, reverb: reverb, delay: delay)
+            nodes[track.id] = TrackNode(player: player, synth: synth, mixer: mixer, eq: eq, comp: comp, reverb: reverb, delay: delay)
 
             // Post-effects level meter for this track.
             let id = track.id
@@ -201,7 +214,16 @@ final class AudioEngine {
 
         for track in tracks {
             guard let node = nodes[track.id] else { continue }
-            node.player.stop()
+
+            // Instrument track: schedule MIDI note on/off relative to the shared start.
+            if let synth = node.synth {
+                MIDISupport.program(synth.audioUnit, track.program)
+                scheduleNotes(track.notes, on: synth, from: position, lead: lead)
+                continue
+            }
+
+            guard let player = node.player else { continue }
+            player.stop()
 
             for clip in track.clips {
                 guard !clip.muted, let file = try? AVAudioFile(forReading: clip.asset.url) else { continue }
@@ -226,10 +248,26 @@ final class AudioEngine {
                 if let buffer = ClipBuffer.faded(file: file, startFrame: startFrame, frames: frames,
                                                  fadeInFrames: fadeInFrames, fadeOutFrames: fadeOutFrames,
                                                  gain: clip.gain, curve: clip.fadeCurve) {
-                    node.player.scheduleBuffer(buffer, at: when, options: [], completionHandler: nil)
+                    player.scheduleBuffer(buffer, at: when, options: [], completionHandler: nil)
                 }
             }
-            node.player.play(at: t0)
+            player.play(at: t0)
+        }
+    }
+
+    /// Schedule a track's notes as timer-fired MIDI events (live monitoring).
+    private func scheduleNotes(_ notes: [MIDINote], on synth: AVAudioUnit,
+                               from position: TimeInterval, lead: Double) {
+        let au = synth.audioUnit
+        for note in notes {
+            let onDelay = note.start - position
+            let offDelay = note.start + note.duration - position
+            guard offDelay > 0 else { continue }
+            let onItem = DispatchWorkItem { MIDISupport.noteOn(au, pitch: note.pitch, velocity: note.velocity) }
+            let offItem = DispatchWorkItem { MIDISupport.noteOff(au, pitch: note.pitch) }
+            midiWorkItems.append(onItem); midiWorkItems.append(offItem)
+            DispatchQueue.main.asyncAfter(deadline: .now() + lead + max(0, onDelay), execute: onItem)
+            DispatchQueue.main.asyncAfter(deadline: .now() + lead + offDelay, execute: offItem)
         }
     }
 
@@ -253,7 +291,12 @@ final class AudioEngine {
     }
 
     func stop() {
-        for node in nodes.values { node.player.stop() }
+        midiWorkItems.forEach { $0.cancel() }
+        midiWorkItems.removeAll()
+        for node in nodes.values {
+            node.player?.stop()
+            if let au = node.synth?.audioUnit { MIDISupport.allNotesOff(au) }
+        }
         metronomePlayer.stop()
     }
 
@@ -262,7 +305,10 @@ final class AudioEngine {
         stop()
         for node in nodes.values {
             node.delay.removeTap(onBus: 0)
-            [node.player, node.mixer, node.eq, node.comp, node.reverb, node.delay].forEach { engine.detach($0) }
+            var units: [AVAudioNode] = [node.mixer, node.eq, node.comp, node.reverb, node.delay]
+            if let player = node.player { units.append(player) }
+            if let synth = node.synth { units.append(synth) }
+            units.forEach { engine.detach($0) }
         }
         nodes.removeAll()
     }
