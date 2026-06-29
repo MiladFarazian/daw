@@ -43,6 +43,18 @@ struct GosanApp: App {
                     .keyboardShortcut("n", modifiers: .command)
                 Button("Open…") { project.openProject() }
                     .keyboardShortcut("o", modifiers: .command)
+                Menu("Open Recent") {
+                    ForEach(settings.recentProjects, id: \.self) { path in
+                        Button(URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent) {
+                            project.openProjectAt(URL(fileURLWithPath: path))
+                        }
+                    }
+                    if !settings.recentProjects.isEmpty {
+                        Divider()
+                        Button("Clear Menu") { settings.recentProjects = [] }
+                    }
+                }
+                .disabled(settings.recentProjects.isEmpty)
                 Divider()
                 Button("Save…") { project.saveProject() }
                     .keyboardShortcut("s", modifiers: .command)

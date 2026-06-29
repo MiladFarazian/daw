@@ -25,6 +25,18 @@ final class AppSettings: ObservableObject {
     @Published var availableWorkflows: [WorkflowInfo] = []
     @Published var workflowStatus: String?
 
+    @Published var recentProjects: [String] {
+        didSet { UserDefaults.standard.set(recentProjects, forKey: "recentProjects") }
+    }
+
+    /// Record a project path at the top of the recents list (deduped, capped).
+    func addRecent(_ url: URL) {
+        let path = url.path
+        recentProjects.removeAll { $0 == path }
+        recentProjects.insert(path, at: 0)
+        if recentProjects.count > 8 { recentProjects = Array(recentProjects.prefix(8)) }
+    }
+
     var hasAPIKey: Bool { !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     /// Fetch the account's workflows so Settings can offer dropdowns (and verify the key).
@@ -62,5 +74,6 @@ final class AppSettings: ObservableObject {
             ?? "music-ai/mastering"
         sunoSidecarURLString = UserDefaults.standard.string(forKey: "sunoSidecarURL")
             ?? "http://127.0.0.1:3000"
+        recentProjects = UserDefaults.standard.stringArray(forKey: "recentProjects") ?? []
     }
 }

@@ -942,6 +942,7 @@ final class ProjectStore: ObservableObject {
         do {
             try ProjectPackage.write(snapshotDocument(), assetURLs: assetURLs, to: url)
             name = url.deletingPathExtension().lastPathComponent
+            settings.addRecent(url)
         } catch {
             lastError = "Save failed: \(error.localizedDescription)"
         }
@@ -953,10 +954,20 @@ final class ProjectStore: ObservableObject {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        openProjectAt(url)
+    }
 
+    /// Open a specific .gosan package (used by the Open Recent menu).
+    func openProjectAt(_ url: URL) {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            settings.recentProjects.removeAll { $0 == url.path }
+            lastError = "That project no longer exists at \(url.path)."
+            return
+        }
         let scoped = url.startAccessingSecurityScopedResource()
         do {
             let (document, audioDir) = try ProjectPackage.read(url)
+            settings.addRecent(url)
             Task {
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
                 await applyDocument(document, audioDir: audioDir)
