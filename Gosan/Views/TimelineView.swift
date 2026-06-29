@@ -12,83 +12,86 @@ struct TimelineView: View {
     var body: some View {
         let pps = project.pixelsPerSecond
         let contentWidth = max(1, CGFloat(project.totalDuration) * pps)
+        // Explicit heights so the nested scroll layout stays unambiguous.
+        let lanesHeight = rulerHeight + 1 + CGFloat(project.tracks.count) * (trackHeight + 1)
 
-        HStack(spacing: 0) {
-            // Pinned header column
-            VStack(spacing: 0) {
-                Color.clear.frame(height: rulerHeight)
-                Divider()
-                ForEach(project.tracks) { track in
-                    TrackHeaderView(track: track)
-                        .frame(height: trackHeight)
+        ScrollView(.vertical, showsIndicators: true) {
+            HStack(spacing: 0) {
+                // Header column (scrolls vertically with the lanes; pinned horizontally)
+                VStack(spacing: 0) {
+                    Color.clear.frame(height: rulerHeight)
                     Divider()
-                }
-                Button { project.addEmptyTrack() } label: {
-                    Label("Add Track", systemImage: "plus")
-                        .font(.system(size: 11))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-            .frame(width: headerWidth)
-            .background(.bar)
-
-            Divider()
-
-            // Scrollable lane area
-            ScrollView(.horizontal, showsIndicators: true) {
-                ZStack(alignment: .topLeading) {
-                    BeatGridView(pps: pps, tempo: project.tempo, beatsPerBar: project.beatsPerBar)
-                        .frame(width: contentWidth)
-                        .allowsHitTesting(false)
-
-                    VStack(spacing: 0) {
-                        TimeRulerView(pps: pps, tempo: project.tempo, beatsPerBar: project.beatsPerBar)
-                            .frame(width: contentWidth, height: rulerHeight)
-                            .contentShape(Rectangle())
-                            .gesture(
-                                SpatialTapGesture().onEnded { value in
-                                    project.seek(to: Double(value.location.x) / pps)
-                                }
-                            )
-                            .simultaneousGesture(
-                                DragGesture(minimumDistance: 6).onChanged { value in
-                                    project.setLoop(Double(min(value.startLocation.x, value.location.x)) / pps,
-                                                    Double(max(value.startLocation.x, value.location.x)) / pps)
-                                }
-                            )
+                    ForEach(project.tracks) { track in
+                        TrackHeaderView(track: track)
+                            .frame(height: trackHeight)
                         Divider()
-                        ForEach(project.tracks) { track in
-                            ClipLaneView(track: track, pps: pps)
-                                .frame(width: contentWidth, height: trackHeight)
-                            Divider()
-                        }
-                        Spacer(minLength: 0)
                     }
+                    Button { project.addEmptyTrack() } label: {
+                        Label("Add Track", systemImage: "plus")
+                            .font(.system(size: 11))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+                .frame(width: headerWidth)
+                .background(.bar)
 
-                    if project.loopActive {
+                Divider()
+
+                // Lane area (scrolls horizontally)
+                ScrollView(.horizontal, showsIndicators: true) {
+                    ZStack(alignment: .topLeading) {
+                        BeatGridView(pps: pps, tempo: project.tempo, beatsPerBar: project.beatsPerBar)
+                            .frame(width: contentWidth, height: lanesHeight)
+                            .allowsHitTesting(false)
+
+                        VStack(spacing: 0) {
+                            TimeRulerView(pps: pps, tempo: project.tempo, beatsPerBar: project.beatsPerBar)
+                                .frame(width: contentWidth, height: rulerHeight)
+                                .contentShape(Rectangle())
+                                .gesture(
+                                    SpatialTapGesture().onEnded { value in
+                                        project.seek(to: Double(value.location.x) / pps)
+                                    }
+                                )
+                                .simultaneousGesture(
+                                    DragGesture(minimumDistance: 6).onChanged { value in
+                                        project.setLoop(Double(min(value.startLocation.x, value.location.x)) / pps,
+                                                        Double(max(value.startLocation.x, value.location.x)) / pps)
+                                    }
+                                )
+                            Divider()
+                            ForEach(project.tracks) { track in
+                                ClipLaneView(track: track, pps: pps)
+                                    .frame(width: contentWidth, height: trackHeight)
+                                Divider()
+                            }
+                        }
+
+                        if project.loopActive {
+                            Rectangle()
+                                .fill(Color.yellow.opacity(project.loopEnabled ? 0.14 : 0.06))
+                                .frame(width: CGFloat(project.loopEnd - project.loopStart) * pps, height: lanesHeight)
+                                .offset(x: CGFloat(project.loopStart) * pps)
+                                .allowsHitTesting(false)
+                        }
+
+                        ForEach(project.markers) { marker in
+                            MarkerFlag(marker: marker)
+                                .frame(height: lanesHeight)
+                                .offset(x: CGFloat(marker.time) * pps)
+                        }
+
                         Rectangle()
-                            .fill(Color.yellow.opacity(project.loopEnabled ? 0.14 : 0.06))
-                            .frame(width: CGFloat(project.loopEnd - project.loopStart) * pps)
-                            .offset(x: CGFloat(project.loopStart) * pps)
+                            .fill(Color.red)
+                            .frame(width: 1.5, height: lanesHeight)
+                            .offset(x: CGFloat(project.currentTime) * pps)
                             .allowsHitTesting(false)
                     }
-
-                    ForEach(project.markers) { marker in
-                        MarkerFlag(marker: marker)
-                            .offset(x: CGFloat(marker.time) * pps)
-                    }
-
-                    Rectangle()
-                        .fill(Color.red)
-                        .frame(width: 1.5)
-                        .offset(x: CGFloat(project.currentTime) * pps)
-                        .allowsHitTesting(false)
+                    .frame(width: contentWidth, height: lanesHeight, alignment: .topLeading)
                 }
-                .frame(width: contentWidth, alignment: .topLeading)
             }
         }
     }
