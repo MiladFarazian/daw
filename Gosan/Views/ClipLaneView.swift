@@ -22,6 +22,16 @@ struct ClipLaneView: View {
                         Button { project.duplicateClip(clip, on: track) } label: {
                             Label("Duplicate", systemImage: "plus.square.on.square")
                         }
+                        Button { project.copyClip(clip) } label: {
+                            Label("Copy", systemImage: "doc.on.doc")
+                        }
+                        Button { project.cutClip(clip, on: track) } label: {
+                            Label("Cut", systemImage: "scissors.badge.ellipsis")
+                        }
+                        Button { project.pasteClip(onto: track) } label: {
+                            Label("Paste at Playhead", systemImage: "doc.on.clipboard")
+                        }
+                        .disabled(project.clipboard == nil)
                         Menu {
                             ForEach([6.0, 3.0, 0.0, -3.0, -6.0, -12.0], id: \.self) { db in
                                 Button(db == 0 ? "0 dB (reset)" : String(format: "%+.0f dB", db)) {

@@ -1,15 +1,17 @@
 #!/usr/bin/env swift
 // Renders the Gosan app icon at all macOS sizes.
-// The mark fuses a Persian harp (chang) with an equalizer: the strings are the
-// audio bars. Run: swift tools/GenerateGosanIcon.swift [outputDir]
+// The mark is a bold serif "G" (the instrument's frame) with a teal equalizer
+// nested in its counter — the audio bars sit in the letter's negative space so
+// they read as an intentional music motif rather than noise on the strokes.
+// Run: swift tools/GenerateGosanIcon.swift [outputDir]
 import AppKit
 import CoreGraphics
 import CoreText
 import ImageIO
 import UniformTypeIdentifiers
 
-/// A filled, centered serif "G" glyph path sized to the icon — the harp frame.
-func serifG(size s: CGFloat) -> CGPath? {
+/// A filled, centered serif "G" glyph path sized to the icon, with its bounding box.
+func serifG(size s: CGFloat) -> (path: CGPath, box: CGRect)? {
     let candidates = ["Didot-Bold", "Bodoni 72 Bold", "Georgia-Bold", "TimesNewRomanPS-BoldMT"]
     var font: CTFont?
     for name in candidates {
@@ -26,23 +28,32 @@ func serifG(size s: CGFloat) -> CGPath? {
           let path = CTFontCreatePathForGlyph(ctFont, glyphs[0], nil) else { return nil }
 
     let box = path.boundingBoxOfPath
-    let scale = (s * 0.66) / box.height
+    let scale = (s * 0.64) / box.height
     let tx = (s - box.width * scale) / 2 - box.minX * scale
     let ty = (s - box.height * scale) / 2 - box.minY * scale
     var t = CGAffineTransform(a: scale, b: 0, c: 0, d: scale, tx: tx, ty: ty)
-    return path.copy(using: &t)
+    let scaled = path.copy(using: &t)!
+    return (scaled, scaled.boundingBoxOfPath)
 }
 
-struct StringLine { let x0, y0, x1, y1: CGFloat; let accent: Bool }
+struct EQBar { let x, yBottom, yTop, width: CGFloat; let accent: Bool }
 
-/// Harp strings across the bowl (CoreGraphics y-up coordinates).
-func harpStrings(size s: CGFloat) -> [StringLine] {
-    let count = 8, accentIndex = 2
-    return (0..<count).map { i in
-        let t = CGFloat(i) / CGFloat(count - 1)
-        return StringLine(x0: s * (0.345 + t * 0.185), y0: s * (0.275 + t * 0.04),
-                          x1: s * (0.405 + t * 0.15), y1: s * (0.655 - t * 0.045),
-                          accent: i == accentIndex)
+/// Equalizer bars nested in the counter of the G (CoreGraphics y-up coordinates).
+/// Vertical, evenly spaced, symmetric about a centre line — the tallest is gold,
+/// the rest teal, so the cluster pops against the gold letterform.
+func equalizerBars(in box: CGRect, size s: CGFloat) -> [EQBar] {
+    let heights: [CGFloat] = [0.07, 0.12, 0.16, 0.11, 0.06]
+    let accentIndex = 2                          // the tallest, kept gold
+    let barW = s * 0.028, gap = s * 0.022
+    let n = heights.count
+    let total = CGFloat(n) * barW + CGFloat(n - 1) * gap
+    let cx = box.minX + box.width * 0.46
+    let cy = box.minY + box.height * 0.58
+    let startX = cx - total / 2
+    return (0..<n).map { i in
+        let x = startX + CGFloat(i) * (barW + gap) + barW / 2
+        let h = s * heights[i]
+        return EQBar(x: x, yBottom: cy - h, yTop: cy + h, width: barW, accent: i != accentIndex)
     }
 }
 
@@ -78,20 +89,19 @@ func drawIcon(_ ctx: CGContext, _ s: CGFloat) {
                                options: [])
     }
 
-    // The mark: a filled serif "G" letterform (the harp frame) + strings across the bowl.
-    if let g = serifG(size: s) {
-        ctx.addPath(g)
-        ctx.setFillColor(gold)
-        ctx.fillPath()
-    }
+    // The mark: a filled serif "G" letterform with an equalizer in its counter.
+    guard let (g, box) = serifG(size: s) else { ctx.restoreGState(); return }
+    ctx.addPath(g)
+    ctx.setFillColor(gold)
+    ctx.fillPath()
 
-    // Harp strings across the bowl: thin, near-vertical, spanning neck to soundboard.
+    // Equalizer bars nested in the counter — teal, with the tallest bar gold.
     ctx.setLineCap(.round)
-    ctx.setLineWidth(s * 0.011)
-    for str in harpStrings(size: s) {
-        ctx.setStrokeColor(str.accent ? accent : gold)
-        ctx.move(to: CGPoint(x: str.x0, y: str.y0))
-        ctx.addLine(to: CGPoint(x: str.x1, y: str.y1))
+    for bar in equalizerBars(in: box, size: s) {
+        ctx.setStrokeColor(bar.accent ? accent : gold)
+        ctx.setLineWidth(bar.width)
+        ctx.move(to: CGPoint(x: bar.x, y: bar.yBottom))
+        ctx.addLine(to: CGPoint(x: bar.x, y: bar.yTop))
         ctx.strokePath()
     }
 
@@ -145,15 +155,15 @@ let svgDefs = """
   </defs>
 """
 
-/// Write branding SVGs from the same glyph + strings as the PNGs, so they never drift.
+/// Write branding SVGs from the same glyph + bars as the PNGs, so they never drift.
 func writeBrandingSVGs() {
     let s: CGFloat = 512
-    guard let g = serifG(size: s) else { return }
+    guard let (g, box) = serifG(size: s) else { return }
     let gd = svgPathData(from: g, flip: s)
-    var strings = ""
-    for st in harpStrings(size: s) {
-        let color = st.accent ? "#46CDB8" : "#E9B452"
-        strings += "      <line x1=\"\(f1(st.x0))\" y1=\"\(f1(s - st.y0))\" x2=\"\(f1(st.x1))\" y2=\"\(f1(s - st.y1))\" stroke=\"\(color)\" stroke-width=\"\(f1(s * 0.011))\"/>\n"
+    var bars = ""
+    for bar in equalizerBars(in: box, size: s) {
+        let color = bar.accent ? "#46CDB8" : "#E9B452"
+        bars += "      <line x1=\"\(f1(bar.x))\" y1=\"\(f1(s - bar.yBottom))\" x2=\"\(f1(bar.x))\" y2=\"\(f1(s - bar.yTop))\" stroke=\"\(color)\" stroke-width=\"\(f1(bar.width))\"/>\n"
     }
 
     let icon = """
@@ -163,7 +173,7 @@ func writeBrandingSVGs() {
       <rect width="512" height="512" rx="114" fill="url(#glow)"/>
       <path d="\(gd)" fill="#E9B452"/>
       <g fill="none" stroke-linecap="round">
-    \(strings)  </g>
+    \(bars)  </g>
     </svg>
     """
     try? icon.write(toFile: "branding/gosan-icon.svg", atomically: true, encoding: .utf8)
@@ -176,7 +186,7 @@ func writeBrandingSVGs() {
       <g transform="translate(34,30) scale(0.55)">
         <path d="\(gd)" fill="#E9B452"/>
         <g fill="none" stroke-linecap="round">
-    \(strings)    </g>
+    \(bars)    </g>
       </g>
       <text x="316" y="178" font-family="Georgia, 'Times New Roman', serif" font-size="132" font-weight="600" fill="#F3E7CF" letter-spacing="2">Gosan</text>
       <text x="320" y="238" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="30" fill="#E9B452" letter-spacing="3">SONGCRAFT WITH A HUMAN TOUCH</text>

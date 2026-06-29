@@ -32,6 +32,8 @@ final class ProjectStore: ObservableObject {
     @Published var isExporting = false
     @Published var selectedClipID: UUID?
     @Published var snapEnabled = true
+    @Published var snapDivision: Double = 0.25   // in beats (4 = bar, 1 = beat, 0.25 = 1/4 beat)
+    @Published var clipboard: Clip?
     @Published private(set) var canUndo = false
     @Published private(set) var canRedo = false
     private var undoStack: [[Track]] = []
@@ -439,6 +441,18 @@ final class ProjectStore: ObservableObject {
         mutate(track) { $0.name = trimmed }
     }
 
+    func moveTrack(_ track: Track, by offset: Int) {
+        guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        let j = i + offset
+        guard j >= 0, j < tracks.count else { return }
+        recordUndo()
+        tracks.swapAt(i, j)
+    }
+
+    func setTrackColor(_ track: Track, _ index: Int) {
+        mutate(track) { $0.colorIndex = index }
+    }
+
     // MARK: - Clip editing
 
     private let minClipDuration: TimeInterval = 0.1
@@ -479,10 +493,10 @@ final class ProjectStore: ObservableObject {
         engine.prepare(tracks: newTracks)
     }
 
-    /// Snap a time to the nearest 1/4-beat when snapping is on.
+    /// Snap a time to the nearest grid division when snapping is on.
     private func snapped(_ time: TimeInterval) -> TimeInterval {
-        guard snapEnabled, tempo > 0 else { return max(0, time) }
-        let grid = (60.0 / tempo) / 4
+        guard snapEnabled, tempo > 0, snapDivision > 0 else { return max(0, time) }
+        let grid = (60.0 / tempo) * snapDivision
         return max(0, (time / grid).rounded() * grid)
     }
 
@@ -553,10 +567,35 @@ final class ProjectStore: ObservableObject {
         guard let ti = tracks.firstIndex(where: { $0.id == track.id }),
               let ci = tracks[ti].clips.firstIndex(where: { $0.id == clip.id }) else { return }
         recordUndo()
-        var copy = Clip(asset: clip.asset, startTime: clip.startTime + clip.duration)
+        tracks[ti].clips.insert(pastedCopy(of: clip, at: clip.startTime + clip.duration), at: ci + 1)
+    }
+
+    // MARK: - Copy / paste
+
+    func copyClip(_ clip: Clip) { clipboard = clip }
+
+    func cutClip(_ clip: Clip, on track: Track) {
+        clipboard = clip
+        deleteClip(clip, on: track)
+    }
+
+    /// Paste the clipboard clip onto a track at the playhead.
+    func pasteClip(onto track: Track) {
+        guard let source = clipboard,
+              let index = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
+        tracks[index].clips.append(pastedCopy(of: source, at: currentTime))
+        engine.prepare(tracks: tracks)
+    }
+
+    private func pastedCopy(of clip: Clip, at start: TimeInterval) -> Clip {
+        var copy = Clip(asset: clip.asset, startTime: max(0, start))
         copy.offset = clip.offset
         copy.duration = clip.duration
-        tracks[ti].clips.insert(copy, at: ci + 1)
+        copy.fadeIn = clip.fadeIn
+        copy.fadeOut = clip.fadeOut
+        copy.gain = clip.gain
+        return copy
     }
 
     /// Drag the left edge: trims into / out of the asset head while holding the right edge fixed.

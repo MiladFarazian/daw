@@ -68,5 +68,23 @@ struct TrackHeaderView: View {
         }
         .padding(.horizontal, 10)
         .frame(maxHeight: .infinity)
+        .contextMenu {
+            Button { draft = track.name; isEditing = true } label: { Label("Rename", systemImage: "pencil") }
+            Button { project.moveTrack(track, by: -1) } label: { Label("Move Up", systemImage: "arrow.up") }
+            Button { project.moveTrack(track, by: 1) } label: { Label("Move Down", systemImage: "arrow.down") }
+            Menu {
+                ForEach(0..<Palette.colors.count, id: \.self) { i in
+                    Button {
+                        project.setTrackColor(track, i)
+                    } label: {
+                        Label("Color \(i + 1)", systemImage: track.colorIndex == i ? "checkmark.circle.fill" : "circle")
+                    }
+                }
+            } label: { Label("Color", systemImage: "paintpalette") }
+            Divider()
+            Button(role: .destructive) { project.deleteTrack(track) } label: {
+                Label("Delete Track", systemImage: "trash")
+            }
+        }
     }
 }

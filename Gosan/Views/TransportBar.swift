@@ -4,6 +4,17 @@ struct TransportBar: View {
     @EnvironmentObject var project: ProjectStore
     @EnvironmentObject var recorder: Recorder
 
+    private var snapLabel: String {
+        switch project.snapDivision {
+        case 4: return "Bar"
+        case 1: return "Beat"
+        case 0.5: return "1/2"
+        case 0.25: return "1/4"
+        case 0.125: return "1/8"
+        default: return "Snap"
+        }
+    }
+
     private var jobsSummary: String {
         if let only = project.activeJobs.first, project.activeJobs.count == 1 {
             return "\(only.label) — \(only.status)…"
@@ -102,6 +113,16 @@ struct TransportBar: View {
                     .foregroundStyle(project.snapEnabled ? .green : .secondary)
             }
             .help("Snap clips to the beat grid")
+
+            Menu(snapLabel) {
+                Button("Bar") { project.snapDivision = 4 }
+                Button("Beat") { project.snapDivision = 1 }
+                Button("1/2 beat") { project.snapDivision = 0.5 }
+                Button("1/4 beat") { project.snapDivision = 0.25 }
+                Button("1/8 beat") { project.snapDivision = 0.125 }
+            }
+            .frame(width: 64)
+            .help("Snap resolution")
 
             HStack(spacing: 6) {
                 Image(systemName: "minus.magnifyingglass").foregroundStyle(.secondary)
