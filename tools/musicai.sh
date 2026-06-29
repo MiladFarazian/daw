@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# Headless tester for the Music.ai API — list your workflows, or run one on a file.
-# Your key never goes in chat: export it locally first.
+# Headless tester for the Moises developer API (music.ai) — list your workflows, or run one on a file.
+# Get a free key at developer.moises.ai. Your key never goes in chat: export it locally first.
 #
-#   export MUSICAI_API_KEY=your-key-here
+#   export MOISES_API_KEY=your-key-here          # (MUSICAI_API_KEY also accepted)
 #   tools/musicai.sh workflows                     # list your workflow slugs
 #   tools/musicai.sh run <slug> path/to/audio.wav  # upload → job → poll → result
 #
 set -euo pipefail
 BASE="https://api.music.ai/v1"
-: "${MUSICAI_API_KEY:?Set MUSICAI_API_KEY first (do NOT paste it in chat)}"
-AUTH=(-H "Authorization: $MUSICAI_API_KEY")
+KEY="${MOISES_API_KEY:-${MUSICAI_API_KEY:-}}"
+: "${KEY:?Set MOISES_API_KEY first (do NOT paste it in chat) — free key at developer.moises.ai}"
+AUTH=(-H "Authorization: $KEY")
 
 have_jq() { command -v jq >/dev/null 2>&1; }
 

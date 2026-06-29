@@ -10,11 +10,11 @@ enum AIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noAPIKey:
-            return "No Music.ai API key set. Add one in Settings (⌘,)."
+            return "No Moises API key set. Add one in Settings (⌘,) — get a free key at developer.moises.ai."
         case .http(let code, let body):
-            return "Music.ai request failed (HTTP \(code)). \(body)"
+            return "Moises request failed (HTTP \(code)). \(body)"
         case .malformed(let what):
-            return "Unexpected response from Music.ai: \(what)"
+            return "Unexpected response from Moises: \(what)"
         case .jobFailed(let why):
             return "Job failed: \(why)"
         case .sidecarUnreachable(let url):

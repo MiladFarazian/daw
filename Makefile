@@ -1,7 +1,7 @@
-.PHONY: generate open build run verify musicai-workflows clean
+.PHONY: generate open build run verify moises-workflows musicai-workflows clean
 
-# List your Music.ai workflow slugs (needs MUSICAI_API_KEY in the environment)
-musicai-workflows:
+# List your Moises (developer.moises.ai) workflow slugs (needs MOISES_API_KEY in the environment)
+moises-workflows musicai-workflows:
 	tools/musicai.sh workflows
 
 # Regenerate Gosan.xcodeproj from project.yml

@@ -348,6 +348,37 @@ final class ProjectStore: ObservableObject {
         candidates.removeAll { $0.id == candidate.id }
     }
 
+    /// Manual bridge: export a clip and open Moises so you can split/enhance it in the
+    /// app you already use, then drag the results back onto the timeline.
+    func sendClipToMoises(_ clip: Clip) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.wav]
+        panel.nameFieldStringValue = "\(clip.name).wav"
+        panel.message = "Save this clip, then upload it to Moises to split stems / enhance — and drag the results back in."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        var track = Track(name: clip.name, colorIndex: 0)
+        var solo = clip; solo.startTime = 0
+        track.clips = [solo]
+        let duration = clip.duration
+        isExporting = true
+        Task.detached(priority: .userInitiated) {
+            do {
+                try AudioExporter.render(tracks: [track], duration: duration, to: url)
+                await MainActor.run {
+                    self.isExporting = false
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                    if let moises = URL(string: "https://moises.ai") { NSWorkspace.shared.open(moises) }
+                }
+            } catch {
+                await MainActor.run {
+                    self.isExporting = false
+                    self.lastError = "Export failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
     /// Manual bridge: copy the compiled prompt and open Suno. Result is dragged back in.
     func openInSunoManually(_ prompt: GeneratePrompt) {
         let pasteboard = NSPasteboard.general

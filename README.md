@@ -6,7 +6,7 @@
 
 A native macOS DAW (GarageBand-class) whose differentiator is a **taste engine**. Named for the
 *gōsān* — the minstrel poet-musicians of Parthian and Persian folklore who carried songs by ear and
-made them their own. Suno generates musical ideas, Moises/Music.ai dissects and finishes audio, and you
+made them their own. Suno generates musical ideas, Moises dissects and finishes audio, and you
 stay the producer. See the design:
 
 - [`docs/VISION.md`](docs/VISION.md) — the *why/what*: philosophy, use-case catalog, taste engine.
@@ -30,9 +30,10 @@ stay the producer. See the design:
   delay**), **master EQ**, **master output meter** + peak limiter
 - **Export** — bounce the mix or just the loop region to WAV (offline render)
 
-**Phase 2 — Music.ai integration** ✅. Right-click any clip → **Split into Stems**, **Analyze**
+**Phase 2 — Moises integration** ✅. Right-click any clip → **Split into Stems**, **Analyze**
 (key · BPM · chords), **Enhance** (de-reverb / denoise), **Master**, or the **Vocal Rescue** recipe
-(enhance → master in one step). Jobs run async with a progress indicator; the API key is in your Keychain.
+(enhance → master in one step) — via Moises' developer API (music.ai). Or **Send to Moises (manual)** to use
+the Moises app you already have (exports the clip + opens moises.ai; drag the results back). Jobs run async.
 
 **Phase 3 — Suno generation** ✅ (first slice). **Generate** in the transport bar opens a panel: describe
 a vibe → get candidates in a variant tray → audition each → add the keepers to the timeline. Uses a local
@@ -48,11 +49,15 @@ profile is visible as chips in the panel and resettable in Settings.
 `.gosan` package** — a folder with `project.json` + an `audio/` subfolder holding copies of every clip, so
 projects are self-contained and move between machines. Audio is copied into the library on open.
 
-### Music.ai setup (for the AI clip actions)
+### Moises setup (for the one-click AI clip actions)
 
-1. Get an API key from the [Music.ai](https://music.ai) developer dashboard (free tier available).
+**Music.ai is Moises' developer API** (same company; formerly "Moises AI") — separate from the Moises *app*
+subscription. No key needed if you just use **Send to Moises (manual)** with the app.
+
+For the one-click actions:
+1. Get a free API key from the [Moises developer platform](https://developer.moises.ai).
 2. **Gosan → Settings (⌘,)** → paste the key.
-3. Set the **workflow slugs** to match your Music.ai **Workflows** page (e.g.
+3. Set the **workflow slugs** to match your Moises **Workflows** page (e.g.
    `music-ai/stems-vocals-accompaniment`). Defaults are starting points; if a job errors, check the slug.
 
 ### Suno setup (for one-click generation)

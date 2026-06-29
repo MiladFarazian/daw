@@ -72,6 +72,9 @@ struct ClipLaneView: View {
                         Button { project.master(clip) } label: {
                             Label("Master", systemImage: "dial.high")
                         }
+                        Button { project.sendClipToMoises(clip) } label: {
+                            Label("Send to Moises (manual)…", systemImage: "arrow.up.forward.app")
+                        }
                         Divider()
                         Button(role: .destructive) { project.deleteClip(clip, on: track) } label: {
                             Label("Delete Clip", systemImage: "trash")

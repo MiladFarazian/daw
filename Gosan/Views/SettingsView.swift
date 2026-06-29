@@ -6,18 +6,20 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Music.ai") {
+            Section("Moises (developer API)") {
                 SecureField("API key", text: $settings.apiKey)
-                Text("Create a key in the Music.ai developer dashboard. Stored in your macOS Keychain.")
+                Text("Moises' developer API (music.ai) — get a free key at developer.moises.ai. "
+                    + "This is separate from your Moises app subscription. Stored in your macOS Keychain. "
+                    + "No key? Right-click a clip → “Send to Moises” to use the app you already have.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Section("Workflow slugs") {
+            Section("Moises workflow slugs") {
                 TextField("Stems workflow", text: $settings.stemsWorkflow)
                 TextField("Analyze workflow", text: $settings.analyzeWorkflow)
                 TextField("Enhance workflow", text: $settings.enhanceWorkflow)
                 TextField("Master workflow", text: $settings.masterWorkflow)
-                Text("Copy the exact slugs from your Music.ai Workflows page. The defaults are starting points and may need changing.")
+                Text("Copy the exact slugs from your Moises (developer.moises.ai) Workflows page. The defaults are starting points and may need changing.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
