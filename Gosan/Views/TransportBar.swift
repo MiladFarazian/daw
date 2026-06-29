@@ -49,10 +49,13 @@ struct TransportBar: View {
             Divider().frame(height: 18)
 
             HStack(spacing: 4) {
-                Image(systemName: "metronome")
-                Text("\(Int(project.tempo)) BPM")
+                Button { project.toggleMetronome() } label: {
+                    Image(systemName: "metronome")
+                        .foregroundStyle(project.metronomeEnabled ? .green : .secondary)
+                }
+                .help("Metronome click")
+                Text("\(Int(project.tempo)) BPM").foregroundStyle(.secondary)
             }
-            .foregroundStyle(.secondary)
 
             if !project.activeJobs.isEmpty {
                 Divider().frame(height: 18)

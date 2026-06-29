@@ -41,6 +41,7 @@ final class ProjectStore: ObservableObject {
     @Published var loopStart: TimeInterval = 0
     @Published var loopEnd: TimeInterval = 0
     var loopActive: Bool { loopEnabled && loopEnd > loopStart + 0.05 }
+    @Published var metronomeEnabled = false
 
     let settings: AppSettings
     let taste: TasteEngine
@@ -342,7 +343,7 @@ final class ProjectStore: ObservableObject {
         guard !tracks.isEmpty else { return }
         if currentTime >= totalDuration { currentTime = 0 }
         let base = currentTime
-        engine.play(tracks: tracks, from: base)
+        engine.play(tracks: tracks, from: base, metronome: metronomeEnabled, tempo: tempo)
         isPlaying = true
 
         let startedAt = Date()
@@ -379,6 +380,11 @@ final class ProjectStore: ObservableObject {
     }
 
     func toggleLoop() { loopEnabled.toggle() }
+
+    func toggleMetronome() {
+        metronomeEnabled.toggle()
+        if isPlaying { play() } // re-schedule clicks
+    }
 
     // MARK: - Mixing
 
