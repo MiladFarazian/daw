@@ -12,17 +12,27 @@
   <rect width="1200" height="340" rx="44" fill="url(#bg)"/>
   <rect width="1200" height="340" rx="44" fill="url(#glow)"/>
 
-  <!-- mark -->
-  <g transform="translate(70,50) scale(0.47)" fill="none" stroke-linecap="round">
-    <g stroke="#E9B452" stroke-width="14">
-      <line x1="182" y1="358" x2="182" y2="266"/>
-      <line x1="218" y1="358" x2="218" y2="204"/>
-      <line x1="289" y1="358" x2="289" y2="215"/>
-      <line x1="325" y1="358" x2="325" y2="256"/>
+  <!-- mark: harp-as-G -->
+  <g transform="translate(70,50) scale(0.47)">
+    <g fill="none" stroke="#E9B452" stroke-linecap="round">
+      <path d="M375 156 A156 156 0 1 0 375 356" stroke-width="28"/>
+      <line x1="264" y1="256" x2="406" y2="256" stroke-width="28"/>
+      <line x1="166" y1="350" x2="335" y2="350" stroke-width="17"/>
+      <g stroke-width="12">
+        <line x1="174" y1="350" x2="174" y2="303"/>
+        <line x1="212" y1="350" x2="212" y2="284"/>
+        <line x1="289" y1="350" x2="289" y2="290"/>
+        <line x1="328" y1="350" x2="328" y2="309"/>
+      </g>
+      <line x1="251" y1="350" x2="251" y2="268" stroke="#46CDB8" stroke-width="12"/>
     </g>
-    <line x1="253" y1="358" x2="253" y2="174" stroke="#46CDB8" stroke-width="14"/>
-    <path d="M154,358 C174,72 379,174 358,276" stroke="#E9B452" stroke-width="26"/>
-    <line x1="154" y1="358" x2="358" y2="358" stroke="#E9B452" stroke-width="26"/>
+    <g fill="#E9B452">
+      <circle cx="174" cy="303" r="7"/>
+      <circle cx="212" cy="284" r="7"/>
+      <circle cx="289" cy="290" r="7"/>
+      <circle cx="328" cy="309" r="7"/>
+    </g>
+    <circle cx="251" cy="268" r="7" fill="#46CDB8"/>
   </g>
 
   <!-- wordmark -->

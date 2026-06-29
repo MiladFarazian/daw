@@ -39,40 +39,49 @@ func drawIcon(_ ctx: CGContext, _ s: CGFloat) {
                                options: [])
     }
 
-    // The harp / equalizer mark
-    let baseY = s * 0.30
-    let xs: [CGFloat] = [0.355, 0.425, 0.495, 0.565, 0.635]
-    let hs: [CGFloat] = [0.18, 0.30, 0.36, 0.28, 0.20]
-    let accentIndex = 2
-
+    // The mark: a harp whose frame reads as a "G" for Gosan.
     ctx.setLineCap(.round)
+    func deg(_ d: CGFloat) -> CGFloat { d * .pi / 180 }
+    let c = CGPoint(x: s * 0.50, y: s * 0.50)
+    let R = s * 0.305
+
+    // G bowl — an open gold ring (the harp's curved frame), gap on the right.
+    ctx.setStrokeColor(gold)
+    ctx.setLineWidth(s * 0.055)
+    ctx.beginPath()
+    ctx.addArc(center: c, radius: R, startAngle: deg(40), endAngle: deg(320), clockwise: false)
+    ctx.strokePath()
+
+    // G crossbar — the defining horizontal stroke, entering from the right.
+    ctx.beginPath()
+    ctx.move(to: CGPoint(x: c.x + s * 0.015, y: c.y))
+    ctx.addLine(to: CGPoint(x: c.x + R * 0.96, y: c.y))
+    ctx.strokePath()
+
+    // Harp strings in the lower bowl (equalizer bars), one turquoise accent.
+    let baseY = c.y - R * 0.6
+    let xs: [CGFloat] = [-0.16, -0.085, -0.01, 0.065, 0.14]
+    let hs: [CGFloat] = [0.092, 0.128, 0.159, 0.116, 0.079]
+    let accentIndex = 2
     for i in xs.indices {
-        let x = s * xs[i]
+        let x = c.x + s * xs[i]
         let top = baseY + s * hs[i]
-        let color = i == accentIndex ? accent : gold
-        ctx.setStrokeColor(color)
-        ctx.setLineWidth(s * 0.028)
+        let col = i == accentIndex ? accent : gold
+        ctx.setStrokeColor(col)
+        ctx.setLineWidth(s * 0.024)
         ctx.move(to: CGPoint(x: x, y: baseY))
         ctx.addLine(to: CGPoint(x: x, y: top))
         ctx.strokePath()
-        ctx.setFillColor(color)
-        let r = s * 0.014
+        ctx.setFillColor(col)
+        let r = s * 0.013
         ctx.fillEllipse(in: CGRect(x: x - r, y: top - r, width: r * 2, height: r * 2))
     }
 
-    // Harp neck (curved frame sweeping over the strings)
+    // Soundboard under the strings.
     ctx.setStrokeColor(gold)
-    ctx.setLineWidth(s * 0.05)
-    let neck = CGMutablePath()
-    neck.move(to: CGPoint(x: s * 0.30, y: baseY))
-    neck.addCurve(to: CGPoint(x: s * 0.70, y: baseY + s * 0.16),
-                  control1: CGPoint(x: s * 0.34, y: s * 0.86),
-                  control2: CGPoint(x: s * 0.74, y: s * 0.66))
-    ctx.addPath(neck); ctx.strokePath()
-
-    // Soundboard foot
-    ctx.move(to: CGPoint(x: s * 0.30, y: baseY))
-    ctx.addLine(to: CGPoint(x: s * 0.70, y: baseY))
+    ctx.setLineWidth(s * 0.034)
+    ctx.move(to: CGPoint(x: c.x - s * 0.175, y: baseY))
+    ctx.addLine(to: CGPoint(x: c.x + s * 0.155, y: baseY))
     ctx.strokePath()
 
     ctx.restoreGState()
