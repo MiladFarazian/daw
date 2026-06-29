@@ -31,6 +31,26 @@ enum ClipProcessing {
         return peak
     }
 
+    /// Seconds of near-silence at the start and end of a clip's segment.
+    static func silenceBounds(url: URL, offset: TimeInterval, duration: TimeInterval,
+                              threshold: Float = 0.01) -> (leading: TimeInterval, trailing: TimeInterval)? {
+        guard let (buffer, format) = readSegment(url: url, offset: offset, duration: duration),
+              let data = buffer.floatChannelData else { return nil }
+        let n = Int(buffer.frameLength)
+        let channels = Int(format.channelCount)
+        let sr = format.sampleRate
+        func loud(_ i: Int) -> Bool {
+            for c in 0..<channels where abs(data[c][i]) > threshold { return true }
+            return false
+        }
+        var first = 0
+        while first < n && !loud(first) { first += 1 }
+        guard first < n else { return nil } // all silence
+        var last = n - 1
+        while last > first && !loud(last) { last -= 1 }
+        return (Double(first) / sr, Double(n - 1 - last) / sr)
+    }
+
     /// Write a reversed copy of a clip's segment to `outputDir`; returns the new file URL.
     static func reverse(url: URL, offset: TimeInterval, duration: TimeInterval, outputDir: URL) -> URL? {
         guard let (buffer, format) = readSegment(url: url, offset: offset, duration: duration),

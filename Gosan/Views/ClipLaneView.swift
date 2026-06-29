@@ -48,6 +48,12 @@ struct ClipLaneView: View {
                         Button { project.normalizeClip(clip, on: track) } label: {
                             Label("Normalize", systemImage: "arrow.up.to.line")
                         }
+                        Button { project.trimSilence(clip, on: track) } label: {
+                            Label("Trim Silence", systemImage: "scissors")
+                        }
+                        Button { project.quantizeClip(clip, on: track) } label: {
+                            Label("Quantize to Grid", systemImage: "grid")
+                        }
                         Button { project.reverseClip(clip, on: track) } label: {
                             Label("Reverse", systemImage: "arrow.uturn.backward")
                         }

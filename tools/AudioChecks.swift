@@ -184,6 +184,14 @@ struct AudioChecks {
         try AudioExporter.render(tracks: [muteTrack], duration: 2.0, to: outQ)
         check("muted clip → silence", try rms(outQ, 0, 2.0) < 0.001)
 
+        // R) Silence detection (for Trim Silence): 0.5s silence, 1s tone, 0.5s silence.
+        let paddedURL = tmp.appendingPathComponent("padded.wav")
+        try writePaddedTone(to: paddedURL, silenceHead: 0.5, tone: 1.0, silenceTail: 0.5)
+        let bounds = ClipProcessing.silenceBounds(url: paddedURL, offset: 0, duration: 2.0)
+        print(String(format: "   (silence bounds: lead %.3fs, tail %.3fs)", bounds?.leading ?? -1, bounds?.trailing ?? -1))
+        check("silence detection finds head + tail",
+              bounds != nil && abs(bounds!.leading - 0.5) < 0.05 && abs(bounds!.trailing - 0.5) < 0.05)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }
@@ -211,6 +219,23 @@ struct AudioChecks {
         for i in 0..<Int(frames) {
             let env = Float(i) / Float(frames) * 0.8 // 0 → 0.8
             ch[i] = env * Float(sin(2 * .pi * 440 * Double(i) / sampleRate))
+        }
+        try file.write(from: buffer)
+    }
+
+    static func writePaddedTone(to url: URL, silenceHead: Double, tone: Double, silenceTail: Double,
+                                sampleRate: Double = 44_100) throws {
+        let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
+        let total = silenceHead + tone + silenceTail
+        let file = try AVAudioFile(forWriting: url, settings: format.settings)
+        let frames = AVAudioFrameCount(total * sampleRate)
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
+        buffer.frameLength = frames
+        let ch = buffer.floatChannelData![0]
+        let headEnd = Int(silenceHead * sampleRate), toneEnd = Int((silenceHead + tone) * sampleRate)
+        for i in 0..<Int(frames) {
+            ch[i] = (i >= headEnd && i < toneEnd)
+                ? Float(sin(2 * .pi * 440 * Double(i) / sampleRate)) * 0.5 : 0
         }
         try file.write(from: buffer)
     }

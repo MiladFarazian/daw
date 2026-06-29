@@ -679,6 +679,30 @@ final class ProjectStore: ObservableObject {
         updateClip(clip, on: track) { $0.muted.toggle() }
     }
 
+    /// Snap a clip's start to the nearest grid division (regardless of the snap toggle).
+    func quantizeClip(_ clip: Clip, on track: Track) {
+        guard tempo > 0, snapDivision > 0 else { return }
+        let grid = (60.0 / tempo) * snapDivision
+        recordUndo()
+        updateClip(clip, on: track) { $0.startTime = max(0, ($0.startTime / grid).rounded() * grid) }
+    }
+
+    /// Trim near-silence from a clip's head and tail.
+    func trimSilence(_ clip: Clip, on track: Track) {
+        let url = clip.asset.url, offset = clip.offset, duration = clip.duration
+        Task.detached(priority: .userInitiated) {
+            guard let bounds = ClipProcessing.silenceBounds(url: url, offset: offset, duration: duration),
+                  bounds.leading + bounds.trailing > 0.02 else { return }
+            await MainActor.run {
+                self.recordUndo()
+                self.updateClip(clip, on: track) { c in
+                    c.offset += bounds.leading
+                    c.duration = max(0.05, c.duration - bounds.leading - bounds.trailing)
+                }
+            }
+        }
+    }
+
     /// Set the clip's gain so its peak hits ~-1 dBFS (capped to avoid huge boosts).
     func normalizeClip(_ clip: Clip, on track: Track) {
         let url = clip.asset.url, offset = clip.offset, duration = clip.duration
