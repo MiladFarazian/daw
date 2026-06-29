@@ -101,6 +101,17 @@ struct AudioChecks {
         let ratio = full > 0 ? half / full : 0
         check("clip gain 0.5x halves the level", ratio > 0.45 && ratio < 0.55)
 
+        // I) Per-track reverb: a 1s clip with reverb should ring out after it ends.
+        var revTrack = Track(name: "Rev", colorIndex: 0); revTrack.reverb = 0.8
+        var revClip = Clip(asset: asset, startTime: 0.0); revClip.duration = 1.0
+        revTrack.clips = [revClip]
+        let outI = tmp.appendingPathComponent("i.wav")
+        try? FileManager.default.removeItem(at: outI)
+        try AudioExporter.render(tracks: [revTrack], duration: 3.0, to: outI)
+        let dryTail = try rms(outI, 1.3, 2.5) // (with reverb this should be non-zero)
+        print(String(format: "   (reverb tail RMS after clip end: %.4f)", dryTail))
+        check("reverb rings out after the clip", dryTail > 0.004)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }

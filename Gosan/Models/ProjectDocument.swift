@@ -14,6 +14,7 @@ struct ProjectDocument: Codable {
         var colorIndex: Int
         var volume: Float
         var pan: Float
+        var reverb: Float = 0
         var isMuted: Bool
         var isSoloed: Bool
         var clips: [ClipData]

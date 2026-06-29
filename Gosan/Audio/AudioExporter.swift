@@ -30,13 +30,19 @@ enum AudioExporter {
         for track in tracks {
             let player = AVAudioPlayerNode()
             let mixer = AVAudioMixerNode()
+            let reverb = AVAudioUnitReverb()
+            reverb.loadFactoryPreset(.mediumHall)
+            reverb.wetDryMix = track.reverb * 100
             engine.attach(player)
             engine.attach(mixer)
+            engine.attach(reverb)
             // Connect with the first clip's format so scheduled buffers match.
             let trackFormat = track.clips.first
                 .flatMap { try? AVAudioFile(forReading: $0.asset.url).processingFormat }
+            // player → mixer → reverb → main (reverb after the mixer → always stereo).
             engine.connect(player, to: mixer, format: trackFormat)
-            engine.connect(mixer, to: mainMixer, format: nil)
+            engine.connect(mixer, to: reverb, format: renderFormat)
+            engine.connect(reverb, to: mainMixer, format: renderFormat)
 
             let audible = soloing ? track.isSoloed : !track.isMuted
             mixer.outputVolume = audible ? track.volume : 0

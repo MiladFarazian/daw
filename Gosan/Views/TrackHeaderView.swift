@@ -81,6 +81,12 @@ struct TrackHeaderView: View {
                     }
                 }
             } label: { Label("Color", systemImage: "paintpalette") }
+            Menu {
+                Button("Off") { project.setReverb(track, 0) }
+                Button("Light") { project.setReverb(track, 0.25) }
+                Button("Medium") { project.setReverb(track, 0.5) }
+                Button("Heavy") { project.setReverb(track, 0.8) }
+            } label: { Label("Reverb", systemImage: "waveform.path.ecg") }
             Divider()
             Button(role: .destructive) { project.deleteTrack(track) } label: {
                 Label("Delete Track", systemImage: "trash")

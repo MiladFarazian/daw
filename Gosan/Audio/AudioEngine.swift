@@ -9,6 +9,7 @@ final class AudioEngine {
     private struct TrackNode {
         let player: AVAudioPlayerNode
         let mixer: AVAudioMixerNode
+        let reverb: AVAudioUnitReverb
     }
     private var nodes: [UUID: TrackNode] = [:]
 
@@ -77,16 +78,24 @@ final class AudioEngine {
         for track in tracks where nodes[track.id] == nil {
             let player = AVAudioPlayerNode()
             let mixer = AVAudioMixerNode()
+            let reverb = AVAudioUnitReverb()
+            reverb.loadFactoryPreset(.mediumHall)
+            reverb.wetDryMix = 0
             engine.attach(player)
             engine.attach(mixer)
+            engine.attach(reverb)
 
             let format = track.clips.first
                 .flatMap { try? AVAudioFile(forReading: $0.asset.url).processingFormat }
                 ?? AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
 
+            // player → mixer → reverb → main. Reverb sits after the mixer so it always
+            // sees stereo (AVAudioUnitReverb rejects a mono input).
+            let stereo = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
             engine.connect(player, to: mixer, format: format)
-            engine.connect(mixer, to: mainMixer, format: nil)
-            nodes[track.id] = TrackNode(player: player, mixer: mixer)
+            engine.connect(mixer, to: reverb, format: stereo)
+            engine.connect(reverb, to: mainMixer, format: stereo)
+            nodes[track.id] = TrackNode(player: player, mixer: mixer, reverb: reverb)
         }
         applyMix(tracks: tracks)
         if !engine.isRunning { try? engine.start() }
@@ -100,6 +109,7 @@ final class AudioEngine {
             let audible = soloing ? track.isSoloed : !track.isMuted
             node.mixer.outputVolume = audible ? track.volume : 0
             node.mixer.pan = track.pan
+            node.reverb.wetDryMix = track.reverb * 100
         }
     }
 
@@ -158,6 +168,7 @@ final class AudioEngine {
         for node in nodes.values {
             engine.detach(node.player)
             engine.detach(node.mixer)
+            engine.detach(node.reverb)
         }
         nodes.removeAll()
     }

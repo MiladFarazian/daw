@@ -414,6 +414,7 @@ final class ProjectStore: ObservableObject {
 
     func setVolume(_ track: Track, _ value: Float) { mutate(track) { $0.volume = value } }
     func setPan(_ track: Track, _ value: Float) { mutate(track) { $0.pan = value } }
+    func setReverb(_ track: Track, _ value: Float) { mutate(track) { $0.reverb = value } }
     func toggleMute(_ track: Track) { recordUndo(); mutate(track) { $0.isMuted.toggle() } }
     func toggleSolo(_ track: Track) { recordUndo(); mutate(track) { $0.isSoloed.toggle() } }
 
@@ -712,7 +713,7 @@ final class ProjectStore: ObservableObject {
             tracks: tracks.map { track in
                 ProjectDocument.TrackData(
                     name: track.name, colorIndex: track.colorIndex,
-                    volume: track.volume, pan: track.pan,
+                    volume: track.volume, pan: track.pan, reverb: track.reverb,
                     isMuted: track.isMuted, isSoloed: track.isSoloed,
                     clips: track.clips.map { clip in
                         ProjectDocument.ClipData(
@@ -736,6 +737,7 @@ final class ProjectStore: ObservableObject {
             var track = Track(name: trackData.name, colorIndex: trackData.colorIndex)
             track.volume = trackData.volume
             track.pan = trackData.pan
+            track.reverb = trackData.reverb
             track.isMuted = trackData.isMuted
             track.isSoloed = trackData.isSoloed
 

@@ -46,6 +46,7 @@ struct Track: Identifiable {
     var colorIndex: Int
     var volume: Float = 0.8
     var pan: Float = 0
+    var reverb: Float = 0        // 0...1 reverb send
     var isMuted = false
     var isSoloed = false
     var clips: [Clip] = []
