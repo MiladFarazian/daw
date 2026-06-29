@@ -231,6 +231,19 @@ struct AudioChecks {
         check("pitch up raises the fundamental", Double(zcUp) > Double(zcBase) * 1.5)
         check("pitch down lowers the fundamental", zcDown > 0 && Double(zcDown) < Double(zcBase) * 0.7)
 
+        // V) Normalize-on-export lifts a quiet mix to ≈ target peak.
+        var quietTrack = Track(name: "Quiet", colorIndex: 0)
+        var quietClip = Clip(asset: asset, startTime: 0.0); quietClip.gain = 0.5
+        quietTrack.clips = [quietClip]; quietTrack.volume = 1.0
+        let outV = tmp.appendingPathComponent("v.wav")
+        try? FileManager.default.removeItem(at: outV)
+        try AudioExporter.render(tracks: [quietTrack], duration: 2.0, to: outV)
+        let beforePeak = try peakOf(outV)
+        try AudioExporter.normalizeFile(at: outV)
+        let afterPeak = try peakOf(outV)
+        print(String(format: "   (normalize peak: %.3f → %.3f, target ~0.89)", beforePeak, afterPeak))
+        check("normalize lifts a quiet mix to ~target peak", beforePeak < 0.6 && abs(afterPeak - 0.89) < 0.05)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }
@@ -316,5 +329,19 @@ struct AudioChecks {
     static func lengthSeconds(_ url: URL) throws -> Double {
         let f = try AVAudioFile(forReading: url)
         return Double(f.length) / f.processingFormat.sampleRate
+    }
+
+    /// Absolute peak across the whole file (all channels).
+    static func peakOf(_ url: URL) throws -> Float {
+        let file = try AVAudioFile(forReading: url)
+        let format = file.processingFormat
+        let frames = AVAudioFrameCount(file.length)
+        guard frames > 0, let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return 0 }
+        try file.read(into: buffer)
+        guard let data = buffer.floatChannelData else { return 0 }
+        let n = Int(buffer.frameLength)
+        var peak: Float = 0
+        for c in 0..<Int(format.channelCount) { let p = data[c]; for i in 0..<n { let a = abs(p[i]); if a > peak { peak = a } } }
+        return peak
     }
 }

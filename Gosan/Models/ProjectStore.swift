@@ -948,14 +948,17 @@ final class ProjectStore: ObservableObject {
 
     // MARK: - Export
 
-    func exportMixdown(aac: Bool = false) { exportRange(from: 0, duration: totalDuration, name: name, aac: aac) }
+    func exportMixdown(aac: Bool = false, normalize: Bool = false) {
+        exportRange(from: 0, duration: totalDuration, name: name, aac: aac, normalize: normalize)
+    }
 
     func exportLoop(aac: Bool = false) {
         guard loopActive else { return }
         exportRange(from: loopStart, duration: loopEnd - loopStart, name: "\(name)-loop", aac: aac)
     }
 
-    private func exportRange(from: TimeInterval, duration: TimeInterval, name: String, aac: Bool) {
+    private func exportRange(from: TimeInterval, duration: TimeInterval, name: String,
+                             aac: Bool, normalize: Bool = false) {
         guard !tracks.isEmpty, duration > 0, !isExporting else { return }
         let ext = aac ? "m4a" : "wav"
         let panel = NSSavePanel()
@@ -969,6 +972,7 @@ final class ProjectStore: ObservableObject {
         Task.detached(priority: .userInitiated) {
             do {
                 try AudioExporter.render(tracks: snapshot, duration: duration, to: url, from: from, aac: aac)
+                if normalize && !aac { try AudioExporter.normalizeFile(at: url) }
                 await MainActor.run { self.isExporting = false }
             } catch {
                 await MainActor.run {

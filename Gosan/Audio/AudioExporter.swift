@@ -123,4 +123,29 @@ enum AudioExporter {
         players.forEach { $0.stop() }
         engine.stop()
     }
+
+    /// Peak-normalize a rendered WAV in place to `targetPeak` (≈ −1 dBFS by default).
+    static func normalizeFile(at url: URL, targetPeak: Float = 0.89) throws {
+        let file = try AVAudioFile(forReading: url)
+        let format = file.processingFormat
+        let frames = AVAudioFrameCount(file.length)
+        guard frames > 0, let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return }
+        try file.read(into: buffer)
+        guard let data = buffer.floatChannelData else { return }
+        let n = Int(buffer.frameLength), channels = Int(format.channelCount)
+
+        var peak: Float = 0
+        for c in 0..<channels { let p = data[c]; for i in 0..<n { let a = abs(p[i]); if a > peak { peak = a } } }
+        guard peak > 0.0001 else { return }
+        let gain = min(targetPeak / peak, 8)            // cap boost to avoid blowing up near-silence
+        guard abs(gain - 1) > 0.01 else { return }      // already at target
+        for c in 0..<channels { let p = data[c]; for i in 0..<n { p[i] *= gain } }
+
+        // Rewrite via a temp file, then swap.
+        let tmp = url.deletingLastPathComponent().appendingPathComponent("norm-\(UUID().uuidString).wav")
+        let outFile = try AVAudioFile(forWriting: tmp, settings: format.settings)
+        try outFile.write(from: buffer)
+        try? FileManager.default.removeItem(at: url)
+        try FileManager.default.moveItem(at: tmp, to: url)
+    }
 }

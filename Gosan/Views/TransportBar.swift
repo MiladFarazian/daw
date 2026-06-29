@@ -184,6 +184,7 @@ struct TransportBar: View {
 
             Menu {
                 Button("Mix → WAV…") { project.exportMixdown() }
+                Button("Mix → WAV (normalized)…") { project.exportMixdown(normalize: true) }
                 Button("Mix → AAC (.m4a)…") { project.exportMixdown(aac: true) }
                 Divider()
                 Button("Loop region → WAV…") { project.exportLoop() }
