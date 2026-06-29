@@ -37,6 +37,8 @@ struct EditorView: View {
                     .environmentObject(project.taste)
             case .youtube:
                 YouTubeSheet().environmentObject(project)
+            case .mixer:
+                MixerView().environmentObject(project)
             case .analysis(let result):
                 AnalysisSheet(analysis: result)
             }

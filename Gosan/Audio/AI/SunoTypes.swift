@@ -38,12 +38,14 @@ struct CandidateAsset: Identifiable {
 enum EditorSheet: Identifiable {
     case generate
     case youtube
+    case mixer
     case analysis(AnalysisResult)
 
     var id: String {
         switch self {
         case .generate: return "generate"
         case .youtube: return "youtube"
+        case .mixer: return "mixer"
         case .analysis(let result): return result.id.uuidString
         }
     }

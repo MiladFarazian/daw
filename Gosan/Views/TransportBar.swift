@@ -182,6 +182,11 @@ struct TransportBar: View {
             }
             .frame(width: 76)
 
+            Button { project.activeSheet = .mixer } label: {
+                Label("Mixer", systemImage: "slider.vertical.3")
+            }
+            .help("Open the mixing console")
+
             Menu {
                 Button("Mix → WAV…") { project.exportMixdown() }
                 Button("Mix → WAV (normalized)…") { project.exportMixdown(normalize: true) }
