@@ -31,6 +31,8 @@ struct ProjectDocument: Codable {
         var isInstrument: Bool = false
         var program: Int = 0
         var notes: [NoteData] = []
+        var volumeAutomation: [PointData] = []
+        var panAutomation: [PointData] = []
     }
 
     struct NoteData: Codable {
@@ -38,6 +40,11 @@ struct ProjectDocument: Codable {
         var start: TimeInterval
         var duration: TimeInterval
         var velocity: Int = 100
+    }
+
+    struct PointData: Codable {
+        var time: TimeInterval
+        var value: Float
     }
 
     struct ClipData: Codable {

@@ -468,6 +468,7 @@ final class ProjectStore: ObservableObject {
             Task { @MainActor in
                 guard let self, self.isPlaying else { return }
                 self.currentTime = base + Date().timeIntervalSince(startedAt)
+                self.engine.applyAutomation(tracks: self.tracks, at: self.currentTime)
                 if self.loopActive && self.currentTime >= self.loopEnd {
                     self.seek(to: self.loopStart) // restarts playback from the loop start
                 } else if self.currentTime >= self.totalDuration {
@@ -584,6 +585,31 @@ final class ProjectStore: ObservableObject {
     func setProgram(_ track: Track, _ program: Int) {
         guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
         tracks[i].program = max(0, min(127, program))
+    }
+
+    // MARK: - Automation
+
+    func addAutomationPoint(_ track: Track, _ lane: WritableKeyPath<Track, [AutomationPoint]>,
+                            time: TimeInterval, value: Float) {
+        guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
+        tracks[i][keyPath: lane].append(AutomationPoint(time: max(0, time), value: value))
+        tracks[i][keyPath: lane].sort { $0.time < $1.time }
+    }
+
+    func removeAutomationPoint(_ point: AutomationPoint, _ track: Track,
+                               _ lane: WritableKeyPath<Track, [AutomationPoint]>) {
+        guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
+        tracks[i][keyPath: lane].removeAll { $0.id == point.id }
+    }
+
+    func clearAutomation(_ track: Track, _ lane: WritableKeyPath<Track, [AutomationPoint]>) {
+        guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
+        tracks[i][keyPath: lane] = []
+        // Restore the static mixer value once automation is gone.
+        engine.applyMix(tracks: tracks)
     }
 
     /// Render a track's clips + effects (EQ/comp/reverb/delay/volume/pan) to one audio
@@ -1176,7 +1202,9 @@ final class ProjectStore: ObservableObject {
                     notes: track.notes.map {
                         ProjectDocument.NoteData(pitch: $0.pitch, start: $0.start,
                                                  duration: $0.duration, velocity: $0.velocity)
-                    })
+                    },
+                    volumeAutomation: track.volumeAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
+                    panAutomation: track.panAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) })
             },
             markers: markers,
             masterEqLow: masterEqLow, masterEqMid: masterEqMid, masterEqHigh: masterEqHigh,
@@ -1206,6 +1234,8 @@ final class ProjectStore: ObservableObject {
             track.notes = trackData.notes.map {
                 MIDINote(pitch: $0.pitch, start: $0.start, duration: $0.duration, velocity: $0.velocity)
             }
+            track.volumeAutomation = trackData.volumeAutomation.map { AutomationPoint(time: $0.time, value: $0.value) }
+            track.panAutomation = trackData.panAutomation.map { AutomationPoint(time: $0.time, value: $0.value) }
 
             var clips: [Clip] = []
             for clipData in trackData.clips {

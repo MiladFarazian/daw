@@ -201,6 +201,23 @@ final class AudioEngine {
         }
     }
 
+    /// Update automated volume/pan mixers from each track's envelopes at `time` (called per tick).
+    func applyAutomation(tracks: [Track], at time: TimeInterval) {
+        let soloing = tracks.contains { $0.isSoloed }
+        for track in tracks {
+            guard let node = nodes[track.id],
+                  !track.volumeAutomation.isEmpty || !track.panAutomation.isEmpty else { continue }
+            let audible = soloing ? track.isSoloed : !track.isMuted
+            if !track.volumeAutomation.isEmpty {
+                node.mixer.outputVolume = audible
+                    ? automationValue(track.volumeAutomation, at: time, default: track.volume) : 0
+            }
+            if !track.panAutomation.isEmpty {
+                node.mixer.pan = automationValue(track.panAutomation, at: time, default: track.pan)
+            }
+        }
+    }
+
     /// Start synchronized playback of all tracks from `position` seconds on the timeline.
     func play(tracks: [Track], from position: TimeInterval, metronome: Bool = false,
               tempo: Double = 120, beatsPerBar: Int = 4) {

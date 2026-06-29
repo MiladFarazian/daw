@@ -111,6 +111,9 @@ struct TrackHeaderView: View {
                 Button("Cut Lows") { project.setEQ(track, low: -8, mid: 0, high: 0) }
                 Button("Telephone") { project.setEQ(track, low: -10, mid: 4, high: -8) }
             } label: { Label("EQ", systemImage: "slider.vertical.3") }
+            Button { project.activeSheet = .automation(track.id) } label: {
+                Label("Automation…", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+            }
             if track.isInstrument {
                 Divider()
                 Button { project.activeSheet = .pianoRoll(track.id) } label: {

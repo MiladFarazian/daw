@@ -255,6 +255,19 @@ struct AudioChecks {
         print(String(format: "   (MIDI render: head %.4f, note %.4f)", midiHead, midiBody))
         check("MIDI instrument renders a note at the right time", midiBody > 0.005 && midiHead < midiBody * 0.4)
 
+        // X) Volume automation (1 → 0 over the clip) fades the export out.
+        var autoTrack = Track(name: "Auto", colorIndex: 0)
+        autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]
+        autoTrack.volume = 1.0
+        autoTrack.volumeAutomation = [AutomationPoint(time: 0, value: 1.0),
+                                      AutomationPoint(time: 2.0, value: 0.0)]
+        let outX = tmp.appendingPathComponent("auto.wav")
+        try? FileManager.default.removeItem(at: outX)
+        try AudioExporter.render(tracks: [autoTrack], duration: 2.0, to: outX)
+        let early = try rms(outX, 0.1, 0.4), late = try rms(outX, 1.6, 1.9)
+        print(String(format: "   (volume automation: early %.3f, late %.3f)", early, late))
+        check("volume automation fades the mix down", early > 0.1 && late < early * 0.3)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }
