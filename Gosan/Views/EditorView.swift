@@ -35,6 +35,8 @@ struct EditorView: View {
                     .environmentObject(project)
                     .environmentObject(preview)
                     .environmentObject(project.taste)
+            case .youtube:
+                YouTubeSheet().environmentObject(project)
             case .analysis(let result):
                 AnalysisSheet(analysis: result)
             }
@@ -46,6 +48,40 @@ struct EditorView: View {
         } message: {
             Text(project.lastError ?? "")
         }
+    }
+}
+
+/// Paste a YouTube URL → pull the audio into a new track (via yt-dlp).
+struct YouTubeSheet: View {
+    @EnvironmentObject var project: ProjectStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var url = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Import from YouTube", systemImage: "arrow.down.circle").font(.headline)
+            Text("Pulls the audio into a new track. For personal / reference use — respect copyright.")
+                .font(.caption).foregroundStyle(.secondary)
+
+            TextField("https://www.youtube.com/watch?v=…", text: $url)
+                .textFieldStyle(.roundedBorder)
+
+            HStack(spacing: 10) {
+                Button("Download") {
+                    project.importFromYouTube(url)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(url.trimmingCharacters(in: .whitespaces).isEmpty)
+                Spacer()
+                Button("Cancel") { dismiss() }
+            }
+
+            Text("Requires yt-dlp:  brew install yt-dlp")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+        .padding(20)
+        .frame(width: 470)
     }
 }
 

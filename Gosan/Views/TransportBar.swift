@@ -174,9 +174,13 @@ struct TransportBar: View {
             }
             .help("Add an empty track")
 
-            Button { project.requestImport() } label: {
+            Menu {
+                Button("Audio file…") { project.requestImport() }
+                Button("From YouTube…") { project.activeSheet = .youtube }
+            } label: {
                 Label("Import", systemImage: "plus")
             }
+            .frame(width: 76)
 
             Menu {
                 Button("Mix → WAV…") { project.exportMixdown() }

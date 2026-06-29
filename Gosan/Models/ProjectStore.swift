@@ -140,6 +140,33 @@ final class ProjectStore: ObservableObject {
         addNamedTrack(name: asset.name, asset: asset)
     }
 
+    /// Download a YouTube (or other yt-dlp) URL's audio and add it as a new track.
+    func importFromYouTube(_ urlString: String) {
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        isImporting = true
+        Task.detached(priority: .userInitiated) {
+            do {
+                let dir = try LibraryStorage.importsDirectory()
+                let file = try YouTubeImporter.download(url: trimmed, into: dir)
+                guard let waveform = WaveformLoader.load(url: file) else {
+                    throw YouTubeImporter.YTError.failed("Couldn't decode the audio (try a different video, or install ffmpeg).")
+                }
+                let asset = AudioAsset(url: file, duration: waveform.duration,
+                                       sampleRate: waveform.sampleRate, peaks: waveform.peaks)
+                await MainActor.run {
+                    self.addNamedTrack(name: asset.name, asset: asset)
+                    self.isImporting = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.isImporting = false
+                    self.lastError = error.localizedDescription
+                }
+            }
+        }
+    }
+
     private func addClip(asset: AudioAsset, toTrackID: UUID, at position: TimeInterval) {
         guard let index = tracks.firstIndex(where: { $0.id == toTrackID }) else { return }
         recordUndo()

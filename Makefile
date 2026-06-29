@@ -1,4 +1,4 @@
-.PHONY: generate open build run verify moises-workflows musicai-workflows suno-sidecar clean
+.PHONY: generate open build run verify moises-workflows musicai-workflows suno-sidecar yt clean
 
 # List your Moises (developer.moises.ai) workflow slugs (needs MOISES_API_KEY in the environment)
 moises-workflows musicai-workflows:
@@ -7,6 +7,10 @@ moises-workflows musicai-workflows:
 # Run a local Suno sidecar for one-click generation (needs SUNO_COOKIE in the environment)
 suno-sidecar:
 	tools/suno-sidecar.sh
+
+# Download a YouTube URL's audio for Gosan (needs yt-dlp):  make yt URL="https://..."
+yt:
+	tools/yt-import.sh "$(URL)"
 
 # Regenerate Gosan.xcodeproj from project.yml
 generate:

@@ -17,7 +17,7 @@ stay the producer. See the design:
 **Phase 1 — DAW bones** ✅
 
 - **Tracks** — add empty tracks, rename, reorder (move up/down), recolor, drop audio onto a specific
-  track at a position
+  track at a position; **import from YouTube** (Import → From YouTube, via `yt-dlp` — personal/reference use)
 - **Recording** — mic record with overdub (existing tracks play while you record, take lands at the
   playhead), input monitoring + level meter
 - **Timeline** — multi-track waveforms, **bars|beats ruler + grid**, synchronized AVAudioEngine playback,

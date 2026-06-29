@@ -37,11 +37,13 @@ struct CandidateAsset: Identifiable {
 /// multiple-sheet conflicts).
 enum EditorSheet: Identifiable {
     case generate
+    case youtube
     case analysis(AnalysisResult)
 
     var id: String {
         switch self {
         case .generate: return "generate"
+        case .youtube: return "youtube"
         case .analysis(let result): return result.id.uuidString
         }
     }
