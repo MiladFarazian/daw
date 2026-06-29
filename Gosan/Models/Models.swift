@@ -31,7 +31,8 @@ struct Clip: Identifiable {
     var fadeCurve = 0                 // 0 = linear, 1 = equal-power
     var gain: Float = 1.0             // linear clip gain
     var muted = false
-    var name: String { asset.name }
+    var customName: String?           // user-set name; falls back to the asset name
+    var name: String { customName ?? asset.name }
 
     init(asset: AudioAsset, startTime: TimeInterval = 0) {
         self.asset = asset

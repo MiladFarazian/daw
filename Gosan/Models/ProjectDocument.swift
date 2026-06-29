@@ -43,5 +43,6 @@ struct ProjectDocument: Codable {
         var fadeCurve: Int = 0
         var gain: Float = 1.0
         var muted: Bool = false
+        var customName: String? = nil
     }
 }

@@ -591,6 +591,20 @@ final class ProjectStore: ObservableObject {
         engine.prepare(tracks: tracks)
     }
 
+    /// Deep-copy a track (fresh ids, same effect settings + clips) below the original.
+    func duplicateTrack(_ track: Track) {
+        guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
+        var copy = Track(name: track.name + " copy", colorIndex: tracks.count)
+        copy.volume = track.volume; copy.pan = track.pan
+        copy.reverb = track.reverb; copy.delay = track.delay; copy.compress = track.compress
+        copy.eqLow = track.eqLow; copy.eqMid = track.eqMid; copy.eqHigh = track.eqHigh
+        copy.isMuted = track.isMuted; copy.isSoloed = track.isSoloed
+        copy.clips = track.clips.map { pastedCopy(of: $0, at: $0.startTime) }
+        tracks.insert(copy, at: i + 1)
+        engine.prepare(tracks: tracks)
+    }
+
     func renameTrack(_ track: Track, to name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -721,6 +735,12 @@ final class ProjectStore: ObservableObject {
     func toggleClipMute(_ clip: Clip, on track: Track) {
         recordUndo()
         updateClip(clip, on: track) { $0.muted.toggle() }
+    }
+
+    func renameClip(_ clip: Clip, on track: Track, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        recordUndo()
+        updateClip(clip, on: track) { $0.customName = trimmed.isEmpty ? nil : trimmed }
     }
 
     func setFadeCurve(_ clip: Clip, on track: Track, equalPower: Bool) {
@@ -858,7 +878,10 @@ final class ProjectStore: ObservableObject {
         copy.duration = clip.duration
         copy.fadeIn = clip.fadeIn
         copy.fadeOut = clip.fadeOut
+        copy.fadeCurve = clip.fadeCurve
         copy.gain = clip.gain
+        copy.muted = clip.muted
+        copy.customName = clip.customName
         return copy
     }
 
@@ -1076,7 +1099,7 @@ final class ProjectStore: ObservableObject {
                             assetDuration: clip.asset.duration,
                             startTime: clip.startTime, offset: clip.offset, duration: clip.duration,
                             fadeIn: clip.fadeIn, fadeOut: clip.fadeOut, fadeCurve: clip.fadeCurve,
-                            gain: clip.gain, muted: clip.muted)
+                            gain: clip.gain, muted: clip.muted, customName: clip.customName)
                     })
             },
             markers: markers,
@@ -1133,6 +1156,7 @@ final class ProjectStore: ObservableObject {
                 clip.fadeCurve = clipData.fadeCurve
                 clip.gain = clipData.gain
                 clip.muted = clipData.muted
+                clip.customName = clipData.customName
                 clips.append(clip)
             }
             track.clips = clips

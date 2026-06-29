@@ -70,6 +70,7 @@ struct TrackHeaderView: View {
         .frame(maxHeight: .infinity)
         .contextMenu {
             Button { draft = track.name; isEditing = true } label: { Label("Rename", systemImage: "pencil") }
+            Button { project.duplicateTrack(track) } label: { Label("Duplicate Track", systemImage: "plus.square.on.square") }
             Button { project.moveTrack(track, by: -1) } label: { Label("Move Up", systemImage: "arrow.up") }
             Button { project.moveTrack(track, by: 1) } label: { Label("Move Down", systemImage: "arrow.down") }
             Menu {

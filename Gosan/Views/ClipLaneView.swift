@@ -6,6 +6,8 @@ struct ClipLaneView: View {
     @EnvironmentObject var project: ProjectStore
     let track: Track
     let pps: Double
+    @State private var renameTarget: Clip?
+    @State private var renameText = ""
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -21,6 +23,9 @@ struct ClipLaneView: View {
                         .disabled(!project.canSplit(clip))
                         Button { project.duplicateClip(clip, on: track) } label: {
                             Label("Duplicate", systemImage: "plus.square.on.square")
+                        }
+                        Button { renameText = clip.name; renameTarget = clip } label: {
+                            Label("Rename…", systemImage: "pencil")
                         }
                         Button { project.toggleClipMute(clip, on: track) } label: {
                             Label(clip.muted ? "Unmute Clip" : "Mute Clip",
@@ -108,6 +113,16 @@ struct ClipLaneView: View {
         .dropDestination(for: URL.self) { urls, location in
             project.importAudio(urls: urls, onto: track, at: Double(location.x) / pps)
             return true
+        }
+        .alert("Rename Clip", isPresented: Binding(
+            get: { renameTarget != nil },
+            set: { if !$0 { renameTarget = nil } })) {
+            TextField("Name", text: $renameText)
+            Button("Rename") {
+                if let clip = renameTarget { project.renameClip(clip, on: track, to: renameText) }
+                renameTarget = nil
+            }
+            Button("Cancel", role: .cancel) { renameTarget = nil }
         }
     }
 }
