@@ -34,8 +34,9 @@ profile. With **Use my taste** on, future prompts are silently nudged toward you
 descriptors and average tempo — and the panel shows exactly what it added ("Nudged toward: …"). Your
 profile is visible as chips in the panel and resettable in Settings.
 
-**Project save/load** ✅. File → New / Open / Save (⌘N / ⌘O / ⌘S) persist the arrangement to a `.gosan`
-document (JSON; audio referenced from the library, waveforms recomputed on load).
+**Project save/load** ✅. File → New / Open / Save (⌘N / ⌘O / ⌘S) persist the arrangement to a **portable
+`.gosan` package** — a folder with `project.json` + an `audio/` subfolder holding copies of every clip, so
+projects are self-contained and move between machines. Audio is copied into the library on open.
 
 ### Music.ai setup (for the AI clip actions)
 

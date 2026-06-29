@@ -56,6 +56,14 @@ struct AudioChecks {
               && decoded.tracks.first?.clips.first?.offset == 0.25
               && decoded.tracks.first?.clips.first?.duration == 2.0)
 
+        // E) Portable package: bundles audio + round-trips the document.
+        let pkg = tmp.appendingPathComponent("Demo.gosan")
+        try? FileManager.default.removeItem(at: pkg)
+        try ProjectPackage.write(doc, assetURLs: ["tone.wav": toneURL], to: pkg)
+        let (readDoc, audioDir) = try ProjectPackage.read(pkg)
+        let bundled = FileManager.default.fileExists(atPath: audioDir.appendingPathComponent("tone.wav").path)
+        check("portable package bundles audio + round-trips", bundled && readDoc.name == "Demo")
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }

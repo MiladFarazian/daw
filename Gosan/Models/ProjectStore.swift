@@ -470,10 +470,16 @@ final class ProjectStore: ObservableObject {
         panel.allowedContentTypes = [Self.projectType]
         panel.nameFieldStringValue = "\(name).gosan"
         panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard panel.runModal() == .OK, var url = panel.url else { return }
+        if url.pathExtension != "gosan" { url.appendPathExtension("gosan") }
+
+        // Bundle every referenced asset into the package so it's portable.
+        var assetURLs: [String: URL] = [:]
+        for track in tracks {
+            for clip in track.clips { assetURLs[clip.asset.url.lastPathComponent] = clip.asset.url }
+        }
         do {
-            let data = try JSONEncoder().encode(snapshotDocument())
-            try data.write(to: url)
+            try ProjectPackage.write(snapshotDocument(), assetURLs: assetURLs, to: url)
             name = url.deletingPathExtension().lastPathComponent
         } catch {
             lastError = "Save failed: \(error.localizedDescription)"
@@ -483,12 +489,19 @@ final class ProjectStore: ObservableObject {
     func openProject() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [Self.projectType]
+        panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let scoped = url.startAccessingSecurityScopedResource()
         do {
-            let document = try JSONDecoder().decode(ProjectDocument.self, from: Data(contentsOf: url))
-            Task { await applyDocument(document) }
+            let (document, audioDir) = try ProjectPackage.read(url)
+            Task {
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                await applyDocument(document, audioDir: audioDir)
+            }
         } catch {
+            if scoped { url.stopAccessingSecurityScopedResource() }
             lastError = "Open failed: \(error.localizedDescription)"
         }
     }
@@ -512,10 +525,9 @@ final class ProjectStore: ObservableObject {
             })
     }
 
-    private func applyDocument(_ document: ProjectDocument) async {
+    private func applyDocument(_ document: ProjectDocument, audioDir: URL) async {
         stop()
         engine.reset()
-        let importsDir = try? LibraryStorage.importsDirectory()
         var assetCache: [String: AudioAsset] = [:]
         var rebuilt: [Track] = []
 
@@ -531,16 +543,16 @@ final class ProjectStore: ObservableObject {
                 let asset: AudioAsset
                 if let cached = assetCache[clipData.assetFile] {
                     asset = cached
-                } else if let dir = importsDir {
-                    let url = dir.appendingPathComponent(clipData.assetFile)
+                } else {
+                    // Copy the package's audio into the library so playback is sandbox-safe.
+                    let packaged = audioDir.appendingPathComponent(clipData.assetFile)
+                    let local = (try? LibraryStorage.copyIntoLibrary(packaged)) ?? packaged
                     let peaks = await Task.detached(priority: .userInitiated) {
-                        WaveformLoader.load(url: url)?.peaks ?? []
+                        WaveformLoader.load(url: local)?.peaks ?? []
                     }.value
-                    asset = AudioAsset(url: url, duration: clipData.assetDuration,
+                    asset = AudioAsset(url: local, duration: clipData.assetDuration,
                                        sampleRate: clipData.sampleRate, peaks: peaks)
                     assetCache[clipData.assetFile] = asset
-                } else {
-                    continue
                 }
                 var clip = Clip(asset: asset, startTime: clipData.startTime)
                 clip.offset = clipData.offset

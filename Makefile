@@ -11,7 +11,7 @@ generate:
 # Headless behavioral checks for the audio export + project format (no GUI/hardware)
 verify:
 	swiftc Gosan/Models/Models.swift Gosan/Models/ProjectDocument.swift \
-		Gosan/Audio/AudioExporter.swift tools/AudioChecks.swift \
+		Gosan/Audio/ProjectPackage.swift Gosan/Audio/AudioExporter.swift tools/AudioChecks.swift \
 		-o $(TMPDIR)gosan-audiochecks -framework AVFoundation
 	$(TMPDIR)gosan-audiochecks
 
