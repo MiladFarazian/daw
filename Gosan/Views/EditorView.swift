@@ -48,6 +48,7 @@ struct EditorView: View {
         } message: {
             Text(project.lastError ?? "")
         }
+        .onAppear { project.restoreSessionIfAvailable() }
     }
 }
 

@@ -3,6 +3,17 @@ import Foundation
 /// Copies externally-selected audio into the app's container so playback no longer
 /// depends on holding security-scoped access to the original file.
 enum LibraryStorage {
+    /// The app's support directory (~/Library/Application Support/Gosan), for recovery/autosave.
+    static func supportDirectory() throws -> URL {
+        let base = try FileManager.default.url(for: .applicationSupportDirectory,
+                                               in: .userDomainMask,
+                                               appropriateFor: nil,
+                                               create: true)
+        let directory = base.appendingPathComponent("Gosan", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
     static func importsDirectory() throws -> URL {
         let base = try FileManager.default.url(for: .applicationSupportDirectory,
                                                in: .userDomainMask,

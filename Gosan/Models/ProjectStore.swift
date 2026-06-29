@@ -924,6 +924,42 @@ final class ProjectStore: ObservableObject {
         setMasterEQ(low: 0, mid: 0, high: 0)
         name = "Untitled"
         currentTime = 0
+        removeRecovery()
+    }
+
+    // MARK: - Session autosave / crash recovery
+
+    private static var recoveryURL: URL? {
+        try? LibraryStorage.supportDirectory().appendingPathComponent("recovery.json")
+    }
+    private var autosaveStarted = false
+    private var autosaveTimer: Timer?
+
+    /// Restore the last session (if any) and begin autosaving. Call once, on first appear.
+    func restoreSessionIfAvailable() {
+        guard !autosaveStarted else { return }
+        autosaveStarted = true
+        if tracks.isEmpty, let url = Self.recoveryURL,
+           let data = try? Data(contentsOf: url),
+           let document = try? JSONDecoder().decode(ProjectDocument.self, from: data),
+           !document.tracks.isEmpty {
+            Task { await applyDocument(document, audioDir: nil) }
+        }
+        autosaveTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.autosave() }
+        }
+    }
+
+    private func autosave() {
+        guard let url = Self.recoveryURL else { return }
+        if tracks.isEmpty { removeRecovery(); return }
+        if let data = try? JSONEncoder().encode(snapshotDocument(absolutePaths: true)) {
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
+    private func removeRecovery() {
+        if let url = Self.recoveryURL { try? FileManager.default.removeItem(at: url) }
     }
 
     func saveProject() {
@@ -978,7 +1014,7 @@ final class ProjectStore: ObservableObject {
         }
     }
 
-    private func snapshotDocument() -> ProjectDocument {
+    private func snapshotDocument(absolutePaths: Bool = false) -> ProjectDocument {
         ProjectDocument(
             name: name, tempo: tempo, pixelsPerSecond: pixelsPerSecond,
             tracks: tracks.map { track in
@@ -990,7 +1026,7 @@ final class ProjectStore: ObservableObject {
                     isMuted: track.isMuted, isSoloed: track.isSoloed,
                     clips: track.clips.map { clip in
                         ProjectDocument.ClipData(
-                            assetFile: clip.asset.url.lastPathComponent,
+                            assetFile: absolutePaths ? clip.asset.url.path : clip.asset.url.lastPathComponent,
                             assetName: clip.asset.name,
                             sampleRate: clip.asset.sampleRate,
                             assetDuration: clip.asset.duration,
@@ -1004,7 +1040,7 @@ final class ProjectStore: ObservableObject {
             beatsPerBar: beatsPerBar)
     }
 
-    private func applyDocument(_ document: ProjectDocument, audioDir: URL) async {
+    private func applyDocument(_ document: ProjectDocument, audioDir: URL?) async {
         stop()
         engine.reset()
         var assetCache: [String: AudioAsset] = [:]
@@ -1029,9 +1065,15 @@ final class ProjectStore: ObservableObject {
                 if let cached = assetCache[clipData.assetFile] {
                     asset = cached
                 } else {
-                    // Copy the package's audio into the library so playback is sandbox-safe.
-                    let packaged = audioDir.appendingPathComponent(clipData.assetFile)
-                    let local = (try? LibraryStorage.copyIntoLibrary(packaged)) ?? packaged
+                    // From a package: copy audio into the library. From recovery (audioDir nil):
+                    // assetFile is an absolute path already on disk — reference it directly.
+                    let local: URL
+                    if let audioDir {
+                        let packaged = audioDir.appendingPathComponent(clipData.assetFile)
+                        local = (try? LibraryStorage.copyIntoLibrary(packaged)) ?? packaged
+                    } else {
+                        local = URL(fileURLWithPath: clipData.assetFile)
+                    }
                     let peaks = await Task.detached(priority: .userInitiated) {
                         WaveformLoader.load(url: local)?.peaks ?? []
                     }.value
