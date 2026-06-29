@@ -32,6 +32,10 @@ final class ProjectStore: ObservableObject {
     @Published var isExporting = false
     @Published var selectedClipID: UUID?
     @Published var snapEnabled = true
+    @Published private(set) var canUndo = false
+    @Published private(set) var canRedo = false
+    private var undoStack: [[Track]] = []
+    private var redoStack: [[Track]] = []
 
     let settings: AppSettings
     let taste: TasteEngine
@@ -127,6 +131,7 @@ final class ProjectStore: ObservableObject {
     }
 
     private func addNamedTrack(name: String, asset: AudioAsset, at position: TimeInterval = 0) {
+        recordUndo()
         var track = Track(name: name, colorIndex: tracks.count)
         track.clips = [Clip(asset: asset, startTime: position)]
         tracks.append(track)
@@ -362,8 +367,8 @@ final class ProjectStore: ObservableObject {
 
     func setVolume(_ track: Track, _ value: Float) { mutate(track) { $0.volume = value } }
     func setPan(_ track: Track, _ value: Float) { mutate(track) { $0.pan = value } }
-    func toggleMute(_ track: Track) { mutate(track) { $0.isMuted.toggle() } }
-    func toggleSolo(_ track: Track) { mutate(track) { $0.isSoloed.toggle() } }
+    func toggleMute(_ track: Track) { recordUndo(); mutate(track) { $0.isMuted.toggle() } }
+    func toggleSolo(_ track: Track) { recordUndo(); mutate(track) { $0.isSoloed.toggle() } }
 
     private func mutate(_ track: Track, _ change: (inout Track) -> Void) {
         guard let index = tracks.firstIndex(where: { $0.id == track.id }) else { return }
@@ -372,6 +377,7 @@ final class ProjectStore: ObservableObject {
     }
 
     func deleteTrack(_ track: Track) {
+        recordUndo()
         tracks.removeAll { $0.id == track.id }
     }
 
@@ -380,6 +386,40 @@ final class ProjectStore: ObservableObject {
     private let minClipDuration: TimeInterval = 0.1
 
     func selectClip(_ id: UUID?) { selectedClipID = id }
+
+    // MARK: - Undo / redo (snapshots of the track state)
+
+    private func recordUndo() {
+        undoStack.append(tracks)
+        if undoStack.count > 100 { undoStack.removeFirst() }
+        redoStack.removeAll()
+        canUndo = true
+        canRedo = false
+    }
+
+    func undo() {
+        guard let previous = undoStack.popLast() else { return }
+        redoStack.append(tracks)
+        applyTrackState(previous)
+        canUndo = !undoStack.isEmpty
+        canRedo = true
+    }
+
+    func redo() {
+        guard let next = redoStack.popLast() else { return }
+        undoStack.append(tracks)
+        applyTrackState(next)
+        canUndo = true
+        canRedo = !redoStack.isEmpty
+    }
+
+    private func applyTrackState(_ newTracks: [Track]) {
+        stop()
+        selectedClipID = nil
+        tracks = newTracks
+        engine.reset()
+        engine.prepare(tracks: newTracks)
+    }
 
     /// Snap a time to the nearest 1/4-beat when snapping is on.
     private func snapped(_ time: TimeInterval) -> TimeInterval {
@@ -390,12 +430,14 @@ final class ProjectStore: ObservableObject {
 
     /// Move a clip along the timeline by a pixel delta (snapped on release).
     func moveClip(_ clip: Clip, on track: Track, byPixels dx: CGFloat) {
+        recordUndo()
         let delta = TimeInterval(dx) / pixelsPerSecond
         updateClip(clip, on: track) { $0.startTime = self.snapped($0.startTime + delta) }
     }
 
     func deleteClip(_ clip: Clip, on track: Track) {
         guard let ti = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
         tracks[ti].clips.removeAll { $0.id == clip.id }
         if tracks[ti].clips.isEmpty { tracks.remove(at: ti) }
         if selectedClipID == clip.id { selectedClipID = nil }
@@ -412,6 +454,7 @@ final class ProjectStore: ObservableObject {
         guard canSplit(clip),
               let ti = tracks.firstIndex(where: { $0.id == track.id }),
               let ci = tracks[ti].clips.firstIndex(where: { $0.id == clip.id }) else { return }
+        recordUndo()
         let into = currentTime - clip.startTime
 
         var left = clip
@@ -429,6 +472,7 @@ final class ProjectStore: ObservableObject {
     func duplicateClip(_ clip: Clip, on track: Track) {
         guard let ti = tracks.firstIndex(where: { $0.id == track.id }),
               let ci = tracks[ti].clips.firstIndex(where: { $0.id == clip.id }) else { return }
+        recordUndo()
         var copy = Clip(asset: clip.asset, startTime: clip.startTime + clip.duration)
         copy.offset = clip.offset
         copy.duration = clip.duration
@@ -437,6 +481,7 @@ final class ProjectStore: ObservableObject {
 
     /// Drag the left edge: trims into / out of the asset head while holding the right edge fixed.
     func trimClipStart(_ clip: Clip, on track: Track, byPixels dx: CGFloat) {
+        recordUndo()
         let delta = TimeInterval(dx) / pixelsPerSecond
         updateClip(clip, on: track) { c in
             let d = min(max(delta, -c.offset), c.duration - minClipDuration)
@@ -448,6 +493,7 @@ final class ProjectStore: ObservableObject {
 
     /// Drag the right edge: extends/trims the visible length within the asset.
     func trimClipEnd(_ clip: Clip, on track: Track, byPixels dx: CGFloat) {
+        recordUndo()
         let delta = TimeInterval(dx) / pixelsPerSecond
         updateClip(clip, on: track) { c in
             let maxExtend = c.asset.duration - c.offset - c.duration

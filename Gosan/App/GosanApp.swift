@@ -30,6 +30,14 @@ struct GosanApp: App {
         }
         .windowResizability(.contentMinSize)
         .commands {
+            CommandGroup(replacing: .undoRedo) {
+                Button("Undo") { project.undo() }
+                    .keyboardShortcut("z", modifiers: .command)
+                    .disabled(!project.canUndo)
+                Button("Redo") { project.redo() }
+                    .keyboardShortcut("z", modifiers: [.command, .shift])
+                    .disabled(!project.canRedo)
+            }
             CommandGroup(replacing: .newItem) {
                 Button("New Project") { project.newProject() }
                     .keyboardShortcut("n", modifiers: .command)
