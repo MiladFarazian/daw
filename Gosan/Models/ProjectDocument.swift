@@ -15,6 +15,10 @@ struct ProjectDocument: Codable {
         var volume: Float
         var pan: Float
         var reverb: Float = 0
+        var delay: Float = 0
+        var eqLow: Float = 0
+        var eqMid: Float = 0
+        var eqHigh: Float = 0
         var isMuted: Bool
         var isSoloed: Bool
         var clips: [ClipData]

@@ -415,6 +415,10 @@ final class ProjectStore: ObservableObject {
     func setVolume(_ track: Track, _ value: Float) { mutate(track) { $0.volume = value } }
     func setPan(_ track: Track, _ value: Float) { mutate(track) { $0.pan = value } }
     func setReverb(_ track: Track, _ value: Float) { mutate(track) { $0.reverb = value } }
+    func setDelay(_ track: Track, _ value: Float) { mutate(track) { $0.delay = value } }
+    func setEQ(_ track: Track, low: Float, mid: Float, high: Float) {
+        mutate(track) { $0.eqLow = low; $0.eqMid = mid; $0.eqHigh = high }
+    }
     func toggleMute(_ track: Track) { recordUndo(); mutate(track) { $0.isMuted.toggle() } }
     func toggleSolo(_ track: Track) { recordUndo(); mutate(track) { $0.isSoloed.toggle() } }
 
@@ -714,6 +718,7 @@ final class ProjectStore: ObservableObject {
                 ProjectDocument.TrackData(
                     name: track.name, colorIndex: track.colorIndex,
                     volume: track.volume, pan: track.pan, reverb: track.reverb,
+                    delay: track.delay, eqLow: track.eqLow, eqMid: track.eqMid, eqHigh: track.eqHigh,
                     isMuted: track.isMuted, isSoloed: track.isSoloed,
                     clips: track.clips.map { clip in
                         ProjectDocument.ClipData(
@@ -738,6 +743,10 @@ final class ProjectStore: ObservableObject {
             track.volume = trackData.volume
             track.pan = trackData.pan
             track.reverb = trackData.reverb
+            track.delay = trackData.delay
+            track.eqLow = trackData.eqLow
+            track.eqMid = trackData.eqMid
+            track.eqHigh = trackData.eqHigh
             track.isMuted = trackData.isMuted
             track.isSoloed = trackData.isSoloed
 

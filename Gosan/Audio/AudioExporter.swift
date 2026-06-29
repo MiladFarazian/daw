@@ -30,19 +30,25 @@ enum AudioExporter {
         for track in tracks {
             let player = AVAudioPlayerNode()
             let mixer = AVAudioMixerNode()
+            let eq = AVAudioUnitEQ(numberOfBands: 3)
+            eq.bands[0].filterType = .lowShelf; eq.bands[0].frequency = 120; eq.bands[0].gain = track.eqLow; eq.bands[0].bypass = false
+            eq.bands[1].filterType = .parametric; eq.bands[1].frequency = 1000; eq.bands[1].bandwidth = 1.0; eq.bands[1].gain = track.eqMid; eq.bands[1].bypass = false
+            eq.bands[2].filterType = .highShelf; eq.bands[2].frequency = 8000; eq.bands[2].gain = track.eqHigh; eq.bands[2].bypass = false
             let reverb = AVAudioUnitReverb()
             reverb.loadFactoryPreset(.mediumHall)
             reverb.wetDryMix = track.reverb * 100
-            engine.attach(player)
-            engine.attach(mixer)
-            engine.attach(reverb)
+            let delay = AVAudioUnitDelay()
+            delay.delayTime = 0.33; delay.feedback = 30; delay.wetDryMix = track.delay * 100
+            [player, mixer, eq, reverb, delay].forEach { engine.attach($0) }
             // Connect with the first clip's format so scheduled buffers match.
             let trackFormat = track.clips.first
                 .flatMap { try? AVAudioFile(forReading: $0.asset.url).processingFormat }
-            // player → mixer → reverb → main (reverb after the mixer → always stereo).
+            // player → mixer → eq → reverb → delay → main (effects after the mixer → stereo).
             engine.connect(player, to: mixer, format: trackFormat)
-            engine.connect(mixer, to: reverb, format: renderFormat)
-            engine.connect(reverb, to: mainMixer, format: renderFormat)
+            engine.connect(mixer, to: eq, format: renderFormat)
+            engine.connect(eq, to: reverb, format: renderFormat)
+            engine.connect(reverb, to: delay, format: renderFormat)
+            engine.connect(delay, to: mainMixer, format: renderFormat)
 
             let audible = soloing ? track.isSoloed : !track.isMuted
             mixer.outputVolume = audible ? track.volume : 0

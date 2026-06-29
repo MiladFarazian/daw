@@ -87,6 +87,19 @@ struct TrackHeaderView: View {
                 Button("Medium") { project.setReverb(track, 0.5) }
                 Button("Heavy") { project.setReverb(track, 0.8) }
             } label: { Label("Reverb", systemImage: "waveform.path.ecg") }
+            Menu {
+                Button("Off") { project.setDelay(track, 0) }
+                Button("Light") { project.setDelay(track, 0.2) }
+                Button("Medium") { project.setDelay(track, 0.4) }
+                Button("Heavy") { project.setDelay(track, 0.6) }
+            } label: { Label("Delay", systemImage: "arrow.triangle.2.circlepath") }
+            Menu {
+                Button("Flat") { project.setEQ(track, low: 0, mid: 0, high: 0) }
+                Button("Bright") { project.setEQ(track, low: 0, mid: 0, high: 5) }
+                Button("Warm") { project.setEQ(track, low: 4, mid: 0, high: -3) }
+                Button("Cut Lows") { project.setEQ(track, low: -8, mid: 0, high: 0) }
+                Button("Telephone") { project.setEQ(track, low: -10, mid: 4, high: -8) }
+            } label: { Label("EQ", systemImage: "slider.vertical.3") }
             Divider()
             Button(role: .destructive) { project.deleteTrack(track) } label: {
                 Label("Delete Track", systemImage: "trash")

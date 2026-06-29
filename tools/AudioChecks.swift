@@ -112,6 +112,17 @@ struct AudioChecks {
         print(String(format: "   (reverb tail RMS after clip end: %.4f)", dryTail))
         check("reverb rings out after the clip", dryTail > 0.004)
 
+        // J) Per-track delay: a 1s clip with delay should echo after it ends.
+        var delTrack = Track(name: "Del", colorIndex: 0); delTrack.delay = 0.6
+        var delClip = Clip(asset: asset, startTime: 0.0); delClip.duration = 1.0
+        delTrack.clips = [delClip]
+        let outJ = tmp.appendingPathComponent("j.wav")
+        try? FileManager.default.removeItem(at: outJ)
+        try AudioExporter.render(tracks: [delTrack], duration: 3.0, to: outJ)
+        let echo = try rms(outJ, 1.2, 2.0)
+        print(String(format: "   (delay echo RMS after clip end: %.4f)", echo))
+        check("delay echoes after the clip", echo > 0.02)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }

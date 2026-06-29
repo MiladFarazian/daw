@@ -9,9 +9,17 @@ final class AudioEngine {
     private struct TrackNode {
         let player: AVAudioPlayerNode
         let mixer: AVAudioMixerNode
+        let eq: AVAudioUnitEQ
         let reverb: AVAudioUnitReverb
+        let delay: AVAudioUnitDelay
     }
     private var nodes: [UUID: TrackNode] = [:]
+
+    private func configureEQ(_ eq: AVAudioUnitEQ) {
+        let low = eq.bands[0]; low.filterType = .lowShelf; low.frequency = 120; low.bypass = false
+        let mid = eq.bands[1]; mid.filterType = .parametric; mid.frequency = 1000; mid.bandwidth = 1.0; mid.bypass = false
+        let high = eq.bands[2]; high.filterType = .highShelf; high.frequency = 8000; high.bypass = false
+    }
 
     // Metronome
     private let metronomePlayer = AVAudioPlayerNode()
@@ -87,24 +95,30 @@ final class AudioEngine {
         for track in tracks where nodes[track.id] == nil {
             let player = AVAudioPlayerNode()
             let mixer = AVAudioMixerNode()
+            let eq = AVAudioUnitEQ(numberOfBands: 3)
+            configureEQ(eq)
             let reverb = AVAudioUnitReverb()
             reverb.loadFactoryPreset(.mediumHall)
             reverb.wetDryMix = 0
-            engine.attach(player)
-            engine.attach(mixer)
-            engine.attach(reverb)
+            let delay = AVAudioUnitDelay()
+            delay.delayTime = 0.33
+            delay.feedback = 30
+            delay.wetDryMix = 0
+            [player, mixer, eq, reverb, delay].forEach { engine.attach($0) }
 
             let format = track.clips.first
                 .flatMap { try? AVAudioFile(forReading: $0.asset.url).processingFormat }
                 ?? AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
 
-            // player → mixer → reverb → main. Reverb sits after the mixer so it always
-            // sees stereo (AVAudioUnitReverb rejects a mono input).
+            // player → mixer → eq → reverb → delay → main. Effects sit after the mixer so
+            // they always see stereo (the AUs reject a mono input).
             let stereo = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
             engine.connect(player, to: mixer, format: format)
-            engine.connect(mixer, to: reverb, format: stereo)
-            engine.connect(reverb, to: mainMixer, format: stereo)
-            nodes[track.id] = TrackNode(player: player, mixer: mixer, reverb: reverb)
+            engine.connect(mixer, to: eq, format: stereo)
+            engine.connect(eq, to: reverb, format: stereo)
+            engine.connect(reverb, to: delay, format: stereo)
+            engine.connect(delay, to: mainMixer, format: stereo)
+            nodes[track.id] = TrackNode(player: player, mixer: mixer, eq: eq, reverb: reverb, delay: delay)
         }
         applyMix(tracks: tracks)
         if !engine.isRunning { try? engine.start() }
@@ -119,6 +133,10 @@ final class AudioEngine {
             node.mixer.outputVolume = audible ? track.volume : 0
             node.mixer.pan = track.pan
             node.reverb.wetDryMix = track.reverb * 100
+            node.delay.wetDryMix = track.delay * 100
+            node.eq.bands[0].gain = track.eqLow
+            node.eq.bands[1].gain = track.eqMid
+            node.eq.bands[2].gain = track.eqHigh
         }
     }
 
@@ -175,9 +193,7 @@ final class AudioEngine {
     func reset() {
         stop()
         for node in nodes.values {
-            engine.detach(node.player)
-            engine.detach(node.mixer)
-            engine.detach(node.reverb)
+            [node.player, node.mixer, node.eq, node.reverb, node.delay].forEach { engine.detach($0) }
         }
         nodes.removeAll()
     }
