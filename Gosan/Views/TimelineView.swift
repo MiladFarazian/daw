@@ -41,8 +41,12 @@ struct TimelineView: View {
             // Scrollable lane area
             ScrollView(.horizontal, showsIndicators: true) {
                 ZStack(alignment: .topLeading) {
+                    BeatGridView(pps: pps, tempo: project.tempo)
+                        .frame(width: contentWidth)
+                        .allowsHitTesting(false)
+
                     VStack(spacing: 0) {
-                        TimeRulerView(pps: pps)
+                        TimeRulerView(pps: pps, tempo: project.tempo)
                             .frame(width: contentWidth, height: rulerHeight)
                             .contentShape(Rectangle())
                             .gesture(
@@ -85,31 +89,67 @@ struct TimelineView: View {
     }
 }
 
-/// Second/labelled ticks across the timeline.
+/// Bars|beats ruler (4/4): numbered bar lines with beat ticks.
 struct TimeRulerView: View {
     let pps: Double
+    let tempo: Double
 
     var body: some View {
         Canvas { context, size in
-            let seconds = Int(ceil(Double(size.width) / pps))
-            let labelEvery = pps < 50 ? 5 : (pps < 100 ? 2 : 1)
-            for second in 0...max(1, seconds) {
-                let x = CGFloat(Double(second) * pps)
-                let labeled = second % labelEvery == 0
-                var tick = Path()
-                tick.move(to: CGPoint(x: x, y: labeled ? 6 : 14))
-                tick.addLine(to: CGPoint(x: x, y: size.height))
-                context.stroke(tick,
-                               with: .color(.secondary.opacity(labeled ? 0.6 : 0.3)),
-                               lineWidth: 1)
-                if labeled {
-                    let label = Text(timecode(Double(second)))
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(.secondary)
+            let beat = 60.0 / max(1, tempo)
+            let barPx = beat * 4 * pps
+            guard barPx > 1 else { return }
+            let beatPx = barPx / 4
+            let labelBars = barPx >= 26
+
+            var bar = 0
+            var x = 0.0
+            while x <= Double(size.width) {
+                var line = Path()
+                line.move(to: CGPoint(x: x, y: 4)); line.addLine(to: CGPoint(x: x, y: size.height))
+                context.stroke(line, with: .color(.secondary.opacity(0.6)), lineWidth: 1)
+                if labelBars {
+                    let label = Text("\(bar + 1)").font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary)
                     context.draw(label, at: CGPoint(x: x + 3, y: 8), anchor: .leading)
                 }
+                if beatPx >= 8 {
+                    for b in 1..<4 {
+                        let bx = x + Double(b) * beatPx
+                        guard bx <= Double(size.width) else { break }
+                        var tick = Path()
+                        tick.move(to: CGPoint(x: bx, y: 14)); tick.addLine(to: CGPoint(x: bx, y: size.height))
+                        context.stroke(tick, with: .color(.secondary.opacity(0.3)), lineWidth: 0.75)
+                    }
+                }
+                bar += 1
+                x = Double(bar) * barPx
             }
         }
         .background(.bar)
+    }
+}
+
+/// Faint bar/beat gridlines behind the lanes.
+struct BeatGridView: View {
+    let pps: Double
+    let tempo: Double
+
+    var body: some View {
+        Canvas { context, size in
+            let beat = 60.0 / max(1, tempo)
+            let beatPx = beat * pps
+            guard beatPx > 4 else { return }
+            var i = 0
+            var x = 0.0
+            while x <= Double(size.width) {
+                let isBar = i % 4 == 0
+                var line = Path()
+                line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height))
+                context.stroke(line, with: .color(.white.opacity(isBar ? 0.09 : 0.035)),
+                               lineWidth: isBar ? 1 : 0.5)
+                i += 1
+                x = Double(i) * beatPx
+            }
+        }
     }
 }

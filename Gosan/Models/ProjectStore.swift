@@ -667,8 +667,15 @@ final class ProjectStore: ObservableObject {
 
     // MARK: - Export
 
-    func exportMixdown() {
-        guard !tracks.isEmpty, !isExporting else { return }
+    func exportMixdown() { exportRange(from: 0, duration: totalDuration, name: name) }
+
+    func exportLoop() {
+        guard loopActive else { return }
+        exportRange(from: loopStart, duration: loopEnd - loopStart, name: "\(name)-loop")
+    }
+
+    private func exportRange(from: TimeInterval, duration: TimeInterval, name: String) {
+        guard !tracks.isEmpty, duration > 0, !isExporting else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.wav]
         panel.nameFieldStringValue = "\(name).wav"
@@ -676,11 +683,10 @@ final class ProjectStore: ObservableObject {
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         let snapshot = tracks
-        let duration = totalDuration
         isExporting = true
         Task.detached(priority: .userInitiated) {
             do {
-                try AudioExporter.render(tracks: snapshot, duration: duration, to: url)
+                try AudioExporter.render(tracks: snapshot, duration: duration, to: url, from: from)
                 await MainActor.run { self.isExporting = false }
             } catch {
                 await MainActor.run {

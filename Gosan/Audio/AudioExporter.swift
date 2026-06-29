@@ -14,7 +14,8 @@ enum AudioExporter {
         }
     }
 
-    static func render(tracks: [Track], duration: TimeInterval, to url: URL, sampleRate: Double = 44_100) throws {
+    static func render(tracks: [Track], duration: TimeInterval, to url: URL,
+                       from: TimeInterval = 0, sampleRate: Double = 44_100) throws {
         let totalFrames = AVAudioFramePosition((duration * sampleRate).rounded(.up))
         guard totalFrames > 0,
               let renderFormat = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2) else {
@@ -57,13 +58,18 @@ enum AudioExporter {
             for clip in track.clips {
                 guard let file = try? AVAudioFile(forReading: clip.asset.url) else { continue }
                 let fileRate = file.processingFormat.sampleRate
-                let startFrame = AVAudioFramePosition(clip.offset * fileRate)
-                let wanted = AVAudioFramePosition(clip.duration * fileRate)
-                let frames = AVAudioFrameCount(max(0, min(wanted, file.length - startFrame)))
+                guard clip.startTime + clip.duration > from else { continue }
+                let intoClip = max(0, from - clip.startTime)
+                let startFrame = AVAudioFramePosition((clip.offset + intoClip) * fileRate)
+                let available = file.length - startFrame
+                guard available > 0 else { continue }
+                let frames = AVAudioFrameCount(max(0, min((clip.duration - intoClip) * fileRate, Double(available))))
                 guard frames > 0 else { continue }
-                let when = AVAudioTime(sampleTime: AVAudioFramePosition(clip.startTime * sampleRate), atRate: sampleRate)
+                let whenSeconds = max(0, clip.startTime - from)
+                let when = AVAudioTime(sampleTime: AVAudioFramePosition(whenSeconds * sampleRate), atRate: sampleRate)
+                let fadeIn = max(0, clip.fadeIn - intoClip)
                 if let buffer = ClipBuffer.faded(file: file, startFrame: startFrame, frames: frames,
-                                                 fadeInFrames: Int(clip.fadeIn * fileRate),
+                                                 fadeInFrames: Int(fadeIn * fileRate),
                                                  fadeOutFrames: Int(clip.fadeOut * fileRate),
                                                  gain: clip.gain) {
                     player.scheduleBuffer(buffer, at: when, options: [], completionHandler: nil)

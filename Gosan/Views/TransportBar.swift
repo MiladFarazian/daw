@@ -143,15 +143,20 @@ struct TransportBar: View {
                 Label("Import", systemImage: "plus")
             }
 
-            Button { project.exportMixdown() } label: {
+            Menu {
+                Button("Export Mix…") { project.exportMixdown() }
+                Button("Export Loop…") { project.exportLoop() }
+                    .disabled(!project.loopActive)
+            } label: {
                 if project.isExporting {
                     ProgressView().controlSize(.small)
                 } else {
                     Label("Export", systemImage: "square.and.arrow.up")
                 }
             }
+            .frame(width: 76)
             .disabled(project.tracks.isEmpty || project.isExporting)
-            .help("Bounce the mix to a WAV file")
+            .help("Bounce the mix (or the loop region) to WAV")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)

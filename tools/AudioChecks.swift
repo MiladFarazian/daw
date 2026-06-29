@@ -135,6 +135,16 @@ struct AudioChecks {
         let revLate = revURL != nil ? try rms(revURL!, 1.2, 1.9) : 0
         check("reverse mirrors the envelope (loud→quiet)", revURL != nil && revEarly > revLate * 1.5)
 
+        // M) Range export (loop bounce): a clip 0.5–2.5s, exported from 0.5s for 2s, fills the file.
+        var rangeTrack = Track(name: "Range", colorIndex: 0)
+        rangeTrack.clips = [Clip(asset: asset, startTime: 0.5)]
+        let outM = tmp.appendingPathComponent("m.wav")
+        try? FileManager.default.removeItem(at: outM)
+        try AudioExporter.render(tracks: [rangeTrack], duration: 2.0, to: outM, from: 0.5)
+        let mLen = try lengthSeconds(outM), mStart = try rms(outM, 0.0, 0.2), mBody = try rms(outM, 0.5, 1.5)
+        check("range export (from offset) bounces the right window",
+              abs(mLen - 2.0) < 0.05 && mStart > 0.1 && mBody > 0.1)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }
