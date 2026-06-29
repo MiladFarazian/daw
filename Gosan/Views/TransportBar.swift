@@ -83,6 +83,16 @@ struct TransportBar: View {
             .help("Tempo (drives the beat grid + metronome)")
 
             Divider().frame(height: 18)
+            HStack(spacing: 2) {
+                Button { project.jumpToPrevMarker() } label: { Image(systemName: "chevron.backward.2") }
+                    .help("Previous marker")
+                Button { project.addMarker() } label: { Image(systemName: "flag") }
+                    .help("Add marker at playhead")
+                Button { project.jumpToNextMarker() } label: { Image(systemName: "chevron.forward.2") }
+                    .help("Next marker")
+            }
+
+            Divider().frame(height: 18)
             HStack(spacing: 4) {
                 Image(systemName: "speaker.wave.2").font(.caption2).foregroundStyle(.secondary)
                 InputLevelMeter(level: project.masterLevel).frame(width: 54, height: 6)

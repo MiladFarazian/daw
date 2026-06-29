@@ -8,6 +8,7 @@ struct ProjectDocument: Codable {
     var tempo: Double
     var pixelsPerSecond: Double
     var tracks: [TrackData]
+    var markers: [Marker] = []
 
     struct TrackData: Codable {
         var name: String

@@ -39,6 +39,13 @@ struct Clip: Identifiable {
     }
 }
 
+/// A named position on the timeline.
+struct Marker: Identifiable, Codable {
+    var id = UUID()
+    var time: TimeInterval
+    var name: String
+}
+
 /// One horizontal lane with its own mixer settings.
 struct Track: Identifiable {
     let id = UUID()

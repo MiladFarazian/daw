@@ -44,6 +44,7 @@ final class ProjectStore: ObservableObject {
     @Published var loopEnd: TimeInterval = 0
     var loopActive: Bool { loopEnabled && loopEnd > loopStart + 0.05 }
     @Published var metronomeEnabled = false
+    @Published var markers: [Marker] = []
 
     let settings: AppSettings
     let taste: TasteEngine
@@ -410,6 +411,23 @@ final class ProjectStore: ObservableObject {
         if isPlaying { play() } // re-schedule clicks
     }
 
+    // MARK: - Markers
+
+    func addMarker() {
+        markers.append(Marker(time: currentTime, name: "Marker \(markers.count + 1)"))
+        markers.sort { $0.time < $1.time }
+    }
+
+    func deleteMarker(_ marker: Marker) { markers.removeAll { $0.id == marker.id } }
+
+    func jumpToNextMarker() {
+        if let m = markers.first(where: { $0.time > currentTime + 0.01 }) { seek(to: m.time) }
+    }
+
+    func jumpToPrevMarker() {
+        if let m = markers.last(where: { $0.time < currentTime - 0.01 }) { seek(to: m.time) }
+    }
+
     // MARK: - Mixing
 
     func setVolume(_ track: Track, _ value: Float) { mutate(track) { $0.volume = value } }
@@ -728,6 +746,7 @@ final class ProjectStore: ObservableObject {
         engine.reset()
         tracks = []
         candidates = []
+        markers = []
         name = "Untitled"
         currentTime = 0
     }
@@ -791,7 +810,8 @@ final class ProjectStore: ObservableObject {
                             startTime: clip.startTime, offset: clip.offset, duration: clip.duration,
                             fadeIn: clip.fadeIn, fadeOut: clip.fadeOut, gain: clip.gain)
                     })
-            })
+            },
+            markers: markers)
     }
 
     private func applyDocument(_ document: ProjectDocument, audioDir: URL) async {
@@ -843,6 +863,7 @@ final class ProjectStore: ObservableObject {
         name = document.name
         tempo = document.tempo
         pixelsPerSecond = document.pixelsPerSecond
+        markers = document.markers
         currentTime = 0
         tracks = rebuilt
         engine.prepare(tracks: rebuilt)

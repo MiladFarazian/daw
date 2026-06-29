@@ -77,6 +77,11 @@ struct TimelineView: View {
                             .allowsHitTesting(false)
                     }
 
+                    ForEach(project.markers) { marker in
+                        MarkerFlag(marker: marker)
+                            .offset(x: CGFloat(marker.time) * pps)
+                    }
+
                     Rectangle()
                         .fill(Color.red)
                         .frame(width: 1.5)
@@ -86,6 +91,31 @@ struct TimelineView: View {
                 .frame(width: contentWidth, alignment: .topLeading)
             }
         }
+    }
+}
+
+/// A timeline marker: a labeled flag over a thin vertical line.
+struct MarkerFlag: View {
+    @EnvironmentObject var project: ProjectStore
+    let marker: Marker
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(marker.name)
+                .font(.system(size: 8, weight: .medium))
+                .padding(.horizontal, 3).padding(.vertical, 1)
+                .background(Color.purple.opacity(0.85))
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 2))
+                .onTapGesture { project.seek(to: marker.time) }
+                .contextMenu {
+                    Button(role: .destructive) { project.deleteMarker(marker) } label: {
+                        Label("Delete Marker", systemImage: "trash")
+                    }
+                }
+            Rectangle().fill(Color.purple.opacity(0.4)).frame(width: 1)
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 }
 
