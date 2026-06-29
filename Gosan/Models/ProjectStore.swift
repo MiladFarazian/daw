@@ -580,6 +580,28 @@ final class ProjectStore: ObservableObject {
         }
     }
 
+    /// Bake a time-stretch (rate < 1 = slower/longer; pitch preserved) into the clip.
+    func timeStretchClip(_ clip: Clip, on track: Track, rate: Float) {
+        let url = clip.asset.url, offset = clip.offset, duration = clip.duration
+        Task.detached(priority: .userInitiated) {
+            guard let dir = try? LibraryStorage.importsDirectory(),
+                  let stretched = ClipProcessing.timeStretch(url: url, offset: offset, duration: duration,
+                                                             rate: rate, outputDir: dir),
+                  let waveform = WaveformLoader.load(url: stretched) else { return }
+            let asset = AudioAsset(url: stretched, duration: waveform.duration,
+                                   sampleRate: waveform.sampleRate, peaks: waveform.peaks)
+            await MainActor.run {
+                self.recordUndo()
+                self.updateClip(clip, on: track) {
+                    $0.asset = asset
+                    $0.offset = 0
+                    $0.duration = asset.duration
+                }
+                self.engine.prepare(tracks: self.tracks)
+            }
+        }
+    }
+
     /// Replace the clip's audio with a reversed copy of its current segment.
     func reverseClip(_ clip: Clip, on track: Track) {
         let url = clip.asset.url, offset = clip.offset, duration = clip.duration

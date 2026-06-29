@@ -47,6 +47,14 @@ struct ClipLaneView: View {
                         Button { project.reverseClip(clip, on: track) } label: {
                             Label("Reverse", systemImage: "arrow.uturn.backward")
                         }
+                        Menu {
+                            Button("0.5× (slower, 2× longer)") { project.timeStretchClip(clip, on: track, rate: 0.5) }
+                            Button("0.75× speed") { project.timeStretchClip(clip, on: track, rate: 0.75) }
+                            Button("1.5× speed") { project.timeStretchClip(clip, on: track, rate: 1.5) }
+                            Button("2× (faster, ½ length)") { project.timeStretchClip(clip, on: track, rate: 2.0) }
+                        } label: {
+                            Label("Time-stretch", systemImage: "timeline.selection")
+                        }
                         Divider()
                         Button { project.vocalRescue(clip) } label: {
                             Label("Vocal Rescue (enhance → master)", systemImage: "wand.and.stars")

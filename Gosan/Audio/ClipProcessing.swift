@@ -46,4 +46,43 @@ enum ClipProcessing {
               (try? outFile.write(from: buffer)) != nil else { return nil }
         return out
     }
+
+    /// Time-stretch a clip's segment by `rate` (rate < 1 = slower/longer; pitch preserved)
+    /// via an offline AVAudioUnitTimePitch render. Writes a new file; returns its URL.
+    static func timeStretch(url: URL, offset: TimeInterval, duration: TimeInterval,
+                            rate: Float, outputDir: URL) -> URL? {
+        guard rate > 0, rate != 1,
+              let (input, format) = readSegment(url: url, offset: offset, duration: duration) else { return nil }
+
+        let engine = AVAudioEngine()
+        let player = AVAudioPlayerNode()
+        let timePitch = AVAudioUnitTimePitch()
+        timePitch.rate = rate
+        engine.attach(player); engine.attach(timePitch)
+        engine.connect(player, to: timePitch, format: format)
+        engine.connect(timePitch, to: engine.mainMixerNode, format: format)
+
+        do {
+            try engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 4096)
+            try engine.start()
+        } catch { return nil }
+        player.scheduleBuffer(input, at: nil, options: [], completionHandler: nil)
+        player.play()
+
+        let outFrames = AVAudioFramePosition((Double(input.frameLength) / Double(rate)).rounded(.up))
+        let out = outputDir.appendingPathComponent("\(UUID().uuidString)-stretched.caf")
+        guard let outFile = try? AVAudioFile(forWriting: out, settings: format.settings),
+              let buffer = AVAudioPCMBuffer(pcmFormat: engine.manualRenderingFormat,
+                                            frameCapacity: engine.manualRenderingMaximumFrameCount) else {
+            engine.stop(); return nil
+        }
+        while engine.manualRenderingSampleTime < outFrames {
+            let remaining = outFrames - engine.manualRenderingSampleTime
+            let toRender = AVAudioFrameCount(min(Int64(buffer.frameCapacity), remaining))
+            guard toRender > 0, let status = try? engine.renderOffline(toRender, to: buffer) else { break }
+            if status == .success { try? outFile.write(from: buffer) } else if status == .error { break }
+        }
+        player.stop(); engine.stop()
+        return out
+    }
 }

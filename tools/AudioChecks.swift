@@ -145,6 +145,13 @@ struct AudioChecks {
         check("range export (from offset) bounces the right window",
               abs(mLen - 2.0) < 0.05 && mStart > 0.1 && mBody > 0.1)
 
+        // N) Time-stretch: a 1s segment at 0.5× speed should become ~2s, tone still present.
+        let stretched = ClipProcessing.timeStretch(url: toneURL, offset: 0, duration: 1.0, rate: 0.5, outputDir: tmp)
+        var stLen = 0.0, stBody: Float = 0
+        if let s = stretched { stLen = try lengthSeconds(s); stBody = try rms(s, 0.8, 1.4) }
+        print(String(format: "   (time-stretch 0.5x: 1.0s → %.3fs)", stLen))
+        check("time-stretch 0.5x doubles the length", stretched != nil && abs(stLen - 2.0) < 0.2 && stBody > 0.1)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }
