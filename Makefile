@@ -1,4 +1,8 @@
-.PHONY: generate open build run verify clean
+.PHONY: generate open build run verify musicai-workflows clean
+
+# List your Music.ai workflow slugs (needs MUSICAI_API_KEY in the environment)
+musicai-workflows:
+	tools/musicai.sh workflows
 
 # Regenerate Gosan.xcodeproj from project.yml
 generate:
