@@ -82,6 +82,14 @@ struct TransportBar: View {
             }
             .help("Tempo (drives the beat grid + metronome)")
 
+            Menu("\(project.beatsPerBar)/4") {
+                ForEach([2, 3, 4, 5, 6, 7], id: \.self) { n in
+                    Button("\(n)/4") { project.beatsPerBar = n }
+                }
+            }
+            .frame(width: 46)
+            .help("Time signature")
+
             Divider().frame(height: 18)
             HStack(spacing: 2) {
                 Button { project.jumpToPrevMarker() } label: { Image(systemName: "chevron.backward.2") }
@@ -98,6 +106,15 @@ struct TransportBar: View {
                 InputLevelMeter(level: project.masterLevel).frame(width: 54, height: 6)
             }
             .help("Master output level")
+
+            Menu("EQ") {
+                Button("Flat") { project.setMasterEQ(low: 0, mid: 0, high: 0) }
+                Button("Bright") { project.setMasterEQ(low: 0, mid: 0, high: 4) }
+                Button("Warm") { project.setMasterEQ(low: 3, mid: 0, high: -3) }
+                Button("Loudness") { project.setMasterEQ(low: 4, mid: -1, high: 3) }
+            }
+            .frame(width: 48)
+            .help("Master EQ")
 
             if !project.activeJobs.isEmpty {
                 Divider().frame(height: 18)
@@ -125,7 +142,7 @@ struct TransportBar: View {
             .help("Snap clips to the beat grid")
 
             Menu(snapLabel) {
-                Button("Bar") { project.snapDivision = 4 }
+                Button("Bar") { project.snapDivision = Double(project.beatsPerBar) }
                 Button("Beat") { project.snapDivision = 1 }
                 Button("1/2 beat") { project.snapDivision = 0.5 }
                 Button("1/4 beat") { project.snapDivision = 0.25 }

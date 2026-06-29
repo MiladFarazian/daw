@@ -50,17 +50,27 @@ final class AudioEngine {
     /// Called on a realtime thread with the master output peak (0...1). Hop to main yourself.
     var onLevel: ((Float) -> Void)?
 
-    // Brick-wall peak limiter on the master bus to catch clipping.
+    // Master bus: mainMixer → master EQ → peak limiter → output.
+    private let masterEQ = AVAudioUnitEQ(numberOfBands: 3)
     private let masterLimiter = AVAudioUnitEffect(audioComponentDescription:
         AudioComponentDescription(componentType: kAudioUnitType_Effect,
                                   componentSubType: kAudioUnitSubType_PeakLimiter,
                                   componentManufacturer: kAudioUnitManufacturer_Apple,
                                   componentFlags: 0, componentFlagsMask: 0))
 
+    func setMasterEQ(low: Float, mid: Float, high: Float) {
+        masterEQ.bands[0].gain = low
+        masterEQ.bands[1].gain = mid
+        masterEQ.bands[2].gain = high
+    }
+
     init() {
+        configureEQ(masterEQ)
         engine.attach(mainMixer)
+        engine.attach(masterEQ)
         engine.attach(masterLimiter)
-        engine.connect(mainMixer, to: masterLimiter, format: nil)
+        engine.connect(mainMixer, to: masterEQ, format: nil)
+        engine.connect(masterEQ, to: masterLimiter, format: nil)
         engine.connect(masterLimiter, to: engine.outputNode, format: nil)
         engine.attach(metronomePlayer)
         engine.connect(metronomePlayer, to: mainMixer, format: clickFormat)
@@ -93,7 +103,7 @@ final class AudioEngine {
     }
 
     /// Schedule clicks on the beat grid, synced to the same t0 as playback.
-    private func scheduleMetronome(tempo: Double, from position: TimeInterval, t0: AVAudioTime) {
+    private func scheduleMetronome(tempo: Double, from position: TimeInterval, t0: AVAudioTime, beatsPerBar: Int) {
         metronomePlayer.stop()
         guard tempo > 0 else { return }
         let beat = 60.0 / tempo
@@ -103,7 +113,7 @@ final class AudioEngine {
             let whenSeconds = Double(index) * beat - position
             guard whenSeconds >= 0 else { continue }
             let when = AVAudioTime(hostTime: t0.hostTime + AVAudioTime.hostTime(forSeconds: whenSeconds))
-            if let buffer = (index % 4 == 0) ? accentClick : normalClick {
+            if let buffer = (index % max(1, beatsPerBar) == 0) ? accentClick : normalClick {
                 metronomePlayer.scheduleBuffer(buffer, at: when, options: [], completionHandler: nil)
             }
         }
@@ -164,14 +174,15 @@ final class AudioEngine {
     }
 
     /// Start synchronized playback of all tracks from `position` seconds on the timeline.
-    func play(tracks: [Track], from position: TimeInterval, metronome: Bool = false, tempo: Double = 120) {
+    func play(tracks: [Track], from position: TimeInterval, metronome: Bool = false,
+              tempo: Double = 120, beatsPerBar: Int = 4) {
         prepare(tracks: tracks)
 
         let lead = 0.12 // schedule slightly in the future so every node starts together
         let startHost = mach_absolute_time() + AVAudioTime.hostTime(forSeconds: lead)
         let t0 = AVAudioTime(hostTime: startHost)
 
-        if metronome { scheduleMetronome(tempo: tempo, from: position, t0: t0) }
+        if metronome { scheduleMetronome(tempo: tempo, from: position, t0: t0, beatsPerBar: beatsPerBar) }
 
         for track in tracks {
             guard let node = nodes[track.id] else { continue }

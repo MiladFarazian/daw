@@ -45,6 +45,15 @@ final class ProjectStore: ObservableObject {
     var loopActive: Bool { loopEnabled && loopEnd > loopStart + 0.05 }
     @Published var metronomeEnabled = false
     @Published var markers: [Marker] = []
+    @Published var masterEqLow: Float = 0
+    @Published var masterEqMid: Float = 0
+    @Published var masterEqHigh: Float = 0
+    @Published var beatsPerBar: Int = 4   // time signature numerator (over /4)
+
+    func setMasterEQ(low: Float, mid: Float, high: Float) {
+        masterEqLow = low; masterEqMid = mid; masterEqHigh = high
+        engine.setMasterEQ(low: low, mid: mid, high: high)
+    }
 
     let settings: AppSettings
     let taste: TasteEngine
@@ -367,7 +376,7 @@ final class ProjectStore: ObservableObject {
         guard !tracks.isEmpty else { return }
         if currentTime >= totalDuration { currentTime = 0 }
         let base = currentTime
-        engine.play(tracks: tracks, from: base, metronome: metronomeEnabled, tempo: tempo)
+        engine.play(tracks: tracks, from: base, metronome: metronomeEnabled, tempo: tempo, beatsPerBar: beatsPerBar)
         isPlaying = true
 
         let startedAt = Date()
@@ -748,6 +757,7 @@ final class ProjectStore: ObservableObject {
         tracks = []
         candidates = []
         markers = []
+        setMasterEQ(low: 0, mid: 0, high: 0)
         name = "Untitled"
         currentTime = 0
     }
@@ -813,7 +823,9 @@ final class ProjectStore: ObservableObject {
                             fadeIn: clip.fadeIn, fadeOut: clip.fadeOut, gain: clip.gain)
                     })
             },
-            markers: markers)
+            markers: markers,
+            masterEqLow: masterEqLow, masterEqMid: masterEqMid, masterEqHigh: masterEqHigh,
+            beatsPerBar: beatsPerBar)
     }
 
     private func applyDocument(_ document: ProjectDocument, audioDir: URL) async {
@@ -867,6 +879,8 @@ final class ProjectStore: ObservableObject {
         tempo = document.tempo
         pixelsPerSecond = document.pixelsPerSecond
         markers = document.markers
+        setMasterEQ(low: document.masterEqLow, mid: document.masterEqMid, high: document.masterEqHigh)
+        beatsPerBar = max(1, document.beatsPerBar)
         currentTime = 0
         tracks = rebuilt
         engine.prepare(tracks: rebuilt)

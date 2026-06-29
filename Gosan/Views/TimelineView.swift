@@ -41,12 +41,12 @@ struct TimelineView: View {
             // Scrollable lane area
             ScrollView(.horizontal, showsIndicators: true) {
                 ZStack(alignment: .topLeading) {
-                    BeatGridView(pps: pps, tempo: project.tempo)
+                    BeatGridView(pps: pps, tempo: project.tempo, beatsPerBar: project.beatsPerBar)
                         .frame(width: contentWidth)
                         .allowsHitTesting(false)
 
                     VStack(spacing: 0) {
-                        TimeRulerView(pps: pps, tempo: project.tempo)
+                        TimeRulerView(pps: pps, tempo: project.tempo, beatsPerBar: project.beatsPerBar)
                             .frame(width: contentWidth, height: rulerHeight)
                             .contentShape(Rectangle())
                             .gesture(
@@ -123,13 +123,15 @@ struct MarkerFlag: View {
 struct TimeRulerView: View {
     let pps: Double
     let tempo: Double
+    let beatsPerBar: Int
 
     var body: some View {
         Canvas { context, size in
+            let bpb = max(1, beatsPerBar)
             let beat = 60.0 / max(1, tempo)
-            let barPx = beat * 4 * pps
+            let barPx = beat * Double(bpb) * pps
             guard barPx > 1 else { return }
-            let beatPx = barPx / 4
+            let beatPx = beat * pps
             let labelBars = barPx >= 26
 
             var bar = 0
@@ -143,7 +145,7 @@ struct TimeRulerView: View {
                     context.draw(label, at: CGPoint(x: x + 3, y: 8), anchor: .leading)
                 }
                 if beatPx >= 8 {
-                    for b in 1..<4 {
+                    for b in 1..<bpb {
                         let bx = x + Double(b) * beatPx
                         guard bx <= Double(size.width) else { break }
                         var tick = Path()
@@ -163,16 +165,18 @@ struct TimeRulerView: View {
 struct BeatGridView: View {
     let pps: Double
     let tempo: Double
+    let beatsPerBar: Int
 
     var body: some View {
         Canvas { context, size in
+            let bpb = max(1, beatsPerBar)
             let beat = 60.0 / max(1, tempo)
             let beatPx = beat * pps
             guard beatPx > 4 else { return }
             var i = 0
             var x = 0.0
             while x <= Double(size.width) {
-                let isBar = i % 4 == 0
+                let isBar = i % bpb == 0
                 var line = Path()
                 line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height))
                 context.stroke(line, with: .color(.white.opacity(isBar ? 0.09 : 0.035)),

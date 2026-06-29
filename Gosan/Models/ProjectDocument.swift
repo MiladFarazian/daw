@@ -9,6 +9,10 @@ struct ProjectDocument: Codable {
     var pixelsPerSecond: Double
     var tracks: [TrackData]
     var markers: [Marker] = []
+    var masterEqLow: Float = 0
+    var masterEqMid: Float = 0
+    var masterEqHigh: Float = 0
+    var beatsPerBar: Int = 4
 
     struct TrackData: Codable {
         var name: String
