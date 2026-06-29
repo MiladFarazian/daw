@@ -24,7 +24,7 @@ stay the producer. See the design:
   spacebar), zoom, **loop region** (drag the ruler), **metronome**, editable **tempo**, snap resolution
   (bar / beat / ½ / ¼ / ⅛)
 - **Clip editing** — move (beat-grid snapping), trim, split at the playhead, duplicate, copy/cut/paste,
-  fade in/out, per-clip gain, select, delete; **undo/redo** (⌘Z/⇧⌘Z)
+  fade in/out, per-clip gain, **normalize**, **reverse**, select, delete; **undo/redo** (⌘Z/⇧⌘Z)
 - **Mixing** — per-track volume / pan / mute / solo + insert effects (**3-band EQ, reverb, delay**),
   **master output meter**, master peak limiter
 - **Export** — bounce the mix to WAV (offline render)
