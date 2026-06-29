@@ -192,6 +192,21 @@ struct AudioChecks {
         check("silence detection finds head + tail",
               bounds != nil && abs(bounds!.leading - 0.5) < 0.05 && abs(bounds!.trailing - 0.5) < 0.05)
 
+        // S) Equal-power fade is louder mid-fade than linear (0.707 vs 0.5 at the midpoint).
+        func fadeMidRMS(curve: Int, _ name: String) throws -> Float {
+            var t = Track(name: name, colorIndex: 0)
+            var clip = Clip(asset: asset, startTime: 0.0); clip.fadeIn = 1.0; clip.fadeCurve = curve
+            t.clips = [clip]
+            let out = tmp.appendingPathComponent(name)
+            try? FileManager.default.removeItem(at: out)
+            try AudioExporter.render(tracks: [t], duration: 2.0, to: out)
+            return try rms(out, 0.45, 0.55) // around the fade midpoint
+        }
+        let linMid = try fadeMidRMS(curve: 0, "fade-lin.wav"), eqMid = try fadeMidRMS(curve: 1, "fade-eq.wav")
+        let fadeRatio = linMid > 0 ? eqMid / linMid : 0
+        print(String(format: "   (equal-power / linear mid-fade ratio: %.2f, expect ~1.41)", fadeRatio))
+        check("equal-power fade is louder mid-fade than linear", fadeRatio > 1.2)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }

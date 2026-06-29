@@ -210,7 +210,7 @@ final class AudioEngine {
                 let fadeOutFrames = Int(clip.fadeOut * sampleRate)
                 if let buffer = ClipBuffer.faded(file: file, startFrame: startFrame, frames: frames,
                                                  fadeInFrames: fadeInFrames, fadeOutFrames: fadeOutFrames,
-                                                 gain: clip.gain) {
+                                                 gain: clip.gain, curve: clip.fadeCurve) {
                     node.player.scheduleBuffer(buffer, at: when, options: [], completionHandler: nil)
                 }
             }

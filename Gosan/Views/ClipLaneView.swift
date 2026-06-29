@@ -48,6 +48,15 @@ struct ClipLaneView: View {
                         Button { project.normalizeClip(clip, on: track) } label: {
                             Label("Normalize", systemImage: "arrow.up.to.line")
                         }
+                        Menu {
+                            Button("Linear") { project.setFadeCurve(clip, on: track, equalPower: false) }
+                            Button("Equal-power") { project.setFadeCurve(clip, on: track, equalPower: true) }
+                        } label: {
+                            Label("Fade Curve", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                        }
+                        Button { project.crossfadeWithNext(clip, on: track) } label: {
+                            Label("Crossfade with Next", systemImage: "arrow.left.arrow.right")
+                        }
                         Button { project.trimSilence(clip, on: track) } label: {
                             Label("Trim Silence", systemImage: "scissors")
                         }

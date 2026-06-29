@@ -40,6 +40,7 @@ struct ProjectDocument: Codable {
         var duration: TimeInterval
         var fadeIn: TimeInterval = 0
         var fadeOut: TimeInterval = 0
+        var fadeCurve: Int = 0
         var gain: Float = 1.0
         var muted: Bool = false
     }

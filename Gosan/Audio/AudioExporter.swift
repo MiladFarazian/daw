@@ -83,7 +83,7 @@ enum AudioExporter {
                 if let buffer = ClipBuffer.faded(file: file, startFrame: startFrame, frames: frames,
                                                  fadeInFrames: Int(fadeIn * fileRate),
                                                  fadeOutFrames: Int(clip.fadeOut * fileRate),
-                                                 gain: clip.gain) {
+                                                 gain: clip.gain, curve: clip.fadeCurve) {
                     player.scheduleBuffer(buffer, at: when, options: [], completionHandler: nil)
                 }
             }

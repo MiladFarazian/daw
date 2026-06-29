@@ -28,6 +28,7 @@ struct Clip: Identifiable {
     var duration: TimeInterval        // visible length (≤ asset.duration - offset)
     var fadeIn: TimeInterval = 0      // fade-in length from the clip's head
     var fadeOut: TimeInterval = 0     // fade-out length to the clip's tail
+    var fadeCurve = 0                 // 0 = linear, 1 = equal-power
     var gain: Float = 1.0             // linear clip gain
     var muted = false
     var name: String { asset.name }

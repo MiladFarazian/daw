@@ -679,6 +679,29 @@ final class ProjectStore: ObservableObject {
         updateClip(clip, on: track) { $0.muted.toggle() }
     }
 
+    func setFadeCurve(_ clip: Clip, on track: Track, equalPower: Bool) {
+        recordUndo()
+        updateClip(clip, on: track) { $0.fadeCurve = equalPower ? 1 : 0 }
+    }
+
+    /// Crossfade a clip with the next clip it overlaps on the same track (equal-power).
+    func crossfadeWithNext(_ clip: Clip, on track: Track) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }),
+              let ci = tracks[ti].clips.firstIndex(where: { $0.id == clip.id }) else { return }
+        let aEnd = clip.startTime + clip.duration
+        let next = tracks[ti].clips.enumerated()
+            .filter { $0.element.id != clip.id && $0.element.startTime > clip.startTime && $0.element.startTime < aEnd }
+            .min { $0.element.startTime < $1.element.startTime }
+        guard let next else { return }
+        let overlap = aEnd - next.element.startTime
+        guard overlap > 0.02 else { return }
+        recordUndo()
+        tracks[ti].clips[ci].fadeOut = overlap
+        tracks[ti].clips[ci].fadeCurve = 1
+        tracks[ti].clips[next.offset].fadeIn = overlap
+        tracks[ti].clips[next.offset].fadeCurve = 1
+    }
+
     /// Snap a clip's start to the nearest grid division (regardless of the snap toggle).
     func quantizeClip(_ clip: Clip, on track: Track) {
         guard tempo > 0, snapDivision > 0 else { return }
@@ -961,7 +984,8 @@ final class ProjectStore: ObservableObject {
                             sampleRate: clip.asset.sampleRate,
                             assetDuration: clip.asset.duration,
                             startTime: clip.startTime, offset: clip.offset, duration: clip.duration,
-                            fadeIn: clip.fadeIn, fadeOut: clip.fadeOut, gain: clip.gain, muted: clip.muted)
+                            fadeIn: clip.fadeIn, fadeOut: clip.fadeOut, fadeCurve: clip.fadeCurve,
+                            gain: clip.gain, muted: clip.muted)
                     })
             },
             markers: markers,
@@ -1009,6 +1033,7 @@ final class ProjectStore: ObservableObject {
                 clip.duration = clipData.duration
                 clip.fadeIn = clipData.fadeIn
                 clip.fadeOut = clipData.fadeOut
+                clip.fadeCurve = clipData.fadeCurve
                 clip.gain = clipData.gain
                 clip.muted = clipData.muted
                 clips.append(clip)
