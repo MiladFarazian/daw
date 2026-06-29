@@ -42,6 +42,12 @@ struct TimelineView: View {
                                     project.seek(to: Double(value.location.x) / pps)
                                 }
                             )
+                            .simultaneousGesture(
+                                DragGesture(minimumDistance: 6).onChanged { value in
+                                    project.setLoop(Double(min(value.startLocation.x, value.location.x)) / pps,
+                                                    Double(max(value.startLocation.x, value.location.x)) / pps)
+                                }
+                            )
                         Divider()
                         ForEach(project.tracks) { track in
                             ClipLaneView(track: track, pps: pps)
@@ -49,6 +55,14 @@ struct TimelineView: View {
                             Divider()
                         }
                         Spacer(minLength: 0)
+                    }
+
+                    if project.loopActive {
+                        Rectangle()
+                            .fill(Color.yellow.opacity(project.loopEnabled ? 0.14 : 0.06))
+                            .frame(width: CGFloat(project.loopEnd - project.loopStart) * pps)
+                            .offset(x: CGFloat(project.loopStart) * pps)
+                            .allowsHitTesting(false)
                     }
 
                     Rectangle()

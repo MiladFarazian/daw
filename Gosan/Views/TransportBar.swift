@@ -67,6 +67,12 @@ struct TransportBar: View {
 
             Spacer()
 
+            Button { project.toggleLoop() } label: {
+                Image(systemName: "repeat")
+                    .foregroundStyle(project.loopActive ? .green : .secondary)
+            }
+            .help("Loop playback over a region (drag on the ruler to set it)")
+
             Button { project.snapEnabled.toggle() } label: {
                 Image(systemName: "ruler")
                     .foregroundStyle(project.snapEnabled ? .green : .secondary)

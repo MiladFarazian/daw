@@ -37,6 +37,11 @@ final class ProjectStore: ObservableObject {
     private var undoStack: [[Track]] = []
     private var redoStack: [[Track]] = []
 
+    @Published var loopEnabled = false
+    @Published var loopStart: TimeInterval = 0
+    @Published var loopEnd: TimeInterval = 0
+    var loopActive: Bool { loopEnabled && loopEnd > loopStart + 0.05 }
+
     let settings: AppSettings
     let taste: TasteEngine
     let recorder: Recorder
@@ -346,7 +351,11 @@ final class ProjectStore: ObservableObject {
             Task { @MainActor in
                 guard let self, self.isPlaying else { return }
                 self.currentTime = base + Date().timeIntervalSince(startedAt)
-                if self.currentTime >= self.totalDuration { self.stop() }
+                if self.loopActive && self.currentTime >= self.loopEnd {
+                    self.seek(to: self.loopStart) // restarts playback from the loop start
+                } else if self.currentTime >= self.totalDuration {
+                    self.stop()
+                }
             }
         }
     }
@@ -362,6 +371,14 @@ final class ProjectStore: ObservableObject {
         currentTime = min(max(0, time), totalDuration)
         if isPlaying { play() }
     }
+
+    func setLoop(_ start: TimeInterval, _ end: TimeInterval) {
+        loopStart = max(0, min(start, end))
+        loopEnd = max(start, end)
+        loopEnabled = true
+    }
+
+    func toggleLoop() { loopEnabled.toggle() }
 
     // MARK: - Mixing
 
