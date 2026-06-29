@@ -361,6 +361,7 @@ final class ProjectStore: ObservableObject {
     // MARK: - Mixing
 
     func setVolume(_ track: Track, _ value: Float) { mutate(track) { $0.volume = value } }
+    func setPan(_ track: Track, _ value: Float) { mutate(track) { $0.pan = value } }
     func toggleMute(_ track: Track) { mutate(track) { $0.isMuted.toggle() } }
     func toggleSolo(_ track: Track) { mutate(track) { $0.isSoloed.toggle() } }
 
@@ -398,6 +399,40 @@ final class ProjectStore: ObservableObject {
         tracks[ti].clips.removeAll { $0.id == clip.id }
         if tracks[ti].clips.isEmpty { tracks.remove(at: ti) }
         if selectedClipID == clip.id { selectedClipID = nil }
+    }
+
+    /// Whether the playhead falls strictly inside a clip (so a split is meaningful).
+    func canSplit(_ clip: Clip) -> Bool {
+        currentTime > clip.startTime + minClipDuration
+            && currentTime < clip.startTime + clip.duration - minClipDuration
+    }
+
+    /// Cut a clip in two at the playhead; both halves reference the same asset.
+    func splitClipAtPlayhead(_ clip: Clip, on track: Track) {
+        guard canSplit(clip),
+              let ti = tracks.firstIndex(where: { $0.id == track.id }),
+              let ci = tracks[ti].clips.firstIndex(where: { $0.id == clip.id }) else { return }
+        let into = currentTime - clip.startTime
+
+        var left = clip
+        left.duration = into
+
+        var right = Clip(asset: clip.asset, startTime: currentTime)
+        right.offset = clip.offset + into
+        right.duration = clip.duration - into
+
+        tracks[ti].clips[ci] = left
+        tracks[ti].clips.insert(right, at: ci + 1)
+    }
+
+    /// Duplicate a clip immediately after itself on the same track.
+    func duplicateClip(_ clip: Clip, on track: Track) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }),
+              let ci = tracks[ti].clips.firstIndex(where: { $0.id == clip.id }) else { return }
+        var copy = Clip(asset: clip.asset, startTime: clip.startTime + clip.duration)
+        copy.offset = clip.offset
+        copy.duration = clip.duration
+        tracks[ti].clips.insert(copy, at: ci + 1)
     }
 
     /// Drag the left edge: trims into / out of the asset head while holding the right edge fixed.

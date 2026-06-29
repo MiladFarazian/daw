@@ -15,6 +15,14 @@ struct ClipLaneView: View {
             ForEach(track.clips) { clip in
                 ClipView(clip: clip, track: track, pps: pps, color: Palette.color(track.colorIndex))
                     .contextMenu {
+                        Button { project.splitClipAtPlayhead(clip, on: track) } label: {
+                            Label("Split at Playhead", systemImage: "scissors")
+                        }
+                        .disabled(!project.canSplit(clip))
+                        Button { project.duplicateClip(clip, on: track) } label: {
+                            Label("Duplicate", systemImage: "plus.square.on.square")
+                        }
+                        Divider()
                         Button { project.vocalRescue(clip) } label: {
                             Label("Vocal Rescue (enhance → master)", systemImage: "wand.and.stars")
                         }

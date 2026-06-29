@@ -38,6 +38,18 @@ struct TrackHeaderView: View {
                         set: { project.setVolume(track, Float($0)) }
                     ), in: 0...1)
                     .controlSize(.mini)
+                    .help("Volume")
+                }
+
+                HStack(spacing: 6) {
+                    Text("L").font(.system(size: 8)).foregroundStyle(.secondary)
+                    Slider(value: Binding(
+                        get: { Double(track.pan) },
+                        set: { project.setPan(track, Float($0)) }
+                    ), in: -1...1)
+                    .controlSize(.mini)
+                    .help("Pan")
+                    Text("R").font(.system(size: 8)).foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 0)

@@ -64,6 +64,18 @@ struct AudioChecks {
         let bundled = FileManager.default.fileExists(atPath: audioDir.appendingPathComponent("tone.wav").path)
         check("portable package bundles audio + round-trips", bundled && readDoc.name == "Demo")
 
+        // F) Split: the two halves (matching what splitClipAtPlayhead produces) export to
+        //    continuous audio across the cut point.
+        var split = Track(name: "Split", colorIndex: 0)
+        var left = Clip(asset: asset, startTime: 0.0); left.offset = 0; left.duration = 1.0
+        var right = Clip(asset: asset, startTime: 1.0); right.offset = 1.0; right.duration = 1.0
+        split.clips = [left, right]
+        let outF = tmp.appendingPathComponent("f.wav")
+        try? FileManager.default.removeItem(at: outF)
+        try AudioExporter.render(tracks: [split], duration: 2.0, to: outF)
+        let fLen = try lengthSeconds(outF), fEarly = try rms(outF, 0.1, 0.9), fLate = try rms(outF, 1.1, 1.9)
+        check("split halves export to continuous audio", abs(fLen - 2.0) < 0.05 && fEarly > 0.1 && fLate > 0.1)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }
