@@ -48,6 +48,12 @@ struct TransportBar: View {
             }
             .help("Monitor input (hear yourself — use headphones to avoid feedback)")
 
+            Button { project.countInEnabled.toggle() } label: {
+                Image(systemName: "timer")
+                    .foregroundStyle(project.countInEnabled ? .green : .secondary)
+            }
+            .help("1-bar count-in before recording")
+
             if recorder.isRecording {
                 InputLevelMeter(level: recorder.inputLevel)
                     .frame(width: 46, height: 6)
@@ -79,6 +85,8 @@ struct TransportBar: View {
                     set: { project.tempo = min(300, max(30, $0)) }
                 ), in: 30...300, step: 1)
                 .labelsHidden()
+                Button("Tap") { project.tapTempo() }
+                    .help("Tap repeatedly to set the tempo")
             }
             .help("Tempo (drives the beat grid + metronome)")
 

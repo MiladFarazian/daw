@@ -218,6 +218,25 @@ final class AudioEngine {
         }
     }
 
+    /// Play one bar of metronome clicks, then call `completion` (for a recording count-in).
+    func playCountIn(tempo: Double, beatsPerBar: Int, completion: @escaping () -> Void) {
+        guard tempo > 0 else { completion(); return }
+        if !engine.isRunning { try? engine.start() }
+        let beat = 60.0 / tempo
+        let lead = 0.1
+        let t0 = AVAudioTime(hostTime: mach_absolute_time() + AVAudioTime.hostTime(forSeconds: lead))
+        metronomePlayer.stop()
+        let bpb = max(1, beatsPerBar)
+        for i in 0..<bpb {
+            let when = AVAudioTime(hostTime: t0.hostTime + AVAudioTime.hostTime(forSeconds: Double(i) * beat))
+            if let buffer = (i == 0) ? accentClick : normalClick {
+                metronomePlayer.scheduleBuffer(buffer, at: when, options: [], completionHandler: nil)
+            }
+        }
+        metronomePlayer.play(at: t0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Double(bpb) * beat + lead) { completion() }
+    }
+
     func stop() {
         for node in nodes.values { node.player.stop() }
         metronomePlayer.stop()

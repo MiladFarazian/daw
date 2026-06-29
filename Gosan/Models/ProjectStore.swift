@@ -44,7 +44,22 @@ final class ProjectStore: ObservableObject {
     @Published var loopEnd: TimeInterval = 0
     var loopActive: Bool { loopEnabled && loopEnd > loopStart + 0.05 }
     @Published var metronomeEnabled = false
+    @Published var countInEnabled = false
     @Published var markers: [Marker] = []
+    private var tapTimes: [Date] = []
+
+    /// Tap repeatedly to set the tempo from the average interval.
+    func tapTempo() {
+        let now = Date()
+        if let last = tapTimes.last, now.timeIntervalSince(last) > 2.0 { tapTimes = [] }
+        tapTimes.append(now)
+        if tapTimes.count > 6 { tapTimes.removeFirst() }
+        guard tapTimes.count >= 2 else { return }
+        var intervals: [TimeInterval] = []
+        for i in 1..<tapTimes.count { intervals.append(tapTimes[i].timeIntervalSince(tapTimes[i - 1])) }
+        let avg = intervals.reduce(0, +) / Double(intervals.count)
+        if avg > 0 { tempo = min(300, max(30, (60.0 / avg).rounded())) }
+    }
     @Published var masterEqLow: Float = 0
     @Published var masterEqMid: Float = 0
     @Published var masterEqHigh: Float = 0
@@ -144,7 +159,13 @@ final class ProjectStore: ObservableObject {
         if isPlaying { stop() }
         recordPosition = currentTime >= totalDuration ? 0 : currentTime
         currentTime = recordPosition
-        recorder.startRecording() // calls back to handleRecordingStarted when capture begins
+        if countInEnabled {
+            engine.playCountIn(tempo: tempo, beatsPerBar: beatsPerBar) { [weak self] in
+                self?.recorder.startRecording()
+            }
+        } else {
+            recorder.startRecording() // calls back to handleRecordingStarted when capture begins
+        }
     }
 
     private func stopRecording() {
