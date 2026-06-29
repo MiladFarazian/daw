@@ -547,6 +547,50 @@ final class ProjectStore: ObservableObject {
         engine.prepare(tracks: tracks)
     }
 
+    /// Render a track's clips + effects (EQ/comp/reverb/delay/volume/pan) to one audio
+    /// file and add it as a new "(bounce)" track — non-destructive.
+    func bounceTrack(_ track: Track) {
+        let end = track.clips.map { $0.startTime + $0.duration }.max() ?? 0
+        guard end > 0 else { lastError = "That track has no audio to bounce."; return }
+        var rendered = track
+        rendered.isMuted = false
+        rendered.isSoloed = false
+        isImporting = true
+        Task.detached(priority: .userInitiated) {
+            do {
+                let tmp = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("bounce-\(UUID().uuidString).wav")
+                try AudioExporter.render(tracks: [rendered], duration: end, to: tmp)
+                let local = try LibraryStorage.adopt(tempURL: tmp, suggestedName: "\(track.name)-bounce.wav")
+                guard let waveform = WaveformLoader.load(url: local) else {
+                    throw AudioExporter.ExportError.renderFailed
+                }
+                let asset = AudioAsset(url: local, duration: waveform.duration,
+                                       sampleRate: waveform.sampleRate, peaks: waveform.peaks)
+                await MainActor.run {
+                    self.addNamedTrack(name: "\(track.name) (bounce)", asset: asset)
+                    self.isImporting = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.isImporting = false
+                    self.lastError = "Bounce failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    /// Start a new project pre-seeded with named empty tracks.
+    func newFromTemplate(_ names: [String]) {
+        newProject()
+        guard !names.isEmpty else { return }
+        for name in names {
+            let track = Track(name: name, colorIndex: tracks.count)
+            tracks.append(track)
+        }
+        engine.prepare(tracks: tracks)
+    }
+
     func renameTrack(_ track: Track, to name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }

@@ -207,6 +207,20 @@ struct AudioChecks {
         print(String(format: "   (equal-power / linear mid-fade ratio: %.2f, expect ~1.41)", fadeRatio))
         check("equal-power fade is louder mid-fade than linear", fadeRatio > 1.2)
 
+        // T) Bounce bakes a track's volume (bounce == single-track offline render).
+        func trackVolRMS(_ vol: Float, _ name: String) throws -> Float {
+            var t = Track(name: name, colorIndex: 0); t.volume = vol
+            t.clips = [Clip(asset: asset, startTime: 0.0)]
+            let out = tmp.appendingPathComponent(name)
+            try? FileManager.default.removeItem(at: out)
+            try AudioExporter.render(tracks: [t], duration: 2.0, to: out)
+            return try rms(out, 0.2, 1.8)
+        }
+        let vFull = try trackVolRMS(1.0, "vol-full.wav"), vHalf = try trackVolRMS(0.5, "vol-half.wav")
+        let volRatio = vFull > 0 ? vHalf / vFull : 0
+        print(String(format: "   (half/full track-volume ratio: %.2f, expect ~0.5)", volRatio))
+        check("track volume bakes into bounce/export", volRatio > 0.4 && volRatio < 0.6)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }

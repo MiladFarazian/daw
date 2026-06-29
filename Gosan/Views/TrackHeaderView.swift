@@ -107,6 +107,10 @@ struct TrackHeaderView: View {
                 Button("Telephone") { project.setEQ(track, low: -10, mid: 4, high: -8) }
             } label: { Label("EQ", systemImage: "slider.vertical.3") }
             Divider()
+            Button { project.bounceTrack(track) } label: {
+                Label("Bounce to New Track", systemImage: "square.and.arrow.down.on.square")
+            }
+            Divider()
             Button(role: .destructive) { project.deleteTrack(track) } label: {
                 Label("Delete Track", systemImage: "trash")
             }

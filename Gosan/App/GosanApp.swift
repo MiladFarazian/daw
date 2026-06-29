@@ -41,6 +41,11 @@ struct GosanApp: App {
             CommandGroup(replacing: .newItem) {
                 Button("New Project") { project.newProject() }
                     .keyboardShortcut("n", modifiers: .command)
+                Menu("New from Template") {
+                    Button("Beat + Vocal") { project.newFromTemplate(["Beat", "Vocal"]) }
+                    Button("Full Band") { project.newFromTemplate(["Drums", "Bass", "Keys", "Vocal", "Lead"]) }
+                    Button("Two-Mic / Podcast") { project.newFromTemplate(["Mic 1", "Mic 2"]) }
+                }
                 Button("Open…") { project.openProject() }
                     .keyboardShortcut("o", modifiers: .command)
                 Menu("Open Recent") {
