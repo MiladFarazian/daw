@@ -567,6 +567,40 @@ final class ProjectStore: ObservableObject {
         updateClip(clip, on: track) { $0.gain = gain }
     }
 
+    /// Set the clip's gain so its peak hits ~-1 dBFS (capped to avoid huge boosts).
+    func normalizeClip(_ clip: Clip, on track: Track) {
+        let url = clip.asset.url, offset = clip.offset, duration = clip.duration
+        Task.detached(priority: .userInitiated) {
+            guard let peak = ClipProcessing.peak(url: url, offset: offset, duration: duration), peak > 0 else { return }
+            let gain = min(8, 0.891 / peak)
+            await MainActor.run {
+                self.recordUndo()
+                self.updateClip(clip, on: track) { $0.gain = gain }
+            }
+        }
+    }
+
+    /// Replace the clip's audio with a reversed copy of its current segment.
+    func reverseClip(_ clip: Clip, on track: Track) {
+        let url = clip.asset.url, offset = clip.offset, duration = clip.duration
+        Task.detached(priority: .userInitiated) {
+            guard let dir = try? LibraryStorage.importsDirectory(),
+                  let reversed = ClipProcessing.reverse(url: url, offset: offset, duration: duration, outputDir: dir),
+                  let waveform = WaveformLoader.load(url: reversed) else { return }
+            let asset = AudioAsset(url: reversed, duration: waveform.duration,
+                                   sampleRate: waveform.sampleRate, peaks: waveform.peaks)
+            await MainActor.run {
+                self.recordUndo()
+                self.updateClip(clip, on: track) {
+                    $0.asset = asset
+                    $0.offset = 0
+                    $0.duration = asset.duration
+                }
+                self.engine.prepare(tracks: self.tracks)
+            }
+        }
+    }
+
     /// Duplicate a clip immediately after itself on the same track.
     func duplicateClip(_ clip: Clip, on track: Track) {
         guard let ti = tracks.firstIndex(where: { $0.id == track.id }),

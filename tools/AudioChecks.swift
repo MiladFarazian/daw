@@ -123,6 +123,18 @@ struct AudioChecks {
         print(String(format: "   (delay echo RMS after clip end: %.4f)", echo))
         check("delay echoes after the clip", echo > 0.02)
 
+        // K) Peak analysis used by Normalize (the tone's amplitude is 0.5).
+        let pk = ClipProcessing.peak(url: toneURL, offset: 0, duration: 2.0) ?? 0
+        check("peak analysis (~0.5)", abs(pk - 0.5) < 0.03)
+
+        // L) Reverse mirrors the envelope: a quiet→loud ramp becomes loud→quiet.
+        let rampURL = tmp.appendingPathComponent("ramp.wav")
+        try writeRamp(to: rampURL, seconds: 2.0)
+        let revURL = ClipProcessing.reverse(url: rampURL, offset: 0, duration: 2.0, outputDir: tmp)
+        let revEarly = revURL != nil ? try rms(revURL!, 0.1, 0.8) : 0
+        let revLate = revURL != nil ? try rms(revURL!, 1.2, 1.9) : 0
+        check("reverse mirrors the envelope (loud→quiet)", revURL != nil && revEarly > revLate * 1.5)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }
@@ -137,6 +149,20 @@ struct AudioChecks {
         buffer.frameLength = frames
         let ch = buffer.floatChannelData![0]
         for i in 0..<Int(frames) { ch[i] = Float(sin(2 * .pi * freq * Double(i) / sampleRate)) * 0.5 }
+        try file.write(from: buffer)
+    }
+
+    static func writeRamp(to url: URL, seconds: Double, sampleRate: Double = 44_100) throws {
+        let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
+        let file = try AVAudioFile(forWriting: url, settings: format.settings)
+        let frames = AVAudioFrameCount(seconds * sampleRate)
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
+        buffer.frameLength = frames
+        let ch = buffer.floatChannelData![0]
+        for i in 0..<Int(frames) {
+            let env = Float(i) / Float(frames) * 0.8 // 0 → 0.8
+            ch[i] = env * Float(sin(2 * .pi * 440 * Double(i) / sampleRate))
+        }
         try file.write(from: buffer)
     }
 

@@ -41,6 +41,12 @@ struct ClipLaneView: View {
                         } label: {
                             Label("Gain", systemImage: "speaker.wave.2")
                         }
+                        Button { project.normalizeClip(clip, on: track) } label: {
+                            Label("Normalize", systemImage: "arrow.up.to.line")
+                        }
+                        Button { project.reverseClip(clip, on: track) } label: {
+                            Label("Reverse", systemImage: "arrow.uturn.backward")
+                        }
                         Divider()
                         Button { project.vocalRescue(clip) } label: {
                             Label("Vocal Rescue (enhance → master)", systemImage: "wand.and.stars")
