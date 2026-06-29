@@ -22,6 +22,15 @@ struct ClipLaneView: View {
                         Button { project.duplicateClip(clip, on: track) } label: {
                             Label("Duplicate", systemImage: "plus.square.on.square")
                         }
+                        Menu {
+                            ForEach([6.0, 3.0, 0.0, -3.0, -6.0, -12.0], id: \.self) { db in
+                                Button(db == 0 ? "0 dB (reset)" : String(format: "%+.0f dB", db)) {
+                                    project.setClipGain(clip, on: track, db: db)
+                                }
+                            }
+                        } label: {
+                            Label("Gain", systemImage: "speaker.wave.2")
+                        }
                         Divider()
                         Button { project.vocalRescue(clip) } label: {
                             Label("Vocal Rescue (enhance → master)", systemImage: "wand.and.stars")

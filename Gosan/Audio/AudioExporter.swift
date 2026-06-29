@@ -52,7 +52,8 @@ enum AudioExporter {
                 let when = AVAudioTime(sampleTime: AVAudioFramePosition(clip.startTime * sampleRate), atRate: sampleRate)
                 if let buffer = ClipBuffer.faded(file: file, startFrame: startFrame, frames: frames,
                                                  fadeInFrames: Int(clip.fadeIn * fileRate),
-                                                 fadeOutFrames: Int(clip.fadeOut * fileRate)) {
+                                                 fadeOutFrames: Int(clip.fadeOut * fileRate),
+                                                 gain: clip.gain) {
                     player.scheduleBuffer(buffer, at: when, options: [], completionHandler: nil)
                 }
             }

@@ -86,6 +86,21 @@ struct AudioChecks {
         let gEarly = try rms(outG, 0.0, 0.1), gFull = try rms(outG, 1.0, 1.5)
         check("fade-in ramps up (quiet head, full body)", gEarly < gFull * 0.4 && gFull > 0.1)
 
+        // H) Clip gain: render at 1.0x and 0.5x and check the ratio is ~half (robust to
+        //    any constant mono→stereo scaling).
+        func renderGain(_ g: Float, _ name: String) throws -> Float {
+            var t = Track(name: name, colorIndex: 0)
+            var clip = Clip(asset: asset, startTime: 0.0); clip.gain = g
+            t.clips = [clip]
+            let out = tmp.appendingPathComponent(name)
+            try? FileManager.default.removeItem(at: out)
+            try AudioExporter.render(tracks: [t], duration: 2.0, to: out)
+            return try rms(out, 0.2, 1.8)
+        }
+        let full = try renderGain(1.0, "h1.wav"), half = try renderGain(0.5, "h05.wav")
+        let ratio = full > 0 ? half / full : 0
+        check("clip gain 0.5x halves the level", ratio > 0.45 && ratio < 0.55)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }

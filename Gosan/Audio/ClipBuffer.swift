@@ -7,7 +7,8 @@ enum ClipBuffer {
                       startFrame: AVAudioFramePosition,
                       frames: AVAudioFrameCount,
                       fadeInFrames: Int,
-                      fadeOutFrames: Int) -> AVAudioPCMBuffer? {
+                      fadeOutFrames: Int,
+                      gain: Float = 1.0) -> AVAudioPCMBuffer? {
         guard frames > 0,
               let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frames) else { return nil }
         do {
@@ -22,6 +23,7 @@ enum ClipBuffer {
         let fout = min(fadeOutFrames, n)
         for c in 0..<channels {
             let p = data[c]
+            if gain != 1 { for i in 0..<n { p[i] *= gain } }
             if fin > 0 { for i in 0..<fin { p[i] *= Float(i) / Float(fin) } }
             if fout > 0 { for i in 0..<fout { p[n - 1 - i] *= Float(i) / Float(fout) } }
         }

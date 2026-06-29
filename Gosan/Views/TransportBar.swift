@@ -54,8 +54,22 @@ struct TransportBar: View {
                         .foregroundStyle(project.metronomeEnabled ? .green : .secondary)
                 }
                 .help("Metronome click")
-                Text("\(Int(project.tempo)) BPM").foregroundStyle(.secondary)
+
+                TextField("", value: Binding(
+                    get: { project.tempo },
+                    set: { project.tempo = min(300, max(30, $0.rounded())) }
+                ), format: .number)
+                .textFieldStyle(.plain)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 30)
+                Text("BPM").foregroundStyle(.secondary)
+                Stepper("", value: Binding(
+                    get: { project.tempo },
+                    set: { project.tempo = min(300, max(30, $0)) }
+                ), in: 30...300, step: 1)
+                .labelsHidden()
             }
+            .help("Tempo (drives the beat grid + metronome)")
 
             if !project.activeJobs.isEmpty {
                 Divider().frame(height: 18)

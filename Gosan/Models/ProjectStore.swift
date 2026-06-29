@@ -536,6 +536,12 @@ final class ProjectStore: ObservableObject {
         }
     }
 
+    func setClipGain(_ clip: Clip, on track: Track, db: Double) {
+        recordUndo()
+        let gain = Float(pow(10.0, db / 20.0))
+        updateClip(clip, on: track) { $0.gain = gain }
+    }
+
     /// Duplicate a clip immediately after itself on the same track.
     func duplicateClip(_ clip: Clip, on track: Track) {
         guard let ti = tracks.firstIndex(where: { $0.id == track.id }),
@@ -670,7 +676,7 @@ final class ProjectStore: ObservableObject {
                             sampleRate: clip.asset.sampleRate,
                             assetDuration: clip.asset.duration,
                             startTime: clip.startTime, offset: clip.offset, duration: clip.duration,
-                            fadeIn: clip.fadeIn, fadeOut: clip.fadeOut)
+                            fadeIn: clip.fadeIn, fadeOut: clip.fadeOut, gain: clip.gain)
                     })
             })
     }
@@ -709,6 +715,7 @@ final class ProjectStore: ObservableObject {
                 clip.duration = clipData.duration
                 clip.fadeIn = clipData.fadeIn
                 clip.fadeOut = clipData.fadeOut
+                clip.gain = clipData.gain
                 clips.append(clip)
             }
             track.clips = clips
