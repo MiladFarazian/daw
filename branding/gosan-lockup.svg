@@ -1,46 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 340" width="1200" height="340">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#162C50"/>
-      <stop offset="1" stop-color="#0D4E56"/>
+      <stop offset="0" stop-color="#162C50"/><stop offset="1" stop-color="#0D4E56"/>
     </linearGradient>
-    <radialGradient id="glow" cx="0.25" cy="0.2" r="0.8">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    <radialGradient id="glow" cx="0.30" cy="0.22" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.12"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
     </radialGradient>
   </defs>
   <rect width="1200" height="340" rx="44" fill="url(#bg)"/>
   <rect width="1200" height="340" rx="44" fill="url(#glow)"/>
-
-  <!-- mark: harp-as-G -->
-  <g transform="translate(70,50) scale(0.47)">
-    <g fill="none" stroke="#E9B452" stroke-linecap="round">
-      <path d="M372 152 A156 156 0 1 0 372 360" stroke-width="26"/>
-      <line x1="282" y1="256" x2="404" y2="256" stroke-width="26"/>
-      <line x1="146" y1="366" x2="282" y2="307" stroke-width="15"/>
-      <g stroke-width="6">
-        <line x1="154" y1="361" x2="154" y2="128"/>
-        <line x1="169" y1="354" x2="169" y2="137"/>
-        <line x1="200" y1="341" x2="200" y2="154"/>
-        <line x1="215" y1="334" x2="215" y2="163"/>
-        <line x1="230" y1="327" x2="230" y2="171"/>
-        <line x1="246" y1="321" x2="246" y2="180"/>
-        <line x1="261" y1="314" x2="261" y2="189"/>
-        <line x1="276" y1="307" x2="276" y2="197"/>
-      </g>
-      <line x1="184" y1="348" x2="184" y2="145" stroke="#46CDB8" stroke-width="6"/>
+  <g transform="translate(34,30) scale(0.55)">
+    <path d="M368.9 187.2 L368.9 94.3 L361.2 94.3 Q358.9 99.8 356.2 101.8 Q353.5 103.9 347.1 103.9 Q341.2 103.9 332.5 101.2 Q323.9 98.4 312.9 95.5 Q302.0 92.5 289.2 89.8 Q276.5 87.0 262.8 87.0 Q233.7 87.0 203.4 99.1 Q173.1 111.2 148.5 133.5 Q123.9 155.8 108.2 187.2 Q92.5 218.7 92.5 257.4 Q92.5 292.9 106.6 323.4 Q120.7 353.9 144.2 376.5 Q167.6 399.0 198.6 412.0 Q229.6 425.0 262.8 425.0 Q283.8 425.0 298.6 420.6 Q313.4 416.3 324.8 411.3 Q336.2 406.3 345.9 402.0 Q355.7 397.6 366.7 397.6 Q372.1 397.6 376.5 400.1 Q380.8 402.6 381.7 408.1 L389.9 408.1 L389.9 303.8 L419.5 303.8 L419.5 297.4 L278.8 297.4 L278.8 303.8 L325.7 303.8 L325.7 321.1 Q325.7 342.1 323.9 359.8 Q322.0 377.6 315.4 390.6 Q308.8 403.6 296.5 411.1 Q284.2 418.6 263.3 418.6 Q237.8 418.6 219.3 411.1 Q200.9 403.6 189.3 386.2 Q177.7 368.9 172.2 340.7 Q166.7 312.5 166.7 271.0 L166.7 231.4 Q166.7 205.9 169.9 181.1 Q173.1 156.3 183.4 136.9 Q193.6 117.6 212.7 105.5 Q231.9 93.4 263.3 93.4 Q302.9 93.0 326.6 117.8 Q350.3 142.6 362.1 187.2 Z " fill="#E9B452"/>
+    <g fill="none" stroke-linecap="round">
+      <line x1="176.6" y1="371.2" x2="207.4" y2="176.6" stroke="#E9B452" stroke-width="5.6"/>
+      <line x1="190.2" y1="368.3" x2="218.3" y2="179.9" stroke="#E9B452" stroke-width="5.6"/>
+      <line x1="203.7" y1="365.3" x2="229.3" y2="183.2" stroke="#46CDB8" stroke-width="5.6"/>
+      <line x1="217.2" y1="362.4" x2="240.3" y2="186.5" stroke="#E9B452" stroke-width="5.6"/>
+      <line x1="230.8" y1="359.5" x2="251.2" y2="189.8" stroke="#E9B452" stroke-width="5.6"/>
+      <line x1="244.3" y1="356.6" x2="262.2" y2="193.1" stroke="#E9B452" stroke-width="5.6"/>
+      <line x1="257.8" y1="353.6" x2="273.2" y2="196.4" stroke="#E9B452" stroke-width="5.6"/>
+      <line x1="271.4" y1="350.7" x2="284.2" y2="199.7" stroke="#E9B452" stroke-width="5.6"/>
     </g>
-    <g fill="#E9B452">
-      <circle cx="154" cy="128" r="5"/><circle cx="169" cy="137" r="5"/>
-      <circle cx="200" cy="154" r="5"/><circle cx="215" cy="163" r="5"/>
-      <circle cx="230" cy="171" r="5"/><circle cx="246" cy="180" r="5"/>
-      <circle cx="261" cy="189" r="5"/><circle cx="276" cy="197" r="5"/>
-    </g>
-    <circle cx="184" cy="145" r="5" fill="#46CDB8"/>
   </g>
-
-  <text x="320" y="180" font-family="Georgia, 'Times New Roman', serif" font-size="132"
-        font-weight="600" fill="#F3E7CF" letter-spacing="2">Gosan</text>
-  <text x="324" y="240" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="30"
-        fill="#E9B452" letter-spacing="3">SONGCRAFT WITH A HUMAN TOUCH</text>
+  <text x="316" y="178" font-family="Georgia, 'Times New Roman', serif" font-size="132" font-weight="600" fill="#F3E7CF" letter-spacing="2">Gosan</text>
+  <text x="320" y="238" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="30" fill="#E9B452" letter-spacing="3">SONGCRAFT WITH A HUMAN TOUCH</text>
 </svg>
