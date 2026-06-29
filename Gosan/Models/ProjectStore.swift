@@ -748,18 +748,19 @@ final class ProjectStore: ObservableObject {
 
     // MARK: - Export
 
-    func exportMixdown() { exportRange(from: 0, duration: totalDuration, name: name) }
+    func exportMixdown(aac: Bool = false) { exportRange(from: 0, duration: totalDuration, name: name, aac: aac) }
 
-    func exportLoop() {
+    func exportLoop(aac: Bool = false) {
         guard loopActive else { return }
-        exportRange(from: loopStart, duration: loopEnd - loopStart, name: "\(name)-loop")
+        exportRange(from: loopStart, duration: loopEnd - loopStart, name: "\(name)-loop", aac: aac)
     }
 
-    private func exportRange(from: TimeInterval, duration: TimeInterval, name: String) {
+    private func exportRange(from: TimeInterval, duration: TimeInterval, name: String, aac: Bool) {
         guard !tracks.isEmpty, duration > 0, !isExporting else { return }
+        let ext = aac ? "m4a" : "wav"
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.wav]
-        panel.nameFieldStringValue = "\(name).wav"
+        panel.allowedContentTypes = [UTType(filenameExtension: ext) ?? .audio]
+        panel.nameFieldStringValue = "\(name).\(ext)"
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
@@ -767,12 +768,44 @@ final class ProjectStore: ObservableObject {
         isExporting = true
         Task.detached(priority: .userInitiated) {
             do {
-                try AudioExporter.render(tracks: snapshot, duration: duration, to: url, from: from)
+                try AudioExporter.render(tracks: snapshot, duration: duration, to: url, from: from, aac: aac)
                 await MainActor.run { self.isExporting = false }
             } catch {
                 await MainActor.run {
                     self.isExporting = false
                     self.lastError = "Export failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    /// Export each track to its own WAV in a chosen folder.
+    func exportStems() {
+        guard !tracks.isEmpty, !isExporting else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.message = "Choose a folder — each track is exported as its own WAV."
+        guard panel.runModal() == .OK, let dir = panel.url else { return }
+
+        let snapshot = tracks
+        let duration = totalDuration
+        let scoped = dir.startAccessingSecurityScopedResource()
+        isExporting = true
+        Task.detached(priority: .userInitiated) {
+            defer { if scoped { dir.stopAccessingSecurityScopedResource() } }
+            do {
+                for (index, track) in snapshot.enumerated() where !track.clips.isEmpty {
+                    let safe = track.name.replacingOccurrences(of: "/", with: "-")
+                    let url = dir.appendingPathComponent("\(index + 1)-\(safe).wav")
+                    try AudioExporter.render(tracks: [track], duration: duration, to: url)
+                }
+                await MainActor.run { self.isExporting = false }
+            } catch {
+                await MainActor.run {
+                    self.isExporting = false
+                    self.lastError = "Stem export failed: \(error.localizedDescription)"
                 }
             }
         }

@@ -16,7 +16,7 @@ enum AudioExporter {
     }
 
     static func render(tracks: [Track], duration: TimeInterval, to url: URL,
-                       from: TimeInterval = 0, sampleRate: Double = 44_100) throws {
+                       from: TimeInterval = 0, aac: Bool = false, sampleRate: Double = 44_100) throws {
         let totalFrames = AVAudioFramePosition((duration * sampleRate).rounded(.up))
         guard totalFrames > 0,
               let renderFormat = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2) else {
@@ -95,7 +95,11 @@ enum AudioExporter {
         try engine.start()
         players.forEach { $0.play() }
 
-        let outputFile = try AVAudioFile(forWriting: url, settings: renderFormat.settings)
+        let settings: [String: Any] = aac
+            ? [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: sampleRate,
+               AVNumberOfChannelsKey: 2, AVEncoderBitRateKey: 256_000]
+            : renderFormat.settings
+        let outputFile = try AVAudioFile(forWriting: url, settings: settings)
         guard let buffer = AVAudioPCMBuffer(pcmFormat: engine.manualRenderingFormat,
                                             frameCapacity: engine.manualRenderingMaximumFrameCount) else {
             throw ExportError.renderFailed

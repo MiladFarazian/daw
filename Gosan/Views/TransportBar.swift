@@ -171,9 +171,12 @@ struct TransportBar: View {
             }
 
             Menu {
-                Button("Export Mix…") { project.exportMixdown() }
-                Button("Export Loop…") { project.exportLoop() }
+                Button("Mix → WAV…") { project.exportMixdown() }
+                Button("Mix → AAC (.m4a)…") { project.exportMixdown(aac: true) }
+                Divider()
+                Button("Loop region → WAV…") { project.exportLoop() }
                     .disabled(!project.loopActive)
+                Button("Each track (stems)…") { project.exportStems() }
             } label: {
                 if project.isExporting {
                     ProgressView().controlSize(.small)

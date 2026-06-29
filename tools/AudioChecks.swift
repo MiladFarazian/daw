@@ -166,6 +166,15 @@ struct AudioChecks {
         print(String(format: "   (compressor: heavy/bypass RMS ratio %.3f)", compRatio))
         check("compressor reduces a loud tone", compRatio < 0.85)
 
+        // P) AAC (.m4a) export: readable, right length, has audio.
+        var aacTrack = Track(name: "AAC", colorIndex: 0); aacTrack.clips = [Clip(asset: asset, startTime: 0.0)]
+        let outP = tmp.appendingPathComponent("p.m4a")
+        try? FileManager.default.removeItem(at: outP)
+        try AudioExporter.render(tracks: [aacTrack], duration: 2.0, to: outP, aac: true)
+        let aacLen = try lengthSeconds(outP), aacBody = try rms(outP, 0.3, 1.7)
+        print(String(format: "   (AAC export: %.3fs)", aacLen))
+        check("AAC (m4a) export is readable + right length", abs(aacLen - 2.0) < 0.25 && aacBody > 0.1)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }
