@@ -1,4 +1,5 @@
 import AVFoundation
+import AudioToolbox
 
 /// Bounces the timeline to a stereo WAV using AVAudioEngine's offline manual-rendering mode.
 /// Builds a throwaway graph so it never disturbs live playback.
@@ -35,19 +36,30 @@ enum AudioExporter {
             eq.bands[0].filterType = .lowShelf; eq.bands[0].frequency = 120; eq.bands[0].gain = track.eqLow; eq.bands[0].bypass = false
             eq.bands[1].filterType = .parametric; eq.bands[1].frequency = 1000; eq.bands[1].bandwidth = 1.0; eq.bands[1].gain = track.eqMid; eq.bands[1].bypass = false
             eq.bands[2].filterType = .highShelf; eq.bands[2].frequency = 8000; eq.bands[2].gain = track.eqHigh; eq.bands[2].bypass = false
+            let comp = AVAudioUnitEffect(audioComponentDescription:
+                AudioComponentDescription(componentType: kAudioUnitType_Effect,
+                                          componentSubType: kAudioUnitSubType_DynamicsProcessor,
+                                          componentManufacturer: kAudioUnitManufacturer_Apple,
+                                          componentFlags: 0, componentFlagsMask: 0))
             let reverb = AVAudioUnitReverb()
             reverb.loadFactoryPreset(.mediumHall)
             reverb.wetDryMix = track.reverb * 100
             let delay = AVAudioUnitDelay()
             delay.delayTime = 0.33; delay.feedback = 30; delay.wetDryMix = track.delay * 100
-            [player, mixer, eq, reverb, delay].forEach { engine.attach($0) }
+            [player, mixer, eq, comp, reverb, delay].forEach { engine.attach($0) }
+            let threshold: Float = track.compress <= 0 ? 20 : 20 - track.compress * 50
+            AudioUnitSetParameter(comp.audioUnit, kDynamicsProcessorParam_Threshold, kAudioUnitScope_Global, 0, threshold, 0)
+            AudioUnitSetParameter(comp.audioUnit, kDynamicsProcessorParam_HeadRoom, kAudioUnitScope_Global, 0, 5, 0)
+            AudioUnitSetParameter(comp.audioUnit, kDynamicsProcessorParam_AttackTime, kAudioUnitScope_Global, 0, 0.002, 0)
+            AudioUnitSetParameter(comp.audioUnit, kDynamicsProcessorParam_ReleaseTime, kAudioUnitScope_Global, 0, 0.1, 0)
             // Connect with the first clip's format so scheduled buffers match.
             let trackFormat = track.clips.first
                 .flatMap { try? AVAudioFile(forReading: $0.asset.url).processingFormat }
-            // player → mixer → eq → reverb → delay → main (effects after the mixer → stereo).
+            // player → mixer → eq → comp → reverb → delay → main (effects after the mixer → stereo).
             engine.connect(player, to: mixer, format: trackFormat)
             engine.connect(mixer, to: eq, format: renderFormat)
-            engine.connect(eq, to: reverb, format: renderFormat)
+            engine.connect(eq, to: comp, format: renderFormat)
+            engine.connect(comp, to: reverb, format: renderFormat)
             engine.connect(reverb, to: delay, format: renderFormat)
             engine.connect(delay, to: mainMixer, format: renderFormat)
 

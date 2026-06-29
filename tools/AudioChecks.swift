@@ -152,6 +152,20 @@ struct AudioChecks {
         print(String(format: "   (time-stretch 0.5x: 1.0s → %.3fs)", stLen))
         check("time-stretch 0.5x doubles the length", stretched != nil && abs(stLen - 2.0) < 0.2 && stBody > 0.1)
 
+        // O) Compressor: a loud constant tone (above threshold) should come out lower than bypass.
+        func renderComp(_ amount: Float, _ name: String) throws -> Float {
+            var t = Track(name: name, colorIndex: 0); t.compress = amount
+            t.clips = [Clip(asset: asset, startTime: 0.0)]
+            let out = tmp.appendingPathComponent(name)
+            try? FileManager.default.removeItem(at: out)
+            try AudioExporter.render(tracks: [t], duration: 2.0, to: out)
+            return try rms(out, 0.5, 1.5)
+        }
+        let dry = try renderComp(0, "comp0.wav"), squashed = try renderComp(0.9, "comp9.wav")
+        let compRatio = dry > 0 ? squashed / dry : 1
+        print(String(format: "   (compressor: heavy/bypass RMS ratio %.3f)", compRatio))
+        check("compressor reduces a loud tone", compRatio < 0.85)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }

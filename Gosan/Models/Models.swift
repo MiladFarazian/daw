@@ -55,6 +55,7 @@ struct Track: Identifiable {
     var pan: Float = 0
     var reverb: Float = 0        // 0...1 reverb send
     var delay: Float = 0         // 0...1 delay send
+    var compress: Float = 0      // 0...1 compression amount
     var eqLow: Float = 0         // dB
     var eqMid: Float = 0         // dB
     var eqHigh: Float = 0        // dB

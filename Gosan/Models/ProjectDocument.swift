@@ -17,6 +17,7 @@ struct ProjectDocument: Codable {
         var pan: Float
         var reverb: Float = 0
         var delay: Float = 0
+        var compress: Float = 0
         var eqLow: Float = 0
         var eqMid: Float = 0
         var eqHigh: Float = 0

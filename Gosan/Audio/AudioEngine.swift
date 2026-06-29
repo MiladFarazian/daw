@@ -1,4 +1,5 @@
 import AVFoundation
+import AudioToolbox
 
 /// Owns the AVAudioEngine graph: one player + mixer per track, summed into a main mixer.
 /// Designed for multi-track sample-synchronized playback from any timeline position.
@@ -10,10 +11,29 @@ final class AudioEngine {
         let player: AVAudioPlayerNode
         let mixer: AVAudioMixerNode
         let eq: AVAudioUnitEQ
+        let comp: AVAudioUnitEffect
         let reverb: AVAudioUnitReverb
         let delay: AVAudioUnitDelay
     }
     private var nodes: [UUID: TrackNode] = [:]
+
+    private static func makeCompressor() -> AVAudioUnitEffect {
+        AVAudioUnitEffect(audioComponentDescription:
+            AudioComponentDescription(componentType: kAudioUnitType_Effect,
+                                      componentSubType: kAudioUnitSubType_DynamicsProcessor,
+                                      componentManufacturer: kAudioUnitManufacturer_Apple,
+                                      componentFlags: 0, componentFlagsMask: 0))
+    }
+
+    /// amount 0 = off (threshold above any signal); higher = lower threshold = more compression.
+    private func configureCompressor(_ comp: AVAudioUnitEffect, amount: Float) {
+        let au = comp.audioUnit
+        let threshold: Float = amount <= 0 ? 20 : 20 - amount * 50   // +20 dB (off) → -30 dB
+        AudioUnitSetParameter(au, kDynamicsProcessorParam_Threshold, kAudioUnitScope_Global, 0, threshold, 0)
+        AudioUnitSetParameter(au, kDynamicsProcessorParam_HeadRoom, kAudioUnitScope_Global, 0, 5, 0)
+        AudioUnitSetParameter(au, kDynamicsProcessorParam_AttackTime, kAudioUnitScope_Global, 0, 0.002, 0)
+        AudioUnitSetParameter(au, kDynamicsProcessorParam_ReleaseTime, kAudioUnitScope_Global, 0, 0.1, 0)
+    }
 
     private func configureEQ(_ eq: AVAudioUnitEQ) {
         let low = eq.bands[0]; low.filterType = .lowShelf; low.frequency = 120; low.bypass = false
@@ -97,6 +117,7 @@ final class AudioEngine {
             let mixer = AVAudioMixerNode()
             let eq = AVAudioUnitEQ(numberOfBands: 3)
             configureEQ(eq)
+            let comp = Self.makeCompressor()
             let reverb = AVAudioUnitReverb()
             reverb.loadFactoryPreset(.mediumHall)
             reverb.wetDryMix = 0
@@ -104,21 +125,22 @@ final class AudioEngine {
             delay.delayTime = 0.33
             delay.feedback = 30
             delay.wetDryMix = 0
-            [player, mixer, eq, reverb, delay].forEach { engine.attach($0) }
+            [player, mixer, eq, comp, reverb, delay].forEach { engine.attach($0) }
 
             let format = track.clips.first
                 .flatMap { try? AVAudioFile(forReading: $0.asset.url).processingFormat }
                 ?? AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
 
-            // player → mixer → eq → reverb → delay → main. Effects sit after the mixer so
-            // they always see stereo (the AUs reject a mono input).
+            // player → mixer → eq → comp → reverb → delay → main. Effects sit after the mixer
+            // so they always see stereo (the AUs reject a mono input).
             let stereo = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
             engine.connect(player, to: mixer, format: format)
             engine.connect(mixer, to: eq, format: stereo)
-            engine.connect(eq, to: reverb, format: stereo)
+            engine.connect(eq, to: comp, format: stereo)
+            engine.connect(comp, to: reverb, format: stereo)
             engine.connect(reverb, to: delay, format: stereo)
             engine.connect(delay, to: mainMixer, format: stereo)
-            nodes[track.id] = TrackNode(player: player, mixer: mixer, eq: eq, reverb: reverb, delay: delay)
+            nodes[track.id] = TrackNode(player: player, mixer: mixer, eq: eq, comp: comp, reverb: reverb, delay: delay)
         }
         applyMix(tracks: tracks)
         if !engine.isRunning { try? engine.start() }
@@ -137,6 +159,7 @@ final class AudioEngine {
             node.eq.bands[0].gain = track.eqLow
             node.eq.bands[1].gain = track.eqMid
             node.eq.bands[2].gain = track.eqHigh
+            configureCompressor(node.comp, amount: track.compress)
         }
     }
 
@@ -193,7 +216,7 @@ final class AudioEngine {
     func reset() {
         stop()
         for node in nodes.values {
-            [node.player, node.mixer, node.eq, node.reverb, node.delay].forEach { engine.detach($0) }
+            [node.player, node.mixer, node.eq, node.comp, node.reverb, node.delay].forEach { engine.detach($0) }
         }
         nodes.removeAll()
     }

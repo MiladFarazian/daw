@@ -94,6 +94,12 @@ struct TrackHeaderView: View {
                 Button("Heavy") { project.setDelay(track, 0.6) }
             } label: { Label("Delay", systemImage: "arrow.triangle.2.circlepath") }
             Menu {
+                Button("Off") { project.setCompress(track, 0) }
+                Button("Light") { project.setCompress(track, 0.3) }
+                Button("Medium") { project.setCompress(track, 0.6) }
+                Button("Heavy") { project.setCompress(track, 0.9) }
+            } label: { Label("Compressor", systemImage: "rectangle.compress.vertical") }
+            Menu {
                 Button("Flat") { project.setEQ(track, low: 0, mid: 0, high: 0) }
                 Button("Bright") { project.setEQ(track, low: 0, mid: 0, high: 5) }
                 Button("Warm") { project.setEQ(track, low: 4, mid: 0, high: -3) }
