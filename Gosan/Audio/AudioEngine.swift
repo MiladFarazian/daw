@@ -22,9 +22,18 @@ final class AudioEngine {
     /// Called on a realtime thread with the master output peak (0...1). Hop to main yourself.
     var onLevel: ((Float) -> Void)?
 
+    // Brick-wall peak limiter on the master bus to catch clipping.
+    private let masterLimiter = AVAudioUnitEffect(audioComponentDescription:
+        AudioComponentDescription(componentType: kAudioUnitType_Effect,
+                                  componentSubType: kAudioUnitSubType_PeakLimiter,
+                                  componentManufacturer: kAudioUnitManufacturer_Apple,
+                                  componentFlags: 0, componentFlagsMask: 0))
+
     init() {
         engine.attach(mainMixer)
-        engine.connect(mainMixer, to: engine.outputNode, format: nil)
+        engine.attach(masterLimiter)
+        engine.connect(mainMixer, to: masterLimiter, format: nil)
+        engine.connect(masterLimiter, to: engine.outputNode, format: nil)
         engine.attach(metronomePlayer)
         engine.connect(metronomePlayer, to: mainMixer, format: clickFormat)
 
