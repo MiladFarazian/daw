@@ -16,14 +16,16 @@ stay the producer. See the design:
 
 **Phase 1 — DAW bones** ✅
 
-- **Tracks** — add empty tracks, double-click to rename, drop audio onto a specific track at a position
+- **Tracks** — add empty tracks, rename, reorder (move up/down), recolor, drop audio onto a specific
+  track at a position
 - **Recording** — mic record with overdub (existing tracks play while you record, take lands at the
   playhead), input monitoring + level meter
 - **Timeline** — multi-track waveforms, synchronized AVAudioEngine playback, transport (play/stop/seek +
-  spacebar), zoom, **loop region** (drag the ruler), **metronome**, editable **tempo**
-- **Clip editing** — move (beat-grid snapping), trim, split at the playhead, duplicate, fade in/out,
-  per-clip gain, select, delete; **undo/redo** (⌘Z/⇧⌘Z)
-- **Mixing** — per-track volume / pan / mute / solo, **master output meter**
+  spacebar), zoom, **loop region** (drag the ruler), **metronome**, editable **tempo**, snap resolution
+  (bar / beat / ½ / ¼ / ⅛)
+- **Clip editing** — move (beat-grid snapping), trim, split at the playhead, duplicate, copy/cut/paste,
+  fade in/out, per-clip gain, select, delete; **undo/redo** (⌘Z/⇧⌘Z)
+- **Mixing** — per-track volume / pan / **reverb** / mute / solo, **master output meter**, master peak limiter
 - **Export** — bounce the mix to WAV (offline render)
 
 **Phase 2 — Music.ai integration** ✅. Right-click any clip → **Split into Stems**, **Analyze**
