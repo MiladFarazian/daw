@@ -20,14 +20,14 @@ stay the producer. See the design:
   track at a position
 - **Recording** — mic record with overdub (existing tracks play while you record, take lands at the
   playhead), input monitoring + level meter
-- **Timeline** — multi-track waveforms, synchronized AVAudioEngine playback, transport (play/stop/seek +
-  spacebar), zoom, **loop region** (drag the ruler), **metronome**, editable **tempo**, snap resolution
-  (bar / beat / ½ / ¼ / ⅛)
+- **Timeline** — multi-track waveforms, **bars|beats ruler + grid**, synchronized AVAudioEngine playback,
+  transport (play/stop/seek + spacebar), zoom, **loop region** (drag the ruler), **metronome**, editable
+  **tempo**, snap resolution (bar / beat / ½ / ¼ / ⅛)
 - **Clip editing** — move (beat-grid snapping), trim, split at the playhead, duplicate, copy/cut/paste,
   fade in/out, per-clip gain, **normalize**, **reverse**, select, delete; **undo/redo** (⌘Z/⇧⌘Z)
 - **Mixing** — per-track volume / pan / mute / solo + insert effects (**3-band EQ, reverb, delay**),
   **master output meter**, master peak limiter
-- **Export** — bounce the mix to WAV (offline render)
+- **Export** — bounce the mix or just the loop region to WAV (offline render)
 
 **Phase 2 — Music.ai integration** ✅. Right-click any clip → **Split into Stems**, **Analyze**
 (key · BPM · chords), **Enhance** (de-reverb / denoise), **Master**, or the **Vocal Rescue** recipe
