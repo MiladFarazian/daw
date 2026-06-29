@@ -22,6 +22,10 @@ struct ClipLaneView: View {
                         Button { project.duplicateClip(clip, on: track) } label: {
                             Label("Duplicate", systemImage: "plus.square.on.square")
                         }
+                        Button { project.toggleClipMute(clip, on: track) } label: {
+                            Label(clip.muted ? "Unmute Clip" : "Mute Clip",
+                                  systemImage: clip.muted ? "speaker" : "speaker.slash")
+                        }
                         Button { project.copyClip(clip) } label: {
                             Label("Copy", systemImage: "doc.on.doc")
                         }
@@ -168,6 +172,7 @@ struct ClipView: View {
                 fadeHandle(x: visualWidth - fadeOutWidth, gesture: fadeOutDrag)
             }
         }
+        .opacity(clip.muted ? 0.4 : 1)
         .frame(width: visualWidth)
         .frame(maxHeight: .infinity)
         .contentShape(Rectangle())

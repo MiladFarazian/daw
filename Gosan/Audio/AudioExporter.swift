@@ -68,7 +68,7 @@ enum AudioExporter {
             mixer.pan = track.pan
 
             for clip in track.clips {
-                guard let file = try? AVAudioFile(forReading: clip.asset.url) else { continue }
+                guard !clip.muted, let file = try? AVAudioFile(forReading: clip.asset.url) else { continue }
                 let fileRate = file.processingFormat.sampleRate
                 guard clip.startTime + clip.duration > from else { continue }
                 let intoClip = max(0, from - clip.startTime)

@@ -189,7 +189,7 @@ final class AudioEngine {
             node.player.stop()
 
             for clip in track.clips {
-                guard let file = try? AVAudioFile(forReading: clip.asset.url) else { continue }
+                guard !clip.muted, let file = try? AVAudioFile(forReading: clip.asset.url) else { continue }
                 let sampleRate = file.processingFormat.sampleRate
                 let clipEnd = clip.startTime + clip.duration
                 guard clipEnd > position else { continue }

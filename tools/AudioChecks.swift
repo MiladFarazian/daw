@@ -175,6 +175,15 @@ struct AudioChecks {
         print(String(format: "   (AAC export: %.3fs)", aacLen))
         check("AAC (m4a) export is readable + right length", abs(aacLen - 2.0) < 0.25 && aacBody > 0.1)
 
+        // Q) Muted clip contributes silence.
+        var muteTrack = Track(name: "MuteClip", colorIndex: 0)
+        var muteClip = Clip(asset: asset, startTime: 0.0); muteClip.muted = true
+        muteTrack.clips = [muteClip]
+        let outQ = tmp.appendingPathComponent("q.wav")
+        try? FileManager.default.removeItem(at: outQ)
+        try AudioExporter.render(tracks: [muteTrack], duration: 2.0, to: outQ)
+        check("muted clip → silence", try rms(outQ, 0, 2.0) < 0.001)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }

@@ -626,6 +626,11 @@ final class ProjectStore: ObservableObject {
         updateClip(clip, on: track) { $0.gain = gain }
     }
 
+    func toggleClipMute(_ clip: Clip, on track: Track) {
+        recordUndo()
+        updateClip(clip, on: track) { $0.muted.toggle() }
+    }
+
     /// Set the clip's gain so its peak hits ~-1 dBFS (capped to avoid huge boosts).
     func normalizeClip(_ clip: Clip, on track: Track) {
         let url = clip.asset.url, offset = clip.offset, duration = clip.duration
@@ -884,7 +889,7 @@ final class ProjectStore: ObservableObject {
                             sampleRate: clip.asset.sampleRate,
                             assetDuration: clip.asset.duration,
                             startTime: clip.startTime, offset: clip.offset, duration: clip.duration,
-                            fadeIn: clip.fadeIn, fadeOut: clip.fadeOut, gain: clip.gain)
+                            fadeIn: clip.fadeIn, fadeOut: clip.fadeOut, gain: clip.gain, muted: clip.muted)
                     })
             },
             markers: markers,
@@ -933,6 +938,7 @@ final class ProjectStore: ObservableObject {
                 clip.fadeIn = clipData.fadeIn
                 clip.fadeOut = clipData.fadeOut
                 clip.gain = clipData.gain
+                clip.muted = clipData.muted
                 clips.append(clip)
             }
             track.clips = clips
