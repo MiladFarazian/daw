@@ -76,6 +76,16 @@ struct AudioChecks {
         let fLen = try lengthSeconds(outF), fEarly = try rms(outF, 0.1, 0.9), fLate = try rms(outF, 1.1, 1.9)
         check("split halves export to continuous audio", abs(fLen - 2.0) < 0.05 && fEarly > 0.1 && fLate > 0.1)
 
+        // G) Fade-in: the clip head should ramp up (quiet start, full body).
+        var fadeTrack = Track(name: "Fade", colorIndex: 0)
+        var fadeClip = Clip(asset: asset, startTime: 0.0); fadeClip.fadeIn = 0.5
+        fadeTrack.clips = [fadeClip]
+        let outG = tmp.appendingPathComponent("g.wav")
+        try? FileManager.default.removeItem(at: outG)
+        try AudioExporter.render(tracks: [fadeTrack], duration: 2.0, to: outG)
+        let gEarly = try rms(outG, 0.0, 0.1), gFull = try rms(outG, 1.0, 1.5)
+        check("fade-in ramps up (quiet head, full body)", gEarly < gFull * 0.4 && gFull > 0.1)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }

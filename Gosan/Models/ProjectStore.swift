@@ -491,6 +491,22 @@ final class ProjectStore: ObservableObject {
         tracks[ti].clips.insert(right, at: ci + 1)
     }
 
+    func setFadeIn(_ clip: Clip, on track: Track, byPixels dx: CGFloat) {
+        recordUndo()
+        let delta = TimeInterval(dx) / pixelsPerSecond
+        updateClip(clip, on: track) { c in
+            c.fadeIn = min(max(0, c.fadeIn + delta), c.duration - c.fadeOut)
+        }
+    }
+
+    func setFadeOut(_ clip: Clip, on track: Track, byPixels dx: CGFloat) {
+        recordUndo()
+        let delta = TimeInterval(dx) / pixelsPerSecond
+        updateClip(clip, on: track) { c in
+            c.fadeOut = min(max(0, c.fadeOut - delta), c.duration - c.fadeIn)
+        }
+    }
+
     /// Duplicate a clip immediately after itself on the same track.
     func duplicateClip(_ clip: Clip, on track: Track) {
         guard let ti = tracks.firstIndex(where: { $0.id == track.id }),
@@ -624,7 +640,8 @@ final class ProjectStore: ObservableObject {
                             assetName: clip.asset.name,
                             sampleRate: clip.asset.sampleRate,
                             assetDuration: clip.asset.duration,
-                            startTime: clip.startTime, offset: clip.offset, duration: clip.duration)
+                            startTime: clip.startTime, offset: clip.offset, duration: clip.duration,
+                            fadeIn: clip.fadeIn, fadeOut: clip.fadeOut)
                     })
             })
     }
@@ -661,6 +678,8 @@ final class ProjectStore: ObservableObject {
                 var clip = Clip(asset: asset, startTime: clipData.startTime)
                 clip.offset = clipData.offset
                 clip.duration = clipData.duration
+                clip.fadeIn = clipData.fadeIn
+                clip.fadeOut = clipData.fadeOut
                 clips.append(clip)
             }
             track.clips = clips

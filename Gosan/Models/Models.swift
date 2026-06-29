@@ -26,6 +26,8 @@ struct Clip: Identifiable {
     var startTime: TimeInterval = 0   // position on the timeline
     var offset: TimeInterval = 0      // trim in from the asset's head
     var duration: TimeInterval        // visible length (≤ asset.duration - offset)
+    var fadeIn: TimeInterval = 0      // fade-in length from the clip's head
+    var fadeOut: TimeInterval = 0     // fade-out length to the clip's tail
     var name: String { asset.name }
 
     init(asset: AudioAsset, startTime: TimeInterval = 0) {

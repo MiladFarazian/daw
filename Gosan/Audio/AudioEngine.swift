@@ -120,10 +120,13 @@ final class AudioEngine {
 
                 let whenSeconds = max(0, clip.startTime - position)
                 let when = AVAudioTime(hostTime: t0.hostTime + AVAudioTime.hostTime(forSeconds: whenSeconds))
-                node.player.scheduleSegment(file,
-                                            startingFrame: startFrame,
-                                            frameCount: frames,
-                                            at: when)
+                // Fade-in only applies if we begin at the clip's head; fade-out is at its tail.
+                let fadeInFrames = Int(max(0, clip.fadeIn - intoClip) * sampleRate)
+                let fadeOutFrames = Int(clip.fadeOut * sampleRate)
+                if let buffer = ClipBuffer.faded(file: file, startFrame: startFrame, frames: frames,
+                                                 fadeInFrames: fadeInFrames, fadeOutFrames: fadeOutFrames) {
+                    node.player.scheduleBuffer(buffer, at: when, options: [], completionHandler: nil)
+                }
             }
             node.player.play(at: t0)
         }

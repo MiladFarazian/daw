@@ -64,6 +64,8 @@ struct ClipView: View {
     @State private var dragX: CGFloat = 0
     @State private var trimLeadingX: CGFloat = 0
     @State private var trimTrailingX: CGFloat = 0
+    @State private var fadeInDelta: CGFloat = 0
+    @State private var fadeOutDelta: CGFloat = 0
 
     private let handleWidth: CGFloat = 9
 
@@ -71,6 +73,8 @@ struct ClipView: View {
     private var baseWidth: CGFloat { max(2, CGFloat(clip.duration) * pps) }
     private var visualX: CGFloat { CGFloat(clip.startTime) * pps + dragX + trimLeadingX }
     private var visualWidth: CGFloat { max(handleWidth * 2, baseWidth - trimLeadingX + trimTrailingX) }
+    private var fadeInWidth: CGFloat { max(0, CGFloat(clip.fadeIn) * pps + fadeInDelta) }
+    private var fadeOutWidth: CGFloat { max(0, CGFloat(clip.fadeOut) * pps - fadeOutDelta) }
 
     private var startFraction: Double {
         clip.asset.duration > 0 ? clip.offset / clip.asset.duration : 0
@@ -97,6 +101,32 @@ struct ClipView: View {
                 .lineLimit(1)
                 .padding(.horizontal, 6)
                 .padding(.top, 3)
+
+            // Fade triangles
+            Canvas { ctx, size in
+                if fadeInWidth > 0.5 {
+                    var p = Path()
+                    p.move(to: CGPoint(x: 0, y: 0))
+                    p.addLine(to: CGPoint(x: min(fadeInWidth, size.width), y: 0))
+                    p.addLine(to: CGPoint(x: 0, y: size.height))
+                    p.closeSubpath()
+                    ctx.fill(p, with: .color(.black.opacity(0.3)))
+                }
+                if fadeOutWidth > 0.5 {
+                    var p = Path()
+                    p.move(to: CGPoint(x: size.width, y: 0))
+                    p.addLine(to: CGPoint(x: max(0, size.width - fadeOutWidth), y: 0))
+                    p.addLine(to: CGPoint(x: size.width, y: size.height))
+                    p.closeSubpath()
+                    ctx.fill(p, with: .color(.black.opacity(0.3)))
+                }
+            }
+            .allowsHitTesting(false)
+
+            if isSelected {
+                fadeHandle(x: fadeInWidth, gesture: fadeInDrag)
+                fadeHandle(x: visualWidth - fadeOutWidth, gesture: fadeOutDrag)
+            }
         }
         .frame(width: visualWidth)
         .frame(maxHeight: .infinity)
@@ -106,6 +136,27 @@ struct ClipView: View {
         .overlay(alignment: .trailing) { handle(gesture: trailingTrim) }
         .padding(.vertical, 6)
         .offset(x: visualX)
+    }
+
+    private func fadeHandle<G: Gesture>(x: CGFloat, gesture: G) -> some View {
+        Circle()
+            .fill(.white)
+            .overlay(Circle().stroke(color, lineWidth: 1))
+            .frame(width: 9, height: 9)
+            .offset(x: x - 4.5, y: 2)
+            .gesture(gesture)
+    }
+
+    private var fadeInDrag: some Gesture {
+        DragGesture()
+            .onChanged { fadeInDelta = $0.translation.width }
+            .onEnded { _ in project.setFadeIn(clip, on: track, byPixels: fadeInDelta); fadeInDelta = 0 }
+    }
+
+    private var fadeOutDrag: some Gesture {
+        DragGesture()
+            .onChanged { fadeOutDelta = $0.translation.width }
+            .onEnded { _ in project.setFadeOut(clip, on: track, byPixels: fadeOutDelta); fadeOutDelta = 0 }
     }
 
     private var moveGesture: some Gesture {

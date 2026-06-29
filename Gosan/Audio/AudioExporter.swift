@@ -32,7 +32,10 @@ enum AudioExporter {
             let mixer = AVAudioMixerNode()
             engine.attach(player)
             engine.attach(mixer)
-            engine.connect(player, to: mixer, format: nil)
+            // Connect with the first clip's format so scheduled buffers match.
+            let trackFormat = track.clips.first
+                .flatMap { try? AVAudioFile(forReading: $0.asset.url).processingFormat }
+            engine.connect(player, to: mixer, format: trackFormat)
             engine.connect(mixer, to: mainMixer, format: nil)
 
             let audible = soloing ? track.isSoloed : !track.isMuted
@@ -47,7 +50,11 @@ enum AudioExporter {
                 let frames = AVAudioFrameCount(max(0, min(wanted, file.length - startFrame)))
                 guard frames > 0 else { continue }
                 let when = AVAudioTime(sampleTime: AVAudioFramePosition(clip.startTime * sampleRate), atRate: sampleRate)
-                player.scheduleSegment(file, startingFrame: startFrame, frameCount: frames, at: when)
+                if let buffer = ClipBuffer.faded(file: file, startFrame: startFrame, frames: frames,
+                                                 fadeInFrames: Int(clip.fadeIn * fileRate),
+                                                 fadeOutFrames: Int(clip.fadeOut * fileRate)) {
+                    player.scheduleBuffer(buffer, at: when, options: [], completionHandler: nil)
+                }
             }
             players.append(player)
         }

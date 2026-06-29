@@ -27,5 +27,7 @@ struct ProjectDocument: Codable {
         var startTime: TimeInterval
         var offset: TimeInterval
         var duration: TimeInterval
+        var fadeIn: TimeInterval = 0
+        var fadeOut: TimeInterval = 0
     }
 }
