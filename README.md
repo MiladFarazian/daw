@@ -22,9 +22,10 @@ stay the producer. See the design:
   playhead), input monitoring + level meter
 - **Timeline** — multi-track waveforms, **bars|beats ruler + grid**, synchronized AVAudioEngine playback,
   transport (play/stop/seek + spacebar), zoom, **loop region** (drag the ruler), **metronome**, editable
-  **tempo**, snap resolution (bar / beat / ½ / ¼ / ⅛)
+  **tempo**, snap resolution (bar / beat / ½ / ¼ / ⅛), **markers** (drop / jump / label)
 - **Clip editing** — move (beat-grid snapping), trim, split at the playhead, duplicate, copy/cut/paste,
-  fade in/out, per-clip gain, **normalize**, **reverse**, select, delete; **undo/redo** (⌘Z/⇧⌘Z)
+  fade in/out, per-clip gain, **normalize**, **reverse**, **time-stretch** (pitch-preserved), select,
+  delete; **undo/redo** (⌘Z/⇧⌘Z)
 - **Mixing** — per-track volume / pan / mute / solo + insert effects (**3-band EQ, reverb, delay**),
   **master output meter**, master peak limiter
 - **Export** — bounce the mix or just the loop region to WAV (offline render)
