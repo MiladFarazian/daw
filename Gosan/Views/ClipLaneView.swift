@@ -14,7 +14,8 @@ struct ClipLaneView: View {
             Rectangle()
                 .fill(Color(nsColor: .underPageBackgroundColor).opacity(0.5))
                 .onTapGesture(count: 2) {
-                    if track.isInstrument { project.activeSheet = .pianoRoll(track.id) }
+                    if track.isDrumKit { project.activeSheet = .stepSequencer(track.id) }
+                    else if track.isInstrument { project.activeSheet = .pianoRoll(track.id) }
                 }
 
             if track.isInstrument {

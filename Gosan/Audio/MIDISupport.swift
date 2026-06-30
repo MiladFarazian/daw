@@ -40,10 +40,11 @@ enum MIDISupport {
         var isOn: Bool
         var pitch: Int
         var velocity: Int
+        var channel: UInt8
     }
 
     /// Build sorted on/off events for a track's notes, offset by `from`.
-    static func events(for notes: [MIDINote], au: AudioUnit,
+    static func events(for notes: [MIDINote], au: AudioUnit, channel: UInt8 = 0,
                        from: TimeInterval, sampleRate: Double) -> [Event] {
         var events: [Event] = []
         for note in notes {
@@ -51,9 +52,9 @@ enum MIDISupport {
             guard offT > 0 else { continue }
             let onT = max(0, note.start - from)
             events.append(Event(sample: AVAudioFramePosition(onT * sampleRate), au: au,
-                                isOn: true, pitch: note.pitch, velocity: note.velocity))
+                                isOn: true, pitch: note.pitch, velocity: note.velocity, channel: channel))
             events.append(Event(sample: AVAudioFramePosition(offT * sampleRate), au: au,
-                                isOn: false, pitch: note.pitch, velocity: 0))
+                                isOn: false, pitch: note.pitch, velocity: 0, channel: channel))
         }
         return events
     }

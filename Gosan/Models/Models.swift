@@ -106,8 +106,11 @@ struct Track: Identifiable {
 
     // Instrument (MIDI) tracks
     var isInstrument = false
+    var isDrumKit = false        // GM drum map on MIDI channel 9 (for the step sequencer)
     var program: Int = 0         // General-MIDI program (0 = grand piano)
     var notes: [MIDINote] = []
+
+    var midiChannel: UInt8 { isDrumKit ? 9 : 0 }
 
     // Automation envelopes (empty = no automation; values 0...1 for volume, -1...1 for pan)
     var volumeAutomation: [AutomationPoint] = []

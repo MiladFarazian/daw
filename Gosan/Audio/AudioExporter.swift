@@ -70,7 +70,7 @@ enum AudioExporter {
                 engine.connect(synth, to: mixer, format: renderFormat)
                 synths.append((synth, track.program))
                 midiEvents += MIDISupport.events(for: track.notes, au: synth.audioUnit,
-                                                 from: from, sampleRate: sampleRate)
+                                                 channel: track.midiChannel, from: from, sampleRate: sampleRate)
             } else {
                 let node = AVAudioPlayerNode()
                 engine.attach(node)
@@ -186,9 +186,9 @@ enum AudioExporter {
         for event in sortedEvents where event.sample < totalFrames {
             try renderUpTo(event.sample)
             if event.isOn {
-                MIDISupport.noteOn(event.au, pitch: event.pitch, velocity: event.velocity)
+                MIDISupport.noteOn(event.au, pitch: event.pitch, velocity: event.velocity, channel: event.channel)
             } else {
-                MIDISupport.noteOff(event.au, pitch: event.pitch)
+                MIDISupport.noteOff(event.au, pitch: event.pitch, channel: event.channel)
             }
         }
         try renderUpTo(totalFrames)

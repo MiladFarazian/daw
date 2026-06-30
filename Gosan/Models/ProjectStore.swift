@@ -130,8 +130,8 @@ final class ProjectStore: ObservableObject {
     private func handleIncomingMIDI(isOn: Bool, pitch: Int, velocity: Int) {
         guard let id = armedTrackID, let track = tracks.first(where: { $0.id == id }) else { return }
         // Live monitoring through the armed track's instrument.
-        if isOn { engine.midiNoteOn(trackID: id, program: track.program, pitch: pitch, velocity: velocity) }
-        else { engine.midiNoteOff(trackID: id, pitch: pitch) }
+        if isOn { engine.midiNoteOn(trackID: id, program: track.program, channel: track.midiChannel, pitch: pitch, velocity: velocity) }
+        else { engine.midiNoteOff(trackID: id, channel: track.midiChannel, pitch: pitch) }
 
         // Capture into the track while recording.
         guard isRecordingMIDI else { return }
@@ -668,6 +668,29 @@ final class ProjectStore: ObservableObject {
         engine.prepare(tracks: tracks)
     }
 
+    @discardableResult
+    func addDrumTrack() -> UUID {
+        recordUndo()
+        var track = Track(name: "Drums \(tracks.count + 1)", colorIndex: tracks.count)
+        track.isInstrument = true
+        track.isDrumKit = true
+        tracks.append(track)
+        engine.prepare(tracks: tracks)
+        return track.id
+    }
+
+    /// Toggle a drum-grid step (a short note at `start` with `pitch`); returns nothing.
+    func toggleStepNote(on track: Track, pitch: Int, start: TimeInterval, duration: TimeInterval, velocity: Int) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
+        let tol = max(0.005, duration * 0.5)
+        if let idx = tracks[ti].notes.firstIndex(where: { $0.pitch == pitch && abs($0.start - start) < tol }) {
+            tracks[ti].notes.remove(at: idx)
+        } else {
+            tracks[ti].notes.append(MIDINote(pitch: pitch, start: start, duration: duration, velocity: velocity))
+        }
+    }
+
     // MARK: - MIDI notes (instrument tracks)
 
     func addNote(_ note: MIDINote, to track: Track) {
@@ -719,7 +742,7 @@ final class ProjectStore: ObservableObject {
     }
 
     func auditionNote(_ track: Track, pitch: Int) {
-        engine.auditionNote(trackID: track.id, program: track.program, pitch: pitch)
+        engine.auditionNote(trackID: track.id, program: track.program, channel: track.midiChannel, pitch: pitch)
     }
 
     // MARK: - Automation
@@ -1488,7 +1511,7 @@ final class ProjectStore: ObservableObject {
                             fadeIn: clip.fadeIn, fadeOut: clip.fadeOut, fadeCurve: clip.fadeCurve,
                             gain: clip.gain, muted: clip.muted, customName: clip.customName)
                     },
-                    isInstrument: track.isInstrument, program: track.program,
+                    isInstrument: track.isInstrument, isDrumKit: track.isDrumKit, program: track.program,
                     notes: track.notes.map {
                         ProjectDocument.NoteData(pitch: $0.pitch, start: $0.start,
                                                  duration: $0.duration, velocity: $0.velocity)
@@ -1531,6 +1554,7 @@ final class ProjectStore: ObservableObject {
             track.isMuted = trackData.isMuted
             track.isSoloed = trackData.isSoloed
             track.isInstrument = trackData.isInstrument
+            track.isDrumKit = trackData.isDrumKit
             track.program = trackData.program
             track.notes = trackData.notes.map {
                 MIDINote(pitch: $0.pitch, start: $0.start, duration: $0.duration, velocity: $0.velocity)

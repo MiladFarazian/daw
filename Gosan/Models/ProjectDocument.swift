@@ -30,6 +30,7 @@ struct ProjectDocument: Codable {
         var isSoloed: Bool
         var clips: [ClipData]
         var isInstrument: Bool = false
+        var isDrumKit: Bool = false
         var program: Int = 0
         var notes: [NoteData] = []
         var volumeAutomation: [PointData] = []

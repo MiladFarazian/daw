@@ -255,6 +255,17 @@ struct AudioChecks {
         print(String(format: "   (MIDI render: head %.4f, note %.4f)", midiHead, midiBody))
         check("MIDI instrument renders a note at the right time", midiBody > 0.005 && midiHead < midiBody * 0.4)
 
+        // W2) Drum-kit note renders via channel 9 (GM drum map).
+        var drumTrack = Track(name: "Drums", colorIndex: 0)
+        drumTrack.isInstrument = true; drumTrack.isDrumKit = true
+        drumTrack.notes = [MIDINote(pitch: 36, start: 0.5, duration: 0.2, velocity: 120)]   // kick
+        let outW2 = tmp.appendingPathComponent("drum.wav")
+        try? FileManager.default.removeItem(at: outW2)
+        try AudioExporter.render(tracks: [drumTrack], duration: 1.5, to: outW2)
+        let drumHead = try rms(outW2, 0.0, 0.4), drumBody = try rms(outW2, 0.5, 0.9)
+        print(String(format: "   (drum render: head %.4f, hit %.4f)", drumHead, drumBody))
+        check("drum kit renders on channel 9", drumBody > 0.005 && drumHead < drumBody * 0.5)
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

@@ -43,6 +43,7 @@ enum EditorSheet: Identifiable {
     case automation(UUID)
     case plugins(UUID)
     case loops
+    case stepSequencer(UUID)
     case analysis(AnalysisResult)
 
     var id: String {
@@ -54,6 +55,7 @@ enum EditorSheet: Identifiable {
         case .automation(let id): return "auto-\(id.uuidString)"
         case .plugins(let id): return "plugins-\(id.uuidString)"
         case .loops: return "loops"
+        case .stepSequencer(let id): return "step-\(id.uuidString)"
         case .analysis(let result): return result.id.uuidString
         }
     }

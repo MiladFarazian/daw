@@ -217,25 +217,25 @@ final class AudioEngine {
     }
 
     /// Live MIDI input → a track's instrument (sustained note on/off, for monitoring + recording).
-    func midiNoteOn(trackID: UUID, program: Int, pitch: Int, velocity: Int) {
+    func midiNoteOn(trackID: UUID, program: Int, channel: UInt8, pitch: Int, velocity: Int) {
         guard let node = nodes[trackID], let synth = node.synth else { return }
         if !engine.isRunning { try? engine.start() }
-        MIDISupport.program(synth.audioUnit, program)
-        MIDISupport.noteOn(synth.audioUnit, pitch: pitch, velocity: velocity)
+        if channel != 9 { MIDISupport.program(synth.audioUnit, program) }
+        MIDISupport.noteOn(synth.audioUnit, pitch: pitch, velocity: velocity, channel: channel)
     }
-    func midiNoteOff(trackID: UUID, pitch: Int) {
+    func midiNoteOff(trackID: UUID, channel: UInt8, pitch: Int) {
         guard let node = nodes[trackID], let synth = node.synth else { return }
-        MIDISupport.noteOff(synth.audioUnit, pitch: pitch)
+        MIDISupport.noteOff(synth.audioUnit, pitch: pitch, channel: channel)
     }
 
-    /// Briefly play one note on a track's instrument so the user hears it (piano-roll audition).
-    func auditionNote(trackID: UUID, program: Int, pitch: Int, velocity: Int = 100) {
+    /// Briefly play one note on a track's instrument so the user hears it (audition).
+    func auditionNote(trackID: UUID, program: Int, channel: UInt8, pitch: Int, velocity: Int = 100) {
         guard let node = nodes[trackID], let synth = node.synth else { return }
         if !engine.isRunning { try? engine.start() }
         let au = synth.audioUnit
-        MIDISupport.program(au, program)
-        MIDISupport.noteOn(au, pitch: pitch, velocity: velocity)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { MIDISupport.noteOff(au, pitch: pitch) }
+        if channel != 9 { MIDISupport.program(au, program) }
+        MIDISupport.noteOn(au, pitch: pitch, velocity: velocity, channel: channel)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { MIDISupport.noteOff(au, pitch: pitch, channel: channel) }
     }
 
     /// Update automated volume/pan mixers from each track's envelopes at `time` (called per tick).
@@ -285,8 +285,8 @@ final class AudioEngine {
 
             // Instrument track: schedule MIDI note on/off relative to the shared start.
             if let synth = node.synth {
-                MIDISupport.program(synth.audioUnit, track.program)
-                scheduleNotes(track.notes, on: synth, from: position, lead: lead)
+                if !track.isDrumKit { MIDISupport.program(synth.audioUnit, track.program) }
+                scheduleNotes(track.notes, on: synth, channel: track.midiChannel, from: position, lead: lead)
                 continue
             }
 
@@ -324,15 +324,15 @@ final class AudioEngine {
     }
 
     /// Schedule a track's notes as timer-fired MIDI events (live monitoring).
-    private func scheduleNotes(_ notes: [MIDINote], on synth: AVAudioUnit,
+    private func scheduleNotes(_ notes: [MIDINote], on synth: AVAudioUnit, channel: UInt8,
                                from position: TimeInterval, lead: Double) {
         let au = synth.audioUnit
         for note in notes {
             let onDelay = note.start - position
             let offDelay = note.start + note.duration - position
             guard offDelay > 0 else { continue }
-            let onItem = DispatchWorkItem { MIDISupport.noteOn(au, pitch: note.pitch, velocity: note.velocity) }
-            let offItem = DispatchWorkItem { MIDISupport.noteOff(au, pitch: note.pitch) }
+            let onItem = DispatchWorkItem { MIDISupport.noteOn(au, pitch: note.pitch, velocity: note.velocity, channel: channel) }
+            let offItem = DispatchWorkItem { MIDISupport.noteOff(au, pitch: note.pitch, channel: channel) }
             midiWorkItems.append(onItem); midiWorkItems.append(offItem)
             DispatchQueue.main.asyncAfter(deadline: .now() + lead + max(0, onDelay), execute: onItem)
             DispatchQueue.main.asyncAfter(deadline: .now() + lead + offDelay, execute: offItem)

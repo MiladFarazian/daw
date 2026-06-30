@@ -135,6 +135,7 @@ struct TransportBar: View {
                     Menu {
                         Button("Audio Track") { project.addEmptyTrack() }
                         Button("Instrument Track") { project.addInstrumentTrack() }
+                        Button("Drum Machine") { project.activeSheet = .stepSequencer(project.addDrumTrack()) }
                     } label: { Image(systemName: "plus.rectangle.on.rectangle") }
                         .fixedSize().help("Add a track")
                     Menu {

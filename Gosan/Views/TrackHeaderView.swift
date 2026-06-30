@@ -13,7 +13,7 @@ struct TrackHeaderView: View {
                 .fill(Palette.color(track.colorIndex).gradient)
                 .frame(width: 28, height: 28)
                 .overlay(
-                    Image(systemName: track.isInstrument ? "pianokeys" : "waveform")
+                    Image(systemName: track.isDrumKit ? "square.grid.3x3.fill" : (track.isInstrument ? "pianokeys" : "waveform"))
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.white)
                 )
@@ -32,7 +32,13 @@ struct TrackHeaderView: View {
                         .onTapGesture(count: 2) { draft = track.name; isEditing = true }
                         .help("Double-click to rename")
                 }
-                if track.isInstrument {
+                if track.isDrumKit {
+                    Button { project.activeSheet = .stepSequencer(track.id) } label: {
+                        Text("Drum Kit").font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open the step sequencer")
+                } else if track.isInstrument {
                     Button { project.activeSheet = .pianoRoll(track.id) } label: {
                         Text(PianoRollView.programName(track.program))
                             .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
@@ -151,7 +157,12 @@ struct TrackHeaderView: View {
             Button { project.activeSheet = .plugins(track.id) } label: {
                 Label("Plugins…", systemImage: "puzzlepiece.extension")
             }
-            if track.isInstrument {
+            if track.isDrumKit {
+                Divider()
+                Button { project.activeSheet = .stepSequencer(track.id) } label: {
+                    Label("Step Sequencer…", systemImage: "square.grid.3x3.fill")
+                }
+            } else if track.isInstrument {
                 Divider()
                 Button { project.activeSheet = .pianoRoll(track.id) } label: {
                     Label("Piano Roll…", systemImage: "pianokeys")
