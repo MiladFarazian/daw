@@ -208,22 +208,28 @@ struct ClipView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 6).fill(color.opacity(isSelected ? 0.34 : 0.22))
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(color.opacity(isSelected ? 1 : 0.7), lineWidth: isSelected ? 2 : 1)
+            RoundedRectangle(cornerRadius: 6).fill(color.opacity(isSelected ? 0.30 : 0.18))
 
             WaveformView(peaks: clip.asset.peaks, color: color,
                          startFraction: startFraction, endFraction: endFraction)
                 .padding(.horizontal, 4)
-                .padding(.top, 16)
+                .padding(.top, 18)
                 .padding(.bottom, 6)
 
-            Text(clip.name)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(color)
-                .lineLimit(1)
-                .padding(.horizontal, 6)
-                .padding(.top, 3)
+            // GarageBand-style colored header bar with the clip name in white.
+            ZStack(alignment: .leading) {
+                UnevenRoundedRectangle(topLeadingRadius: 6, topTrailingRadius: 6)
+                    .fill(color.opacity(isSelected ? 1 : 0.85))
+                    .frame(height: 15)
+                Text(clip.name)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .padding(.horizontal, 5)
+            }
+
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(color.opacity(isSelected ? 1 : 0.6), lineWidth: isSelected ? 2 : 1)
 
             // Fade triangles
             Canvas { ctx, size in

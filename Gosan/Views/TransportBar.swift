@@ -59,9 +59,18 @@ struct TransportBar: View {
                     .frame(width: 46, height: 6)
             }
 
-            Text(timecode(project.currentTime))
-                .font(.system(.body, design: .monospaced))
-                .frame(width: 86, alignment: .leading)
+            // LCD-style time + tempo readout (GarageBand vibe).
+            HStack(spacing: 10) {
+                Text(timecode(project.currentTime))
+                    .font(.system(size: 15, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color(red: 0.65, green: 0.95, blue: 0.85))
+                Text("\(Int(project.tempo)) BPM")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color(red: 0.65, green: 0.95, blue: 0.85).opacity(0.8))
+            }
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.82)))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.08)))
 
             Divider().frame(height: 18)
 

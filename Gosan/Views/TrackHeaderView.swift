@@ -9,9 +9,15 @@ struct TrackHeaderView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(Palette.color(track.colorIndex))
-                .frame(width: 4)
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Palette.color(track.colorIndex).gradient)
+                .frame(width: 28, height: 28)
+                .overlay(
+                    Image(systemName: track.isInstrument ? "pianokeys" : "waveform")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                )
+                .shadow(color: .black.opacity(0.15), radius: 1, y: 0.5)
 
             VStack(alignment: .leading, spacing: 6) {
                 if isEditing {
@@ -72,6 +78,10 @@ struct TrackHeaderView: View {
         }
         .padding(.horizontal, 10)
         .frame(maxHeight: .infinity)
+        .background(
+            LinearGradient(colors: [Palette.color(track.colorIndex).opacity(0.10), .clear],
+                           startPoint: .leading, endPoint: .trailing)
+        )
         .contextMenu {
             Button { draft = track.name; isEditing = true } label: { Label("Rename", systemImage: "pencil") }
             Button { project.duplicateTrack(track) } label: { Label("Duplicate Track", systemImage: "plus.square.on.square") }
