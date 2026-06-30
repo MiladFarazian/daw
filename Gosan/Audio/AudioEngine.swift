@@ -216,6 +216,16 @@ final class AudioEngine {
         }
     }
 
+    /// Briefly play one note on a track's instrument so the user hears it (piano-roll audition).
+    func auditionNote(trackID: UUID, program: Int, pitch: Int, velocity: Int = 100) {
+        guard let node = nodes[trackID], let synth = node.synth else { return }
+        if !engine.isRunning { try? engine.start() }
+        let au = synth.audioUnit
+        MIDISupport.program(au, program)
+        MIDISupport.noteOn(au, pitch: pitch, velocity: velocity)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { MIDISupport.noteOff(au, pitch: pitch) }
+    }
+
     /// Update automated volume/pan mixers from each track's envelopes at `time` (called per tick).
     func applyAutomation(tracks: [Track], at time: TimeInterval) {
         let soloing = tracks.contains { $0.isSoloed }

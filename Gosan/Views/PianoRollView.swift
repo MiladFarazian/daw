@@ -11,11 +11,12 @@ struct PianoRollView: View {
     private let highPitch = 84         // C6
     private let rowHeight: CGFloat = 16
     private let pps: CGFloat = 120     // pixels per second
-    private let snap = 0.25            // seconds
-    @State private var noteLength = 0.5
+    @State private var noteBeats = 1.0 // note length in beats (1 = quarter)
 
     private var track: Track? { project.tracks.first { $0.id == trackID } }
     private var pitches: [Int] { Array((lowPitch...highPitch).reversed()) }   // high pitch on top
+    private var secPerBeat: Double { 60.0 / max(30, project.tempo) }
+    private var snapSec: Double { secPerBeat / 4 }          // snap to sixteenths
     private var contentWidth: CGFloat { CGFloat(max(8, (track?.endTime ?? 4) + 4)) * pps }
 
     var body: some View {
@@ -31,9 +32,9 @@ struct PianoRollView: View {
                     }
                     .frame(width: 150)
                 }
-                Picker("Length", selection: $noteLength) {
-                    Text("1/8").tag(0.25); Text("1/4").tag(0.5)
-                    Text("1/2").tag(1.0); Text("Whole").tag(2.0)
+                Picker("Length", selection: $noteBeats) {
+                    Text("1/8").tag(0.5); Text("1/4").tag(1.0)
+                    Text("1/2").tag(2.0); Text("Whole").tag(4.0)
                 }
                 .frame(width: 130)
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
@@ -49,7 +50,8 @@ struct PianoRollView: View {
     }
 
     private var grid: some View {
-        ZStack(alignment: .topLeading) {
+        let gridHeight = CGFloat(pitches.count) * rowHeight
+        return ZStack(alignment: .topLeading) {
             VStack(spacing: 0) {
                 ForEach(pitches, id: \.self) { pitch in
                     ZStack(alignment: .leading) {
@@ -65,11 +67,30 @@ struct PianoRollView: View {
                     .contentShape(Rectangle())
                     .gesture(SpatialTapGesture().onEnded { value in
                         guard let track else { return }
-                        let t = max(0, (Double(value.location.x / pps) / snap).rounded(.down) * snap)
-                        project.addNote(MIDINote(pitch: pitch, start: t, duration: noteLength), to: track)
+                        let t = max(0, (Double(value.location.x / pps) / snapSec).rounded(.down) * snapSec)
+                        project.addNote(MIDINote(pitch: pitch, start: t,
+                                                 duration: noteBeats * secPerBeat), to: track)
+                        project.auditionNote(track, pitch: pitch)
                     })
                 }
             }
+
+            // Beat / bar gridlines.
+            Canvas { ctx, size in
+                let beatPx = CGFloat(secPerBeat) * pps
+                guard beatPx > 1 else { return }
+                var beat = 0
+                var x: CGFloat = 0
+                while x <= size.width {
+                    let isBar = beat % max(1, project.beatsPerBar) == 0
+                    var line = Path()
+                    line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height))
+                    ctx.stroke(line, with: .color(.gray.opacity(isBar ? 0.32 : 0.12)), lineWidth: isBar ? 1 : 0.5)
+                    beat += 1; x += beatPx
+                }
+            }
+            .frame(width: contentWidth, height: gridHeight)
+            .allowsHitTesting(false)
 
             if let track {
                 ForEach(track.notes) { note in

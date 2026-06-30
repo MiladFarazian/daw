@@ -606,6 +606,10 @@ final class ProjectStore: ObservableObject {
         tracks[i].program = max(0, min(127, program))
     }
 
+    func auditionNote(_ track: Track, pitch: Int) {
+        engine.auditionNote(trackID: track.id, program: track.program, pitch: pitch)
+    }
+
     // MARK: - Automation
 
     func addAutomationPoint(_ track: Track, _ lane: WritableKeyPath<Track, [AutomationPoint]>,
