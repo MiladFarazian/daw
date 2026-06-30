@@ -47,6 +47,13 @@ struct PianoRollView: View {
                 if let track, !track.notes.isEmpty {
                     Button("Quantize") { project.quantizeNotes(on: track, to: snapSec) }
                         .help("Snap every note to the sixteenth-note grid")
+                    Menu("Transpose") {
+                        Button("Octave Up (+12)") { project.transposeNotes(on: track, by: 12) }
+                        Button("Octave Down (−12)") { project.transposeNotes(on: track, by: -12) }
+                        Button("Semitone Up (+1)") { project.transposeNotes(on: track, by: 1) }
+                        Button("Semitone Down (−1)") { project.transposeNotes(on: track, by: -1) }
+                    }
+                    .fixedSize()
                 }
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
@@ -145,6 +152,12 @@ struct PianoRollView: View {
                 .gesture(moveGesture)
                 .onTapGesture { project.auditionNote(track, pitch: note.pitch) }
                 .contextMenu {
+                    Menu("Velocity") {
+                        Button("Soft (50)") { setVelocity(50) }
+                        Button("Medium (90)") { setVelocity(90) }
+                        Button("Loud (110)") { setVelocity(110) }
+                        Button("Accent (127)") { setVelocity(127) }
+                    }
                     Button(role: .destructive) { project.deleteNote(note, from: track) } label: {
                         Label("Delete Note", systemImage: "trash")
                     }
@@ -160,6 +173,10 @@ struct PianoRollView: View {
                     project.updateNote(note, on: track) { $0.start = nt; $0.pitch = np }
                     moveDrag = .zero
                 }
+        }
+
+        private func setVelocity(_ v: Int) {
+            project.updateNote(note, on: track) { $0.velocity = v }
         }
 
         private var resizeGesture: some Gesture {

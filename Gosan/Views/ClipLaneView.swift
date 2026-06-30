@@ -33,6 +33,13 @@ struct ClipLaneView: View {
                         Button { project.duplicateClip(clip, on: track) } label: {
                             Label("Duplicate", systemImage: "plus.square.on.square")
                         }
+                        Menu {
+                            Button("×2") { project.repeatClip(clip, on: track, times: 1) }
+                            Button("×4") { project.repeatClip(clip, on: track, times: 3) }
+                            Button("×8") { project.repeatClip(clip, on: track, times: 7) }
+                        } label: {
+                            Label("Repeat", systemImage: "repeat")
+                        }
                         Button { renameText = clip.name; renameTarget = clip } label: {
                             Label("Rename…", systemImage: "pencil")
                         }

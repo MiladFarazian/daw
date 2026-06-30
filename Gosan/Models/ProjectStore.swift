@@ -676,6 +676,30 @@ final class ProjectStore: ObservableObject {
         tracks[i].notes.append(note)
     }
 
+    /// Duplicate a clip back-to-back `times` more times (loop/repeat to fill).
+    func repeatClip(_ clip: Clip, on track: Track, times: Int) {
+        guard times >= 1,
+              let ti = tracks.firstIndex(where: { $0.id == track.id }),
+              let ci = tracks[ti].clips.firstIndex(where: { $0.id == clip.id }) else { return }
+        recordUndo()
+        var insertAt = ci + 1
+        var start = clip.startTime + clip.duration
+        for _ in 0..<times {
+            tracks[ti].clips.insert(pastedCopy(of: clip, at: start), at: insertAt)
+            insertAt += 1
+            start += clip.duration
+        }
+    }
+
+    /// Shift every note on an instrument track by a number of semitones.
+    func transposeNotes(on track: Track, by semitones: Int) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }
+        recordUndo()
+        for i in tracks[ti].notes.indices {
+            tracks[ti].notes[i].pitch = min(127, max(0, tracks[ti].notes[i].pitch + semitones))
+        }
+    }
+
     func deleteNote(_ note: MIDINote, from track: Track) {
         guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
         recordUndo()
