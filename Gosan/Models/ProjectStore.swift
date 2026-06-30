@@ -1435,6 +1435,9 @@ final class ProjectStore: ObservableObject {
                     panAutomation: track.panAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
                     reverbAutomation: track.reverbAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
                     delayAutomation: track.delayAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
+                    eqLowAutomation: track.eqLowAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
+                    eqMidAutomation: track.eqMidAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
+                    eqHighAutomation: track.eqHighAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
                     plugins: track.plugins.enumerated().map { idx, ref in
                         var r = ref
                         if let data = engine.pluginState(trackID: track.id, index: idx) { r.stateData = data }
@@ -1474,6 +1477,9 @@ final class ProjectStore: ObservableObject {
             track.panAutomation = trackData.panAutomation.map { AutomationPoint(time: $0.time, value: $0.value) }
             track.reverbAutomation = trackData.reverbAutomation.map { AutomationPoint(time: $0.time, value: $0.value) }
             track.delayAutomation = trackData.delayAutomation.map { AutomationPoint(time: $0.time, value: $0.value) }
+            track.eqLowAutomation = trackData.eqLowAutomation.map { AutomationPoint(time: $0.time, value: $0.value) }
+            track.eqMidAutomation = trackData.eqMidAutomation.map { AutomationPoint(time: $0.time, value: $0.value) }
+            track.eqHighAutomation = trackData.eqHighAutomation.map { AutomationPoint(time: $0.time, value: $0.value) }
             track.plugins = trackData.plugins
 
             var clips: [Clip] = []

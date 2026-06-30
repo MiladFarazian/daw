@@ -114,6 +114,15 @@ struct Track: Identifiable {
     var panAutomation: [AutomationPoint] = []
     var reverbAutomation: [AutomationPoint] = []   // 0...1 reverb send
     var delayAutomation: [AutomationPoint] = []    // 0...1 delay send
+    var eqLowAutomation: [AutomationPoint] = []    // dB
+    var eqMidAutomation: [AutomationPoint] = []    // dB
+    var eqHighAutomation: [AutomationPoint] = []   // dB
+
+    var hasAutomation: Bool {
+        !volumeAutomation.isEmpty || !panAutomation.isEmpty || !reverbAutomation.isEmpty
+            || !delayAutomation.isEmpty || !eqLowAutomation.isEmpty
+            || !eqMidAutomation.isEmpty || !eqHighAutomation.isEmpty
+    }
 
     // Insert effects (Audio Unit plugins), in chain order
     var plugins: [PluginRef] = []

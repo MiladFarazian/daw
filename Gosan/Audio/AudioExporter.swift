@@ -33,10 +33,9 @@ enum AudioExporter {
         var synths: [(au: AVAudioUnit, program: Int)] = []
         var midiEvents: [MIDISupport.Event] = []
         struct Automated {
-            let mixer: AVAudioMixerNode; let reverb: AVAudioUnitReverb; let delay: AVAudioUnitDelay
-            let vol: [AutomationPoint]; let pan: [AutomationPoint]
-            let reverbA: [AutomationPoint]; let delayA: [AutomationPoint]
-            let baseVol: Float; let basePan: Float; let baseReverb: Float; let baseDelay: Float
+            let track: Track
+            let mixer: AVAudioMixerNode; let eq: AVAudioUnitEQ
+            let reverb: AVAudioUnitReverb; let delay: AVAudioUnitDelay
             let audible: Bool
         }
         var automated: [Automated] = []
@@ -98,13 +97,9 @@ enum AudioExporter {
             let audible = soloing ? track.isSoloed : !track.isMuted
             mixer.outputVolume = audible ? track.volume : 0
             mixer.pan = track.pan
-            if !track.volumeAutomation.isEmpty || !track.panAutomation.isEmpty
-                || !track.reverbAutomation.isEmpty || !track.delayAutomation.isEmpty {
-                automated.append(Automated(mixer: mixer, reverb: reverb, delay: delay,
-                                           vol: track.volumeAutomation, pan: track.panAutomation,
-                                           reverbA: track.reverbAutomation, delayA: track.delayAutomation,
-                                           baseVol: track.volume, basePan: track.pan,
-                                           baseReverb: track.reverb, baseDelay: track.delay, audible: audible))
+            if track.hasAutomation {
+                automated.append(Automated(track: track, mixer: mixer, eq: eq,
+                                           reverb: reverb, delay: delay, audible: audible))
             }
 
             if let player {
@@ -151,12 +146,16 @@ enum AudioExporter {
         // Apply volume/pan automation at the given timeline time.
         func updateAutomation(at time: TimeInterval) {
             for a in automated {
-                if !a.vol.isEmpty {
-                    a.mixer.outputVolume = a.audible ? automationValue(a.vol, at: time, default: a.baseVol) : 0
+                let t = a.track
+                if !t.volumeAutomation.isEmpty {
+                    a.mixer.outputVolume = a.audible ? automationValue(t.volumeAutomation, at: time, default: t.volume) : 0
                 }
-                if !a.pan.isEmpty { a.mixer.pan = automationValue(a.pan, at: time, default: a.basePan) }
-                if !a.reverbA.isEmpty { a.reverb.wetDryMix = automationValue(a.reverbA, at: time, default: a.baseReverb) * 100 }
-                if !a.delayA.isEmpty { a.delay.wetDryMix = automationValue(a.delayA, at: time, default: a.baseDelay) * 100 }
+                if !t.panAutomation.isEmpty { a.mixer.pan = automationValue(t.panAutomation, at: time, default: t.pan) }
+                if !t.reverbAutomation.isEmpty { a.reverb.wetDryMix = automationValue(t.reverbAutomation, at: time, default: t.reverb) * 100 }
+                if !t.delayAutomation.isEmpty { a.delay.wetDryMix = automationValue(t.delayAutomation, at: time, default: t.delay) * 100 }
+                if !t.eqLowAutomation.isEmpty { a.eq.bands[0].gain = automationValue(t.eqLowAutomation, at: time, default: t.eqLow) }
+                if !t.eqMidAutomation.isEmpty { a.eq.bands[1].gain = automationValue(t.eqMidAutomation, at: time, default: t.eqMid) }
+                if !t.eqHighAutomation.isEmpty { a.eq.bands[2].gain = automationValue(t.eqHighAutomation, at: time, default: t.eqHigh) }
             }
         }
 

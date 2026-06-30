@@ -33,6 +33,12 @@ struct AutomationView: View {
                              points: track.reverbAutomation, track: track)
                         lane("Delay", lane: \.delayAutomation, range: 0...1, defaultValue: track.delay,
                              points: track.delayAutomation, track: track)
+                        lane("EQ Low (dB)", lane: \.eqLowAutomation, range: -12...12, defaultValue: track.eqLow,
+                             points: track.eqLowAutomation, track: track)
+                        lane("EQ Mid (dB)", lane: \.eqMidAutomation, range: -12...12, defaultValue: track.eqMid,
+                             points: track.eqMidAutomation, track: track)
+                        lane("EQ High (dB)", lane: \.eqHighAutomation, range: -12...12, defaultValue: track.eqHigh,
+                             points: track.eqHighAutomation, track: track)
                     }
                 }
                 .padding(12)

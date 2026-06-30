@@ -257,6 +257,15 @@ final class AudioEngine {
             if !track.delayAutomation.isEmpty {
                 node.delay.wetDryMix = automationValue(track.delayAutomation, at: time, default: track.delay) * 100
             }
+            if !track.eqLowAutomation.isEmpty {
+                node.eq.bands[0].gain = automationValue(track.eqLowAutomation, at: time, default: track.eqLow)
+            }
+            if !track.eqMidAutomation.isEmpty {
+                node.eq.bands[1].gain = automationValue(track.eqMidAutomation, at: time, default: track.eqMid)
+            }
+            if !track.eqHighAutomation.isEmpty {
+                node.eq.bands[2].gain = automationValue(track.eqHighAutomation, at: time, default: track.eqHigh)
+            }
         }
     }
 

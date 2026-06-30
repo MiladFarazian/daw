@@ -36,6 +36,9 @@ struct ProjectDocument: Codable {
         var panAutomation: [PointData] = []
         var reverbAutomation: [PointData] = []
         var delayAutomation: [PointData] = []
+        var eqLowAutomation: [PointData] = []
+        var eqMidAutomation: [PointData] = []
+        var eqHighAutomation: [PointData] = []
         var plugins: [PluginRef] = []
     }
 
