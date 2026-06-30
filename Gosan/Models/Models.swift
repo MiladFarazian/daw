@@ -142,6 +142,27 @@ struct Track: Identifiable {
     }
 }
 
+enum MusicScale { case major, minor }
+
+/// Build a diatonic triad progression as MIDI notes (one chord per bar). Pure.
+/// `root` 0=C…11=B; `degrees` are 0-based scale degrees (0=I, 1=ii … 6=vii°).
+func chordProgression(root: Int, scale: MusicScale, degrees: [Int],
+                      barDuration: TimeInterval, octave: Int = 4) -> [MIDINote] {
+    let steps = scale == .major ? [0, 2, 4, 5, 7, 9, 11] : [0, 2, 3, 5, 7, 8, 10]
+    let base = root + 12 * (octave + 1)   // MIDI: C4 = 60 = 0 + 12*5
+    var notes: [MIDINote] = []
+    for (bar, degree) in degrees.enumerated() {
+        let start = Double(bar) * barDuration
+        for offset in [0, 2, 4] {              // root / third / fifth, stacked in the scale
+            let index = degree + offset
+            let pitch = base + steps[index % 7] + 12 * (index / 7)
+            notes.append(MIDINote(pitch: min(127, max(0, pitch)), start: start,
+                                  duration: barDuration * 0.95, velocity: 88))
+        }
+    }
+    return notes
+}
+
 enum ArpPattern { case up, down, upDown }
 
 /// Turn chords (notes sharing a start) into an arpeggio: single notes cycling the

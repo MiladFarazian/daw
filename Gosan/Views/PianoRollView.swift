@@ -38,6 +38,10 @@ struct PianoRollView: View {
                     Text("1/2").tag(2.0); Text("Whole").tag(4.0)
                 }
                 .frame(width: 130)
+                Button { project.activeSheet = .chords(trackID) } label: {
+                    Label("Chords", systemImage: "pianokeys.inverse")
+                }
+                .help("Generate a chord progression")
                 HStack(spacing: 4) {
                     Image(systemName: "speaker.wave.2.fill").font(.caption2).foregroundStyle(.secondary)
                     Slider(value: $newVelocity, in: 1...127).frame(width: 80)

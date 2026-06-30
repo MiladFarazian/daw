@@ -61,6 +61,8 @@ struct EditorView: View {
                     .environmentObject(preview)
             case .stepSequencer(let id):
                 StepSequencerView(trackID: id).environmentObject(project)
+            case .chords(let id):
+                ChordGeneratorView(trackID: id).environmentObject(project)
             case .analysis(let result):
                 AnalysisSheet(analysis: result)
             }

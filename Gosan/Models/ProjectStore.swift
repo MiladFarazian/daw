@@ -714,6 +714,15 @@ final class ProjectStore: ObservableObject {
         }
     }
 
+    /// Generate a chord progression onto an instrument track (replaces its notes).
+    func generateChords(on track: Track, root: Int, scale: MusicScale, degrees: [Int], octave: Int) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        let barDuration = Double(beatsPerBar) * (60.0 / max(30, tempo))
+        recordUndo()
+        tracks[ti].notes = chordProgression(root: root, scale: scale, degrees: degrees,
+                                             barDuration: barDuration, octave: octave)
+    }
+
     /// Replace a track's notes with an arpeggiated version of its chords.
     func arpeggiateTrack(on track: Track, rate: TimeInterval, pattern: ArpPattern) {
         guard let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }

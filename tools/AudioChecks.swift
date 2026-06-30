@@ -277,6 +277,13 @@ struct AudioChecks {
               arp.count == 4 && arpPitches == [60, 64, 67, 60]
                   && abs(arp[1].start - 0.25) < 0.001)
 
+        // W4) Chord generator: C-major I chord = C-E-G (60-64-67); A-minor i = A-C-E.
+        let cMajorI = chordProgression(root: 0, scale: .major, degrees: [0], barDuration: 2.0, octave: 4)
+        let aMinorI = chordProgression(root: 9, scale: .minor, degrees: [0], barDuration: 2.0, octave: 4)
+        print("   (C maj I: \(cMajorI.map(\.pitch)), A min i: \(aMinorI.map(\.pitch)))")
+        check("chord generator builds correct triads",
+              cMajorI.map(\.pitch) == [60, 64, 67] && aMinorI.map(\.pitch) == [69, 72, 76])
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]
