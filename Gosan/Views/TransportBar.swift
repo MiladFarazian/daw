@@ -35,10 +35,11 @@ struct TransportBar: View {
                     }
                     .keyboardShortcut(.space, modifiers: []).help(project.isPlaying ? "Stop" : "Play")
                     Button { project.toggleRecord() } label: {
-                        Image(systemName: recorder.isRecording ? "stop.circle.fill" : "record.circle")
-                            .foregroundStyle(recorder.isRecording ? .red : .primary)
+                        let recording = recorder.isRecording || project.isRecordingMIDI
+                        Image(systemName: recording ? "stop.circle.fill" : "record.circle")
+                            .foregroundStyle(recording ? .red : .primary)
                     }
-                    .help(recorder.isRecording ? "Stop recording" : "Record a take")
+                    .help(project.armedTrackID != nil ? "Record MIDI on the armed track" : "Record a take")
                     iconButton("headphones", active: recorder.isMonitoring, help: "Monitor input") {
                         project.toggleMonitoring()
                     }

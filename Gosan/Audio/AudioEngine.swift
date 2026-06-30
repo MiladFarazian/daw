@@ -216,6 +216,18 @@ final class AudioEngine {
         }
     }
 
+    /// Live MIDI input → a track's instrument (sustained note on/off, for monitoring + recording).
+    func midiNoteOn(trackID: UUID, program: Int, pitch: Int, velocity: Int) {
+        guard let node = nodes[trackID], let synth = node.synth else { return }
+        if !engine.isRunning { try? engine.start() }
+        MIDISupport.program(synth.audioUnit, program)
+        MIDISupport.noteOn(synth.audioUnit, pitch: pitch, velocity: velocity)
+    }
+    func midiNoteOff(trackID: UUID, pitch: Int) {
+        guard let node = nodes[trackID], let synth = node.synth else { return }
+        MIDISupport.noteOff(synth.audioUnit, pitch: pitch)
+    }
+
     /// Briefly play one note on a track's instrument so the user hears it (piano-roll audition).
     func auditionNote(trackID: UUID, program: Int, pitch: Int, velocity: Int = 100) {
         guard let node = nodes[trackID], let synth = node.synth else { return }

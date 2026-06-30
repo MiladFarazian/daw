@@ -42,6 +42,15 @@ struct TrackHeaderView: View {
                 }
 
                 HStack(spacing: 6) {
+                    if track.isInstrument {
+                        Button { project.armTrack(track) } label: {
+                            Image(systemName: project.armedTrackID == track.id ? "record.circle.fill" : "record.circle")
+                                .foregroundStyle(project.armedTrackID == track.id ? .red : .secondary)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Arm for MIDI recording (play your controller, then press Record)")
+                    }
+
                     Toggle("M", isOn: Binding(
                         get: { track.isMuted },
                         set: { _ in project.toggleMute(track) }

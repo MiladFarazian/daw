@@ -89,6 +89,13 @@ final class ProjectStore: ObservableObject {
     @Published var masterLevel: Float = 0
     @Published var trackLevels: [UUID: Float] = [:]
 
+    // MIDI input / recording
+    private let midiInput = MIDIInput()
+    @Published var midiConnected = false
+    @Published var armedTrackID: UUID?            // instrument track receiving live MIDI
+    @Published private(set) var isRecordingMIDI = false
+    private var midiNoteStarts: [Int: TimeInterval] = [:]
+
     init(settings: AppSettings, taste: TasteEngine, recorder: Recorder, loops: LoopLibrary) {
         self.settings = settings
         self.loops = loops
@@ -103,6 +110,62 @@ final class ProjectStore: ObservableObject {
         engine.onTrackLevel = { [weak self] id, level in
             Task { @MainActor in self?.trackLevels[id] = level }
         }
+        midiInput.onNote = { [weak self] isOn, pitch, velocity in
+            Task { @MainActor in self?.handleIncomingMIDI(isOn: isOn, pitch: pitch, velocity: velocity) }
+        }
+        midiInput.onSourcesChanged = { [weak self] connected in
+            Task { @MainActor in self?.midiConnected = connected }
+        }
+        midiConnected = midiInput.hasSources
+    }
+
+    // MARK: - MIDI input / recording
+
+    /// Arm an instrument track to receive live MIDI (toggle).
+    func armTrack(_ track: Track) {
+        guard track.isInstrument else { return }
+        armedTrackID = (armedTrackID == track.id) ? nil : track.id
+    }
+
+    private func handleIncomingMIDI(isOn: Bool, pitch: Int, velocity: Int) {
+        guard let id = armedTrackID, let track = tracks.first(where: { $0.id == id }) else { return }
+        // Live monitoring through the armed track's instrument.
+        if isOn { engine.midiNoteOn(trackID: id, program: track.program, pitch: pitch, velocity: velocity) }
+        else { engine.midiNoteOff(trackID: id, pitch: pitch) }
+
+        // Capture into the track while recording.
+        guard isRecordingMIDI else { return }
+        if isOn {
+            midiNoteStarts[pitch] = currentTime
+        } else if let start = midiNoteStarts.removeValue(forKey: pitch) {
+            commitRecordedNote(pitch: pitch, start: start, end: currentTime, velocity: max(1, velocity))
+        }
+    }
+
+    private func commitRecordedNote(pitch: Int, start: TimeInterval, end: TimeInterval, velocity: Int) {
+        guard let id = armedTrackID, let ti = tracks.firstIndex(where: { $0.id == id }) else { return }
+        let duration = max(0.05, end - start)
+        tracks[ti].notes.append(MIDINote(pitch: pitch, start: start, duration: duration, velocity: velocity))
+    }
+
+    private func startMIDIRecording() {
+        guard armedTrackID != nil else { return }
+        recordUndo()
+        midiNoteStarts.removeAll()
+        isRecordingMIDI = true
+        if currentTime >= totalDuration { currentTime = 0 }
+        if !tracks.isEmpty { play() }   // roll the project so you can play along
+    }
+
+    private func stopMIDIRecording() {
+        // Finalize any notes still held down.
+        let end = currentTime
+        for (pitch, start) in midiNoteStarts {
+            commitRecordedNote(pitch: pitch, start: start, end: end, velocity: 90)
+        }
+        midiNoteStarts.removeAll()
+        isRecordingMIDI = false
+        stop()
     }
 
     private var jobManager: JobManager? {
@@ -191,7 +254,10 @@ final class ProjectStore: ObservableObject {
     // MARK: - Recording
 
     func toggleRecord() {
-        recorder.isRecording ? stopRecording() : startRecording()
+        if isRecordingMIDI { stopMIDIRecording(); return }
+        if recorder.isRecording { stopRecording(); return }
+        // An armed instrument track records MIDI; otherwise capture mic audio.
+        if armedTrackID != nil { startMIDIRecording() } else { startRecording() }
     }
 
     func toggleMonitoring() { recorder.toggleMonitoring() }
