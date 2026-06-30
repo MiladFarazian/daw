@@ -19,6 +19,7 @@ final class ProjectStore: ObservableObject {
     // AI job state, surfaced in the UI.
     @Published var activeJobs: [JobProgress] = []
     @Published var lastError: String?
+    @Published var infoMessage: String?   // friendly, non-error notice (e.g. opened Suno manually)
     @Published var activeSheet: EditorSheet?
 
     // Suno generation state.
@@ -369,6 +370,16 @@ final class ProjectStore: ObservableObject {
         candidates.removeAll()
 
         Task {
+            // No local Suno API? Don't error — fall back to the manual browser flow.
+            if await client.isReachable() == false {
+                removeJob(jobID)
+                isGenerating = false
+                openInSunoManually(prompt)
+                infoMessage = "Suno has no public API, so Gosan opened suno.com/create and copied your prompt — "
+                    + "paste it, generate, then drag the track back in.\n\nTo make this one-click, run "
+                    + "`make suno-sidecar` (a local Suno API) and set its URL in Settings."
+                return
+            }
             do {
                 let generated = try await client.generate(effective) { status in
                     Task { @MainActor in self.setJobStatus(jobID, status) }
@@ -382,7 +393,9 @@ final class ProjectStore: ObservableObject {
             } catch {
                 removeJob(jobID)
                 isGenerating = false
-                lastError = error.localizedDescription
+                openInSunoManually(prompt)
+                infoMessage = "The local Suno API errored (\(error.localizedDescription)), so Gosan opened "
+                    + "suno.com/create with your prompt copied. Paste it, generate, then drag the track back in."
             }
         }
     }

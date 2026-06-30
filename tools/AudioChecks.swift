@@ -283,6 +283,14 @@ struct AudioChecks {
         print(String(format: "   (plugin chain: body %.3f)", pluginBody))
         check("audio flows through an inserted Audio Unit plugin", pluginBody > 0.05)
 
+        // Z) Imported names drop the "<uuid>-" library prefix.
+        let uuidName = URL(fileURLWithPath: "/x/\(UUID().uuidString)-My Song.wav")
+        let plainName = URL(fileURLWithPath: "/x/My Song.wav")
+        let cleaned = AudioAsset.displayName(for: uuidName)
+        print("   (display name: '\(cleaned)')")
+        check("imported display name strips the uuid prefix",
+              cleaned == "My Song" && AudioAsset.displayName(for: plainName) == "My Song")
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }

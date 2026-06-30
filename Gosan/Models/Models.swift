@@ -12,10 +12,22 @@ final class AudioAsset: Identifiable, @unchecked Sendable {
 
     init(url: URL, duration: TimeInterval, sampleRate: Double, peaks: [Float]) {
         self.url = url
-        self.name = url.deletingPathExtension().lastPathComponent
+        self.name = AudioAsset.displayName(for: url)
         self.duration = duration
         self.sampleRate = sampleRate
         self.peaks = peaks
+    }
+
+    /// Library files are stored as "<uuid>-<original>". Strip the uuid prefix for display.
+    static func displayName(for url: URL) -> String {
+        let base = url.deletingPathExtension().lastPathComponent
+        if base.count > 37 {
+            let split = base.index(base.startIndex, offsetBy: 36)
+            if base[split] == "-", UUID(uuidString: String(base[..<split])) != nil {
+                return String(base[base.index(after: split)...])
+            }
+        }
+        return base
     }
 }
 

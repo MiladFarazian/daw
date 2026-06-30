@@ -10,11 +10,10 @@ struct EditorView: View {
         VStack(spacing: 0) {
             TransportBar()
             Divider()
-            Group {
+            ZStack {
+                TimelineView()
                 if project.tracks.isEmpty {
                     EmptyStateView()
-                } else {
-                    TimelineView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -56,6 +55,13 @@ struct EditorView: View {
         } message: {
             Text(project.lastError ?? "")
         }
+        .alert("Opened Suno in your browser",
+               isPresented: Binding(get: { project.infoMessage != nil },
+                                    set: { if !$0 { project.infoMessage = nil } })) {
+            Button("Got it", role: .cancel) { project.infoMessage = nil }
+        } message: {
+            Text(project.infoMessage ?? "")
+        }
         .onAppear { project.restoreSessionIfAvailable() }
     }
 }
@@ -94,27 +100,35 @@ struct YouTubeSheet: View {
     }
 }
 
+/// A floating "start your song" card shown over the (empty) timeline.
 struct EmptyStateView: View {
     @EnvironmentObject var project: ProjectStore
 
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "waveform")
-                .font(.system(size: 52, weight: .light))
+                .font(.system(size: 42, weight: .light))
                 .foregroundStyle(.secondary)
-            Text("Drop an audio file to start")
-                .font(.title3)
-            Button {
-                project.requestImport()
-            } label: {
-                Label("Import Audio…", systemImage: "square.and.arrow.down")
+            Text("Start your song").font(.title3.weight(.semibold))
+            Text("Drag an audio file anywhere, or:")
+                .font(.callout).foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                Button { project.requestImport() } label: {
+                    Label("Import Audio", systemImage: "square.and.arrow.down")
+                }
+                Button { project.addEmptyTrack() } label: {
+                    Label("Audio Track", systemImage: "waveform")
+                }
+                Button { project.addInstrumentTrack() } label: {
+                    Label("Instrument", systemImage: "pianokeys")
+                }
             }
             .controlSize(.large)
-            if project.isImporting {
-                ProgressView().controlSize(.small)
-            }
+            if project.isImporting { ProgressView().controlSize(.small) }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.background)
+        .padding(28)
+        .background(RoundedRectangle(cornerRadius: 16).fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.08)))
+        .shadow(color: .black.opacity(0.18), radius: 22, y: 8)
     }
 }
