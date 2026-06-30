@@ -357,4 +357,11 @@ final class AudioEngine {
         guard let node = nodes[trackID], node.plugins.indices.contains(index) else { return nil }
         return node.plugins[index]
     }
+
+    /// Serialize a live plugin's full state (knob positions etc.) for persistence/export.
+    func pluginState(trackID: UUID, index: Int) -> Data? {
+        guard let node = nodes[trackID], node.plugins.indices.contains(index),
+              let state = node.plugins[index].auAudioUnit.fullState else { return nil }
+        return try? PropertyListSerialization.data(fromPropertyList: state, format: .binary, options: 0)
+    }
 }

@@ -45,6 +45,11 @@ enum PluginHost {
             sem.signal()
         }
         _ = sem.wait(timeout: .now() + 5)
+        // Restore saved parameter state (knob positions etc.).
+        if let unit = result, let data = ref.stateData,
+           let state = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] {
+            unit.auAudioUnit.fullState = state
+        }
         return result
     }
 }

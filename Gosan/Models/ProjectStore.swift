@@ -652,6 +652,21 @@ final class ProjectStore: ObservableObject {
         engine.pluginUnit(trackID: trackID, index: index)
     }
 
+    /// Copy of `tracks` with each plugin's stateData refreshed from its live AU instance
+    /// (so export honors knob tweaks made in plugin windows).
+    private func tracksWithLivePluginState() -> [Track] {
+        tracks.map { track in
+            guard !track.plugins.isEmpty else { return track }
+            var t = track
+            t.plugins = track.plugins.enumerated().map { idx, ref in
+                var r = ref
+                if let data = engine.pluginState(trackID: track.id, index: idx) { r.stateData = data }
+                return r
+            }
+            return t
+        }
+    }
+
     /// Render a track's clips + effects (EQ/comp/reverb/delay/volume/pan) to one audio
     /// file and add it as a new "(bounce)" track — non-destructive.
     func bounceTrack(_ track: Track) {
@@ -1067,7 +1082,7 @@ final class ProjectStore: ObservableObject {
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        let snapshot = tracks
+        let snapshot = tracksWithLivePluginState()
         let masterVol = masterVolume
         isExporting = true
         Task.detached(priority: .userInitiated) {
@@ -1247,7 +1262,11 @@ final class ProjectStore: ObservableObject {
                     },
                     volumeAutomation: track.volumeAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
                     panAutomation: track.panAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
-                    plugins: track.plugins)
+                    plugins: track.plugins.enumerated().map { idx, ref in
+                        var r = ref
+                        if let data = engine.pluginState(trackID: track.id, index: idx) { r.stateData = data }
+                        return r
+                    })
             },
             markers: markers,
             masterEqLow: masterEqLow, masterEqMid: masterEqMid, masterEqHigh: masterEqHigh,
