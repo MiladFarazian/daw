@@ -1573,6 +1573,38 @@ final class ProjectStore: ObservableObject {
     private var autosaveStarted = false
     private var autosaveTimer: Timer?
 
+    /// Dev/screenshot hook: load a demo project and optionally open a sheet (env GOSAN_OPEN),
+    /// so the agent can launch straight into any screen and capture it.
+    func loadDemoForScreenshot() {
+        let peaks: [Float] = (0..<256).map { Float(abs(sin(Double($0) * 0.15)) * 0.85) }
+        func asset(_ name: String) -> AudioAsset {
+            AudioAsset(url: URL(fileURLWithPath: "/tmp/\(name).wav"), duration: 7, sampleRate: 44_100, peaks: peaks)
+        }
+        var vox = Track(name: "Lead Vocal", colorIndex: 0); vox.clips = [Clip(asset: asset("vox"), startTime: 0.5)]
+        var keys = Track(name: "Keys", colorIndex: 4); keys.isInstrument = true
+        keys.notes = chordProgression(root: 0, scale: .major, degrees: [0, 4, 5, 3], barDuration: 2, octave: 4)
+        var drums = Track(name: "Drums", colorIndex: 6); drums.isInstrument = true; drums.isDrumKit = true
+        drums.notes = DrumPatterns.notes(DrumPatterns.all[0], bars: 2, stepDur: 0.125)
+        tracks = [vox, keys, drums]
+        tempo = 120
+        markers = [Marker(time: 2, name: "Verse"), Marker(time: 6, name: "Chorus")]
+        engine.prepare(tracks: effectiveTracks())
+
+        guard let open = ProcessInfo.processInfo.environment["GOSAN_OPEN"] else { return }
+        let inst = tracks.first { $0.isInstrument && !$0.isDrumKit }
+        let drum = tracks.first { $0.isDrumKit }
+        switch open {
+        case "pianoroll": if let i = inst { activeSheet = .pianoRoll(i.id) }
+        case "stepseq": if let d = drum { activeSheet = .stepSequencer(d.id) }
+        case "chords": if let i = inst { activeSheet = .chords(i.id) }
+        case "automation": if let i = inst { activeSheet = .automation(i.id) }
+        case "mixer": activeSheet = .mixer
+        case "loops": showLoopBrowser = true
+        case "generate": activeSheet = .generate
+        default: break
+        }
+    }
+
     /// Restore the last session (if any) and begin autosaving. Call once, on first appear.
     func restoreSessionIfAvailable() {
         guard !autosaveStarted else { return }

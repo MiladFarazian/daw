@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct GosanApp: App {
+    @NSApplicationDelegateAdaptor(SnapshotDelegate.self) private var snapshotDelegate
     @StateObject private var settings: AppSettings
     @StateObject private var taste: TasteEngine
     @StateObject private var project: ProjectStore

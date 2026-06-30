@@ -83,7 +83,11 @@ struct EditorView: View {
             Text(project.infoMessage ?? "")
         }
         .onAppear {
-            project.restoreSessionIfAvailable()
+            if ProcessInfo.processInfo.environment["GOSAN_DEMO"] != nil {
+                project.loadDemoForScreenshot()
+            } else {
+                project.restoreSessionIfAvailable()
+            }
             installSpaceMonitor()
         }
     }

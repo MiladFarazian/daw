@@ -22,54 +22,60 @@ struct PianoRollView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Label("Piano Roll — \(track?.name ?? "")", systemImage: "pianokeys").font(.headline)
+            HStack(spacing: 10) {
+                Label("Piano Roll", systemImage: "pianokeys").font(.headline)
+                if let track {
+                    Text(track.name).foregroundStyle(.secondary).lineLimit(1)
+                }
                 Spacer()
                 if let track {
-                    Picker("Sound", selection: Binding(
+                    Picker("", selection: Binding(
                         get: { track.program },
                         set: { project.setProgram(track, $0) })) {
                         ForEach(Self.programs, id: \.0) { Text($0.1).tag($0.0) }
                     }
-                    .frame(width: 150)
+                    .labelsHidden().frame(width: 144).help("Instrument sound")
                 }
-                Picker("Length", selection: $noteBeats) {
+                Picker("", selection: $noteBeats) {
                     Text("1/8").tag(0.5); Text("1/4").tag(1.0)
                     Text("1/2").tag(2.0); Text("Whole").tag(4.0)
                 }
-                .frame(width: 130)
-                Button { project.activeSheet = .chords(trackID) } label: {
-                    Label("Chords", systemImage: "pianokeys.inverse")
-                }
-                .help("Generate a chord progression")
+                .labelsHidden().frame(width: 84).help("New note length")
                 HStack(spacing: 4) {
                     Image(systemName: "speaker.wave.2.fill").font(.caption2).foregroundStyle(.secondary)
-                    Slider(value: $newVelocity, in: 1...127).frame(width: 80)
-                    Text("\(Int(newVelocity))").font(.caption.monospacedDigit()).frame(width: 26)
+                    Slider(value: $newVelocity, in: 1...127).frame(width: 70)
                 }
-                .help("Velocity for new notes")
-                if let track, !track.notes.isEmpty {
-                    Button("Quantize") { project.quantizeNotes(on: track, to: snapSec) }
-                        .help("Snap every note to the sixteenth-note grid")
-                    Menu("Transpose") {
-                        Button("Octave Up (+12)") { project.transposeNotes(on: track, by: 12) }
-                        Button("Octave Down (−12)") { project.transposeNotes(on: track, by: -12) }
-                        Button("Semitone Up (+1)") { project.transposeNotes(on: track, by: 1) }
-                        Button("Semitone Down (−1)") { project.transposeNotes(on: track, by: -1) }
-                    }
-                    .fixedSize()
-                    Menu("Arpeggiate") {
-                        Button("Up · 1/16") { project.arpeggiateTrack(on: track, rate: secPerBeat / 4, pattern: .up) }
-                        Button("Up · 1/8") { project.arpeggiateTrack(on: track, rate: secPerBeat / 2, pattern: .up) }
-                        Button("Down · 1/16") { project.arpeggiateTrack(on: track, rate: secPerBeat / 4, pattern: .down) }
-                        Button("Up-Down · 1/16") { project.arpeggiateTrack(on: track, rate: secPerBeat / 4, pattern: .upDown) }
-                    }
-                    .fixedSize()
-                    Menu("Swing") {
-                        Button("Off (straight)") { project.swingNotes(on: track, amount: 0, grid: secPerBeat / 4) }
-                        Button("Light") { project.swingNotes(on: track, amount: 0.15, grid: secPerBeat / 4) }
-                        Button("Medium") { project.swingNotes(on: track, amount: 0.3, grid: secPerBeat / 4) }
-                        Button("Heavy") { project.swingNotes(on: track, amount: 0.4, grid: secPerBeat / 4) }
+                .help("New note velocity: \(Int(newVelocity))")
+
+                if let track {
+                    Menu {
+                        Button { project.activeSheet = .chords(trackID) } label: {
+                            Label("Generate Chords…", systemImage: "pianokeys.inverse")
+                        }
+                        Menu("Arpeggiate") {
+                            Button("Up · 1/16") { project.arpeggiateTrack(on: track, rate: secPerBeat / 4, pattern: .up) }
+                            Button("Up · 1/8") { project.arpeggiateTrack(on: track, rate: secPerBeat / 2, pattern: .up) }
+                            Button("Down · 1/16") { project.arpeggiateTrack(on: track, rate: secPerBeat / 4, pattern: .down) }
+                            Button("Up-Down · 1/16") { project.arpeggiateTrack(on: track, rate: secPerBeat / 4, pattern: .upDown) }
+                        }
+                        Divider()
+                        Section("Edit notes") {
+                            Button("Quantize to 1/16") { project.quantizeNotes(on: track, to: snapSec) }
+                            Menu("Transpose") {
+                                Button("Octave Up (+12)") { project.transposeNotes(on: track, by: 12) }
+                                Button("Octave Down (−12)") { project.transposeNotes(on: track, by: -12) }
+                                Button("Semitone Up (+1)") { project.transposeNotes(on: track, by: 1) }
+                                Button("Semitone Down (−1)") { project.transposeNotes(on: track, by: -1) }
+                            }
+                            Menu("Swing") {
+                                Button("Off (straight)") { project.swingNotes(on: track, amount: 0, grid: secPerBeat / 4) }
+                                Button("Light") { project.swingNotes(on: track, amount: 0.15, grid: secPerBeat / 4) }
+                                Button("Medium") { project.swingNotes(on: track, amount: 0.3, grid: secPerBeat / 4) }
+                                Button("Heavy") { project.swingNotes(on: track, amount: 0.4, grid: secPerBeat / 4) }
+                            }
+                        }
+                    } label: {
+                        Label("Tools", systemImage: "wand.and.stars")
                     }
                     .fixedSize()
                 }
@@ -82,7 +88,7 @@ struct PianoRollView: View {
                 grid
             }
         }
-        .frame(minWidth: 680, minHeight: 480)
+        .frame(minWidth: 740, minHeight: 480)
     }
 
     private var grid: some View {
