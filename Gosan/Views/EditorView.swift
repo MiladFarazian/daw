@@ -44,6 +44,11 @@ struct EditorView: View {
                 AutomationView(trackID: id).environmentObject(project)
             case .plugins(let id):
                 PluginsView(trackID: id).environmentObject(project)
+            case .loops:
+                LoopLibraryView()
+                    .environmentObject(project)
+                    .environmentObject(project.loops)
+                    .environmentObject(preview)
             case .analysis(let result):
                 AnalysisSheet(analysis: result)
             }

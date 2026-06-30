@@ -128,6 +128,7 @@ struct TransportBar: View {
                 divider
                 group {  // Create / IO
                     iconButton("sparkles", help: "Generate (Suno)") { project.activeSheet = .generate }
+                    iconButton("square.stack.3d.up", help: "Loop Library") { project.activeSheet = .loops }
                     Menu {
                         Button("Audio Track") { project.addEmptyTrack() }
                         Button("Instrument Track") { project.addInstrumentTrack() }

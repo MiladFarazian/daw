@@ -7,15 +7,18 @@ struct GosanApp: App {
     @StateObject private var project: ProjectStore
     @StateObject private var preview = PreviewPlayer()
     @StateObject private var recorder = Recorder()
+    @StateObject private var loops: LoopLibrary
 
     init() {
         let settings = AppSettings()
         let taste = TasteEngine()
         let recorder = Recorder()
+        let loops = LoopLibrary()
         _settings = StateObject(wrappedValue: settings)
         _taste = StateObject(wrappedValue: taste)
         _recorder = StateObject(wrappedValue: recorder)
-        _project = StateObject(wrappedValue: ProjectStore(settings: settings, taste: taste, recorder: recorder))
+        _loops = StateObject(wrappedValue: loops)
+        _project = StateObject(wrappedValue: ProjectStore(settings: settings, taste: taste, recorder: recorder, loops: loops))
     }
 
     var body: some Scene {
@@ -26,6 +29,7 @@ struct GosanApp: App {
                 .environmentObject(preview)
                 .environmentObject(taste)
                 .environmentObject(recorder)
+                .environmentObject(loops)
                 .frame(minWidth: 920, minHeight: 560)
         }
         .windowResizability(.contentMinSize)

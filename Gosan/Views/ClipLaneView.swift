@@ -36,6 +36,9 @@ struct ClipLaneView: View {
                         Button { renameText = clip.name; renameTarget = clip } label: {
                             Label("Rename…", systemImage: "pencil")
                         }
+                        Button { project.saveClipAsLoop(clip, on: track) } label: {
+                            Label("Save as Loop", systemImage: "square.stack.3d.up")
+                        }
                         Button { project.toggleClipMute(clip, on: track) } label: {
                             Label(clip.muted ? "Unmute Clip" : "Mute Clip",
                                   systemImage: clip.muted ? "speaker" : "speaker.slash")

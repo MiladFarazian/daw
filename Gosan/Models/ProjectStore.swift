@@ -80,6 +80,7 @@ final class ProjectStore: ObservableObject {
     let settings: AppSettings
     let taste: TasteEngine
     let recorder: Recorder
+    let loops: LoopLibrary
     private let engine = AudioEngine()
     private var ticker: Timer?
     private var recordPosition: TimeInterval = 0
@@ -87,8 +88,9 @@ final class ProjectStore: ObservableObject {
     @Published var masterLevel: Float = 0
     @Published var trackLevels: [UUID: Float] = [:]
 
-    init(settings: AppSettings, taste: TasteEngine, recorder: Recorder) {
+    init(settings: AppSettings, taste: TasteEngine, recorder: Recorder, loops: LoopLibrary) {
         self.settings = settings
+        self.loops = loops
         self.taste = taste
         self.recorder = recorder
         recorder.onStarted = { [weak self] in self?.handleRecordingStarted() }
@@ -878,6 +880,54 @@ final class ProjectStore: ObservableObject {
     }
     func splitSelectedAtPlayhead() {
         if let (clip, track) = selectedClipAndTrack() { splitClipAtPlayhead(clip, on: track) }
+    }
+
+    // MARK: - Loop library
+
+    /// Bounce a clip to the loop library so it can be reused across projects.
+    func saveClipAsLoop(_ clip: Clip, on track: Track) {
+        var t = Track(name: clip.name, colorIndex: 0)
+        var solo = clip; solo.startTime = 0
+        t.clips = [solo]
+        let duration = clip.duration, name = clip.name, bpm = Int(tempo.rounded())
+        Task.detached(priority: .userInitiated) {
+            let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("loop-\(UUID().uuidString).wav")
+            do {
+                try AudioExporter.render(tracks: [t], duration: duration, to: tmp)
+                await MainActor.run {
+                    self.loops.addLoop(from: tmp, name: name, bpm: bpm)
+                    self.infoMessage = "Saved “\(name)” to your Loop Library."
+                }
+                try? FileManager.default.removeItem(at: tmp)
+            } catch {
+                await MainActor.run { self.lastError = "Couldn't save loop: \(error.localizedDescription)" }
+            }
+        }
+    }
+
+    /// Save a generated (Suno) candidate to the loop library.
+    func saveCandidateAsLoop(_ candidate: CandidateAsset) {
+        loops.addLoop(from: candidate.asset.url, name: candidate.title, bpm: Int(tempo.rounded()))
+        infoMessage = "Saved “\(candidate.title)” to your Loop Library."
+    }
+
+    /// Drop a library loop onto the timeline as a new track at the playhead.
+    func addLoopToProject(_ loop: LoopEntry) {
+        guard let url = loops.url(for: loop) else { return }
+        let at = currentTime
+        isImporting = true
+        Task.detached(priority: .userInitiated) {
+            guard let waveform = WaveformLoader.load(url: url) else {
+                await MainActor.run { self.isImporting = false }
+                return
+            }
+            let asset = AudioAsset(url: url, duration: waveform.duration,
+                                   sampleRate: waveform.sampleRate, peaks: waveform.peaks)
+            await MainActor.run {
+                self.addNamedTrack(name: loop.name, asset: asset, at: at)
+                self.isImporting = false
+            }
+        }
     }
 
     func renameClip(_ clip: Clip, on track: Track, to name: String) {

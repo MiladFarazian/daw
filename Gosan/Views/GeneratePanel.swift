@@ -125,6 +125,10 @@ struct GeneratePanel: View {
                 Image(systemName: "hand.thumbsdown")
             }
             .help("Discard (teaches your taste what to avoid)")
+            Button { project.saveCandidateAsLoop(candidate) } label: {
+                Image(systemName: "square.stack.3d.up")
+            }
+            .help("Save to Loop Library")
             Button("Add to timeline") { project.addCandidate(candidate) }
                 .help("Keep (teaches your taste what you like)")
         }
