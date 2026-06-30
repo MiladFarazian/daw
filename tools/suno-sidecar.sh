@@ -1,20 +1,34 @@
 #!/usr/bin/env bash
-# One command to run a local Suno sidecar so Gosan can generate with one click
-# (the green dot in the Generate panel). Needs Node.js + git.
+# One command to run a local Suno sidecar so Gosan can generate with one click.
+# Prompts for your Suno cookie SECURELY (hidden input — never echoed, never in shell
+# history, never pasted into chat).
 #
-# Your Suno cookie: log in at suno.com → DevTools (⌥⌘I) → Network → click any request
-# to studio-api.suno.ai → copy the full "cookie" request header. Then:
+#   tools/suno-sidecar.sh
 #
-#   SUNO_COOKIE='paste-cookie-here' tools/suno-sidecar.sh
+# Your Suno cookie: log in at suno.com → DevTools (⌥⌘I) → Network → filter "clerk" →
+# reload → click a request to clerk.suno.com → Request Headers → copy the full "cookie"
+# value (must include __client=…). Paste it at the prompt.
 #
-# Leave it running. In Gosan → Generate, the sidecar dot turns green.
-# (If Suno's bot check blocks it, just use "Open in Suno (manual)" instead.)
+# Leave it running. In Gosan → Generate, the dot turns green when the cookie is valid.
 set -euo pipefail
 
 DIR="${SUNO_SIDECAR_DIR:-$HOME/.gosan/suno-api}"
-: "${SUNO_COOKIE:?Set SUNO_COOKIE first — copy it from suno.com DevTools (do NOT paste it in chat)}"
 command -v git >/dev/null  || { echo "git is required."; exit 1; }
 command -v node >/dev/null || { echo "Node.js is required (brew install node)."; exit 1; }
+
+# --- Cookie (hidden prompt unless already in the environment) ---
+if [ -z "${SUNO_COOKIE:-}" ]; then
+  echo "Paste your Suno cookie (from clerk.suno.com → Request Headers → cookie), then Enter."
+  echo "It will NOT be shown as you paste."
+  read -rs SUNO_COOKIE
+  echo
+fi
+[ -n "${SUNO_COOKIE:-}" ] || { echo "No cookie entered — aborting."; exit 1; }
+
+# --- Optional 2captcha key (only needed if Suno throws a captcha) ---
+if [ -z "${TWOCAPTCHA_KEY:-}" ]; then
+  read -rp "2captcha API key (optional — press Enter to skip): " TWOCAPTCHA_KEY || true
+fi
 
 if [ ! -d "$DIR/.git" ]; then
   echo "→ Cloning gcui-art/suno-api into $DIR"
@@ -22,12 +36,16 @@ if [ ! -d "$DIR/.git" ]; then
 fi
 cd "$DIR"
 
-# Next.js reads .env.local; write the cookie there (never committed).
-printf 'SUNO_COOKIE=%s\nBROWSER=chromium\nBROWSER_GHOST_CURSOR=false\n' "$SUNO_COOKIE" > .env.local
+# Next.js reads .env.local; written fresh each run, never committed.
+{
+  printf 'SUNO_COOKIE=%s\n' "$SUNO_COOKIE"
+  printf 'BROWSER=chromium\nBROWSER_GHOST_CURSOR=false\nBROWSER_HEADLESS=true\n'
+  [ -n "${TWOCAPTCHA_KEY:-}" ] && printf 'TWOCAPTCHA_KEY=%s\n' "$TWOCAPTCHA_KEY"
+} > .env.local
 
 if [ ! -d node_modules ]; then
   echo "→ Installing dependencies (first run only)…"
-  npm install
+  npm install --no-audit --no-fund
 fi
 
 echo "→ Starting Suno sidecar on http://localhost:3000  (Ctrl-C to stop)"
