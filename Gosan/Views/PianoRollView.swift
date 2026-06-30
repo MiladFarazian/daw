@@ -44,6 +44,10 @@ struct PianoRollView: View {
                     Text("\(Int(newVelocity))").font(.caption.monospacedDigit()).frame(width: 26)
                 }
                 .help("Velocity for new notes")
+                if let track, !track.notes.isEmpty {
+                    Button("Quantize") { project.quantizeNotes(on: track, to: snapSec) }
+                        .help("Snap every note to the sixteenth-note grid")
+                }
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
             .padding(12)

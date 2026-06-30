@@ -152,9 +152,28 @@ final class ProjectStore: ObservableObject {
         guard armedTrackID != nil else { return }
         recordUndo()
         midiNoteStarts.removeAll()
-        isRecordingMIDI = true
         if currentTime >= totalDuration { currentTime = 0 }
+        if countInEnabled {
+            engine.playCountIn(tempo: tempo, beatsPerBar: beatsPerBar) { [weak self] in
+                self?.beginMIDICapture()
+            }
+        } else {
+            beginMIDICapture()
+        }
+    }
+
+    private func beginMIDICapture() {
+        isRecordingMIDI = true
         if !tracks.isEmpty { play() }   // roll the project so you can play along
+    }
+
+    /// Snap an instrument track's note starts to a grid (seconds).
+    func quantizeNotes(on track: Track, to grid: TimeInterval) {
+        guard grid > 0, let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }
+        recordUndo()
+        for i in tracks[ti].notes.indices {
+            tracks[ti].notes[i].start = max(0, (tracks[ti].notes[i].start / grid).rounded() * grid)
+        }
     }
 
     private func stopMIDIRecording() {
