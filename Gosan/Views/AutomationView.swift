@@ -22,8 +22,16 @@ struct AutomationView: View {
             .padding(12)
             Divider()
 
+            HStack {
+                Image(systemName: "hand.tap")
+                Text("Click empty space to add a point · drag a point to move · right-click to delete")
+            }
+            .font(.caption).foregroundStyle(.secondary)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            Divider()
+
             ScrollView([.vertical, .horizontal]) {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
                     if let track {
                         lane("Volume", lane: \.volumeAutomation, range: 0...1, defaultValue: track.volume,
                              points: track.volumeAutomation, track: track)
@@ -52,7 +60,7 @@ struct AutomationView: View {
                       range: ClosedRange<Float>, defaultValue: Float,
                       points: [AutomationPoint], track: Track) -> some View {
         let width = CGFloat(duration) * pps
-        let height: CGFloat = 120
+        let height: CGFloat = 84
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(title).font(.subheadline.weight(.medium))
@@ -90,8 +98,6 @@ struct AutomationView: View {
                 let v = valueFor(value.location.y, range: range, height: height)
                 project.addAutomationPoint(track, lane, time: time, value: v)
             })
-            Text("Click empty space to add a point · drag a point to move · right-click to delete")
-                .font(.caption2).foregroundStyle(.secondary)
         }
     }
 
