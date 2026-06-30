@@ -266,6 +266,17 @@ struct AudioChecks {
         print(String(format: "   (drum render: head %.4f, hit %.4f)", drumHead, drumBody))
         check("drum kit renders on channel 9", drumBody > 0.005 && drumHead < drumBody * 0.5)
 
+        // W3) Arpeggiator: a C-major chord (1s) at 1/4 rate → 4 cycling single notes.
+        let chord = [MIDINote(pitch: 60, start: 0, duration: 1.0),
+                     MIDINote(pitch: 64, start: 0, duration: 1.0),
+                     MIDINote(pitch: 67, start: 0, duration: 1.0)]
+        let arp = arpeggiate(chord, rate: 0.25, pattern: .up)
+        let arpPitches = arp.map(\.pitch)
+        print("   (arp pitches: \(arpPitches))")
+        check("arpeggiator cycles chord pitches at the rate",
+              arp.count == 4 && arpPitches == [60, 64, 67, 60]
+                  && abs(arp[1].start - 0.25) < 0.001)
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

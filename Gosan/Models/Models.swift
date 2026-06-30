@@ -142,6 +142,47 @@ struct Track: Identifiable {
     }
 }
 
+enum ArpPattern { case up, down, upDown }
+
+/// Turn chords (notes sharing a start) into an arpeggio: single notes cycling the
+/// chord's pitches at `rate`, across each chord's duration. Pure → unit-testable.
+func arpeggiate(_ notes: [MIDINote], rate: TimeInterval, pattern: ArpPattern) -> [MIDINote] {
+    guard rate > 0, !notes.isEmpty else { return notes }
+    let sorted = notes.sorted { $0.start < $1.start }
+    let tol = rate * 0.5
+
+    // Group notes into chords by near-equal start time.
+    var chords: [[MIDINote]] = []
+    for note in sorted {
+        if let first = chords.last?.first, abs(note.start - first.start) < tol {
+            chords[chords.count - 1].append(note)
+        } else {
+            chords.append([note])
+        }
+    }
+
+    var result: [MIDINote] = []
+    for chord in chords {
+        let start = chord.map(\.start).min() ?? 0
+        let end = chord.map { $0.start + $0.duration }.max() ?? start
+        var pitches = Array(Set(chord.map(\.pitch))).sorted()
+        guard !pitches.isEmpty, end > start else { continue }
+        switch pattern {
+        case .up: break
+        case .down: pitches.reverse()
+        case .upDown: if pitches.count > 2 { pitches += pitches.dropFirst().dropLast().reversed() }
+        }
+        let velocity = chord.map(\.velocity).max() ?? 100
+        var t = start, i = 0
+        while t < end - 0.0001 {
+            result.append(MIDINote(pitch: pitches[i % pitches.count], start: t,
+                                   duration: min(rate, end - t), velocity: velocity))
+            t += rate; i += 1
+        }
+    }
+    return result
+}
+
 /// Sample an automation envelope at `time` (linear between points; flat outside).
 func automationValue(_ points: [AutomationPoint], at time: TimeInterval, default def: Float) -> Float {
     guard let first = points.first else { return def }

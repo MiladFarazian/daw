@@ -714,6 +714,25 @@ final class ProjectStore: ObservableObject {
         }
     }
 
+    /// Replace a track's notes with an arpeggiated version of its chords.
+    func arpeggiateTrack(on track: Track, rate: TimeInterval, pattern: ArpPattern) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }
+        recordUndo()
+        tracks[ti].notes = arpeggiate(tracks[ti].notes, rate: rate, pattern: pattern)
+    }
+
+    /// Quantize to `grid`, then delay the off-beats by `amount`·grid (groove/swing). Idempotent.
+    func swingNotes(on track: Track, amount: Double, grid: TimeInterval) {
+        guard grid > 0, let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }
+        recordUndo()
+        for i in tracks[ti].notes.indices {
+            let step = (tracks[ti].notes[i].start / grid).rounded()
+            var t = step * grid
+            if Int(step) % 2 == 1 { t += amount * grid }
+            tracks[ti].notes[i].start = max(0, t)
+        }
+    }
+
     /// Shift every note on an instrument track by a number of semitones.
     func transposeNotes(on track: Track, by semitones: Int) {
         guard let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }

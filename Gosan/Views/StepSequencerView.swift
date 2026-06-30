@@ -24,6 +24,15 @@ struct StepSequencerView: View {
                 Label("Step Sequencer — \(track?.name ?? "")", systemImage: "square.grid.3x3.fill").font(.headline)
                 Spacer()
                 Stepper("Bars: \(bars)", value: $bars, in: 1...4).fixedSize()
+                if let track, !track.notes.isEmpty {
+                    Menu("Swing") {
+                        Button("Off (straight)") { project.swingNotes(on: track, amount: 0, grid: stepDur) }
+                        Button("Light") { project.swingNotes(on: track, amount: 0.15, grid: stepDur) }
+                        Button("Medium") { project.swingNotes(on: track, amount: 0.3, grid: stepDur) }
+                        Button("Heavy") { project.swingNotes(on: track, amount: 0.4, grid: stepDur) }
+                    }
+                    .fixedSize()
+                }
                 Button("Clear") { clearAll() }.disabled(track?.notes.isEmpty ?? true)
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }

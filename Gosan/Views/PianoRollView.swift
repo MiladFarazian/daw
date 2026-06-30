@@ -54,6 +54,20 @@ struct PianoRollView: View {
                         Button("Semitone Down (−1)") { project.transposeNotes(on: track, by: -1) }
                     }
                     .fixedSize()
+                    Menu("Arpeggiate") {
+                        Button("Up · 1/16") { project.arpeggiateTrack(on: track, rate: secPerBeat / 4, pattern: .up) }
+                        Button("Up · 1/8") { project.arpeggiateTrack(on: track, rate: secPerBeat / 2, pattern: .up) }
+                        Button("Down · 1/16") { project.arpeggiateTrack(on: track, rate: secPerBeat / 4, pattern: .down) }
+                        Button("Up-Down · 1/16") { project.arpeggiateTrack(on: track, rate: secPerBeat / 4, pattern: .upDown) }
+                    }
+                    .fixedSize()
+                    Menu("Swing") {
+                        Button("Off (straight)") { project.swingNotes(on: track, amount: 0, grid: secPerBeat / 4) }
+                        Button("Light") { project.swingNotes(on: track, amount: 0.15, grid: secPerBeat / 4) }
+                        Button("Medium") { project.swingNotes(on: track, amount: 0.3, grid: secPerBeat / 4) }
+                        Button("Heavy") { project.swingNotes(on: track, amount: 0.4, grid: secPerBeat / 4) }
+                    }
+                    .fixedSize()
                 }
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
