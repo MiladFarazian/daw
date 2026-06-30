@@ -302,6 +302,21 @@ struct AudioChecks {
         print(String(format: "   (master 0.5/1.0 ratio: %.2f)", mvRatio))
         check("master volume scales the mixdown", mvRatio > 0.4 && mvRatio < 0.6)
 
+        // AB) Sidechain ducking: gain dips during a trigger hit, recovers after.
+        let trigURL = tmp.appendingPathComponent("trigger.wav")
+        try writePaddedTone(to: trigURL, silenceHead: 0.4, tone: 0.2, silenceTail: 0.8)
+        let duck = Sidechain.duckingPoints(triggerURL: trigURL, depth: 0.8, release: 0.15)
+        func duckGain(at t: Double) -> Float {
+            // step-sample the generated breakpoints
+            var v: Float = 1
+            for p in duck where p.time <= t { v = p.value }
+            return v
+        }
+        let duringHit = duckGain(at: 0.5), afterHit = duckGain(at: 1.3)
+        print(String(format: "   (sidechain gain: during-hit %.2f, after %.2f)", duringHit, afterHit))
+        check("sidechain ducks during the trigger, recovers after",
+              !duck.isEmpty && duringHit < 0.5 && afterHit > 0.85)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }

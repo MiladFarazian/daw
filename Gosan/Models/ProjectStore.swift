@@ -751,6 +751,44 @@ final class ProjectStore: ObservableObject {
         tracks[i][keyPath: lane].removeAll { $0.id == point.id }
     }
 
+    /// Duck `target`'s volume in time with `trigger` (sidechain pump) by generating
+    /// volume automation from the trigger track's envelope.
+    func sidechainDuck(target: Track, triggerID: UUID, depth: Float = 0.8, release: TimeInterval = 0.18) {
+        guard triggerID != target.id, let trigger = tracks.first(where: { $0.id == triggerID }) else { return }
+        let end = max(trigger.endTime, target.endTime)
+        guard end > 0 else { lastError = "The trigger track has no audio."; return }
+        var trg = trigger
+        trg.isMuted = false; trg.isSoloed = false
+        trg.volumeAutomation = []   // render the trigger dry
+        let targetID = target.id
+        isExporting = true
+        Task.detached(priority: .userInitiated) {
+            do {
+                let tmp = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("sc-\(UUID().uuidString).wav")
+                try AudioExporter.render(tracks: [trg], duration: end, to: tmp)
+                let points = Sidechain.duckingPoints(triggerURL: tmp, depth: depth, release: release)
+                try? FileManager.default.removeItem(at: tmp)
+                await MainActor.run {
+                    self.applySidechain(targetID: targetID, points: points, trigger: trigger.name)
+                    self.isExporting = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.isExporting = false
+                    self.lastError = "Sidechain failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func applySidechain(targetID: UUID, points: [(time: TimeInterval, value: Float)], trigger: String) {
+        guard let ti = tracks.firstIndex(where: { $0.id == targetID }), !points.isEmpty else { return }
+        recordUndo()
+        tracks[ti].volumeAutomation = points.map { AutomationPoint(time: $0.time, value: $0.value) }
+        infoMessage = "Ducked “\(tracks[ti].name)” by “\(trigger)” — tweak it in the Automation editor (Volume lane)."
+    }
+
     func clearAutomation(_ track: Track, _ lane: WritableKeyPath<Track, [AutomationPoint]>) {
         guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
         recordUndo()

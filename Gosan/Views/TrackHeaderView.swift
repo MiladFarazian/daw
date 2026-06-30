@@ -141,6 +141,13 @@ struct TrackHeaderView: View {
             Button { project.activeSheet = .automation(track.id) } label: {
                 Label("Automation…", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
             }
+            if project.tracks.contains(where: { $0.id != track.id }) {
+                Menu {
+                    ForEach(project.tracks.filter { $0.id != track.id }) { other in
+                        Button(other.name) { project.sidechainDuck(target: track, triggerID: other.id) }
+                    }
+                } label: { Label("Sidechain Duck by…", systemImage: "waveform.path.ecg.rectangle") }
+            }
             Button { project.activeSheet = .plugins(track.id) } label: {
                 Label("Plugins…", systemImage: "puzzlepiece.extension")
             }
