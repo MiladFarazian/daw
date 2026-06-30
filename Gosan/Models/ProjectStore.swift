@@ -861,6 +861,25 @@ final class ProjectStore: ObservableObject {
         updateClip(clip, on: track) { $0.muted.toggle() }
     }
 
+    /// Find the selected clip and its track (for keyboard editing commands).
+    private func selectedClipAndTrack() -> (Clip, Track)? {
+        guard let id = selectedClipID else { return nil }
+        for track in tracks where track.clips.contains(where: { $0.id == id }) {
+            if let clip = track.clips.first(where: { $0.id == id }) { return (clip, track) }
+        }
+        return nil
+    }
+
+    func deleteSelectedClip() {
+        if let (clip, track) = selectedClipAndTrack() { deleteClip(clip, on: track) }
+    }
+    func duplicateSelectedClip() {
+        if let (clip, track) = selectedClipAndTrack() { duplicateClip(clip, on: track) }
+    }
+    func splitSelectedAtPlayhead() {
+        if let (clip, track) = selectedClipAndTrack() { splitClipAtPlayhead(clip, on: track) }
+    }
+
     func renameClip(_ clip: Clip, on track: Track, to name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         recordUndo()

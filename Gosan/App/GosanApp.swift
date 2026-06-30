@@ -38,6 +38,17 @@ struct GosanApp: App {
                     .keyboardShortcut("z", modifiers: [.command, .shift])
                     .disabled(!project.canRedo)
             }
+            CommandGroup(after: .pasteboard) {
+                Button("Delete Clip") { project.deleteSelectedClip() }
+                    .keyboardShortcut(.delete, modifiers: .command)   // ⌘⌫ (avoids text-field backspace)
+                    .disabled(project.selectedClipID == nil)
+                Button("Duplicate Clip") { project.duplicateSelectedClip() }
+                    .keyboardShortcut("d", modifiers: .command)
+                    .disabled(project.selectedClipID == nil)
+                Button("Split Clip at Playhead") { project.splitSelectedAtPlayhead() }
+                    .keyboardShortcut("e", modifiers: .command)
+                    .disabled(project.selectedClipID == nil)
+            }
             CommandMenu("Transport") {
                 Button(project.isPlaying ? "Stop" : "Play") { project.togglePlay() }
                     .keyboardShortcut(.space, modifiers: [])
