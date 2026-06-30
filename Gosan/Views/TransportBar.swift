@@ -22,201 +22,164 @@ struct TransportBar: View {
         return "\(project.activeJobs.count) AI jobs running…"
     }
 
+    private let lcd = Color(red: 0.65, green: 0.95, blue: 0.85)
+
     var body: some View {
-        HStack(spacing: 14) {
-            Button { project.seek(to: 0) } label: {
-                Image(systemName: "backward.end.fill")
-            }
-            .help("Return to start")
-
-            Button { project.togglePlay() } label: {
-                Image(systemName: project.isPlaying ? "stop.fill" : "play.fill")
-                    .frame(width: 18)
-            }
-            .keyboardShortcut(.space, modifiers: [])
-            .help(project.isPlaying ? "Stop" : "Play")
-
-            Button { project.toggleRecord() } label: {
-                Image(systemName: recorder.isRecording ? "stop.circle.fill" : "record.circle")
-                    .foregroundStyle(recorder.isRecording ? .red : .primary)
-            }
-            .help(recorder.isRecording ? "Stop recording" : "Record a take (plays existing tracks)")
-
-            Button { project.toggleMonitoring() } label: {
-                Image(systemName: "headphones")
-                    .foregroundStyle(recorder.isMonitoring ? .green : .secondary)
-            }
-            .help("Monitor input (hear yourself — use headphones to avoid feedback)")
-
-            Button { project.countInEnabled.toggle() } label: {
-                Image(systemName: "timer")
-                    .foregroundStyle(project.countInEnabled ? .green : .secondary)
-            }
-            .help("1-bar count-in before recording")
-
-            if recorder.isRecording {
-                InputLevelMeter(level: recorder.inputLevel)
-                    .frame(width: 46, height: 6)
-            }
-
-            // LCD-style time + tempo readout (GarageBand vibe).
-            HStack(spacing: 10) {
-                Text(timecode(project.currentTime))
-                    .font(.system(size: 15, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Color(red: 0.65, green: 0.95, blue: 0.85))
-                Text("\(Int(project.tempo)) BPM")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Color(red: 0.65, green: 0.95, blue: 0.85).opacity(0.8))
-            }
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.82)))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.08)))
-
-            Divider().frame(height: 18)
-
-            HStack(spacing: 4) {
-                Button { project.toggleMetronome() } label: {
-                    Image(systemName: "metronome")
-                        .foregroundStyle(project.metronomeEnabled ? .green : .secondary)
+        // Horizontal scroll so controls never squish/wrap/truncate at small widths.
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 9) {
+                group {  // Transport
+                    iconButton("backward.end.fill", help: "Return to start") { project.seek(to: 0) }
+                    Button { project.togglePlay() } label: {
+                        Image(systemName: project.isPlaying ? "stop.fill" : "play.fill").frame(width: 16)
+                    }
+                    .keyboardShortcut(.space, modifiers: []).help(project.isPlaying ? "Stop" : "Play")
+                    Button { project.toggleRecord() } label: {
+                        Image(systemName: recorder.isRecording ? "stop.circle.fill" : "record.circle")
+                            .foregroundStyle(recorder.isRecording ? .red : .primary)
+                    }
+                    .help(recorder.isRecording ? "Stop recording" : "Record a take")
+                    iconButton("headphones", active: recorder.isMonitoring, help: "Monitor input") {
+                        project.toggleMonitoring()
+                    }
+                    iconButton("timer", active: project.countInEnabled, help: "1-bar count-in") {
+                        project.countInEnabled.toggle()
+                    }
+                    if recorder.isRecording {
+                        InputLevelMeter(level: recorder.inputLevel).frame(width: 42, height: 6)
+                    }
                 }
-                .help("Metronome click")
 
-                TextField("", value: Binding(
-                    get: { project.tempo },
-                    set: { project.tempo = min(300, max(30, $0.rounded())) }
-                ), format: .number)
-                .textFieldStyle(.plain)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 30)
-                Text("BPM").foregroundStyle(.secondary)
-                Stepper("", value: Binding(
-                    get: { project.tempo },
-                    set: { project.tempo = min(300, max(30, $0)) }
-                ), in: 30...300, step: 1)
-                .labelsHidden()
-                Button("Tap") { project.tapTempo() }
-                    .help("Tap repeatedly to set the tempo")
-            }
-            .help("Tempo (drives the beat grid + metronome)")
-
-            Menu("\(project.beatsPerBar)/4") {
-                ForEach([2, 3, 4, 5, 6, 7], id: \.self) { n in
-                    Button("\(n)/4") { project.beatsPerBar = n }
+                // LCD time + tempo — fixedSize + lineLimit so it can never wrap/shrink.
+                HStack(spacing: 8) {
+                    Text(timecode(project.currentTime))
+                        .font(.system(size: 14, weight: .medium, design: .monospaced))
+                        .foregroundStyle(lcd).lineLimit(1)
+                    Text("\(Int(project.tempo)) BPM")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(lcd.opacity(0.8)).lineLimit(1)
                 }
-            }
-            .frame(width: 46)
-            .help("Time signature")
+                .fixedSize()
+                .padding(.horizontal, 9).padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.82)))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.08)))
 
-            Divider().frame(height: 18)
-            HStack(spacing: 2) {
-                Button { project.jumpToPrevMarker() } label: { Image(systemName: "chevron.backward.2") }
-                    .help("Previous marker")
-                Button { project.addMarker() } label: { Image(systemName: "flag") }
-                    .help("Add marker at playhead")
-                Button { project.jumpToNextMarker() } label: { Image(systemName: "chevron.forward.2") }
-                    .help("Next marker")
-            }
-
-            Divider().frame(height: 18)
-            HStack(spacing: 4) {
-                Image(systemName: "speaker.wave.2").font(.caption2).foregroundStyle(.secondary)
-                InputLevelMeter(level: project.masterLevel).frame(width: 54, height: 6)
-            }
-            .help("Master output level")
-
-            Menu("EQ") {
-                Button("Flat") { project.setMasterEQ(low: 0, mid: 0, high: 0) }
-                Button("Bright") { project.setMasterEQ(low: 0, mid: 0, high: 4) }
-                Button("Warm") { project.setMasterEQ(low: 3, mid: 0, high: -3) }
-                Button("Loudness") { project.setMasterEQ(low: 4, mid: -1, high: 3) }
-            }
-            .frame(width: 48)
-            .help("Master EQ")
-
-            if !project.activeJobs.isEmpty {
-                Divider().frame(height: 18)
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text(jobsSummary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                divider
+                group {  // Tempo
+                    iconButton("metronome", active: project.metronomeEnabled, help: "Metronome") {
+                        project.toggleMetronome()
+                    }
+                    TextField("", value: Binding(
+                        get: { project.tempo },
+                        set: { project.tempo = min(300, max(30, $0.rounded())) }
+                    ), format: .number)
+                    .textFieldStyle(.plain).multilineTextAlignment(.trailing).frame(width: 30)
+                    Stepper("", value: Binding(
+                        get: { project.tempo },
+                        set: { project.tempo = min(300, max(30, $0)) }
+                    ), in: 30...300, step: 1).labelsHidden()
+                    Button("Tap") { project.tapTempo() }.help("Tap tempo")
+                    Menu("\(project.beatsPerBar)/4") {
+                        ForEach([2, 3, 4, 5, 6, 7], id: \.self) { n in Button("\(n)/4") { project.beatsPerBar = n } }
+                    }
+                    .fixedSize().help("Time signature")
                 }
-            }
 
-            Spacer()
+                divider
+                group {  // Markers
+                    iconButton("chevron.backward.2", help: "Previous marker") { project.jumpToPrevMarker() }
+                    iconButton("flag", help: "Add marker at playhead") { project.addMarker() }
+                    iconButton("chevron.forward.2", help: "Next marker") { project.jumpToNextMarker() }
+                }
 
-            Button { project.toggleLoop() } label: {
-                Image(systemName: "repeat")
-                    .foregroundStyle(project.loopActive ? .green : .secondary)
-            }
-            .help("Loop playback over a region (drag on the ruler to set it)")
+                divider
+                group {  // Master
+                    Image(systemName: "speaker.wave.2").font(.caption2).foregroundStyle(.secondary)
+                    InputLevelMeter(level: project.masterLevel).frame(width: 48, height: 6)
+                    Menu("EQ") {
+                        Button("Flat") { project.setMasterEQ(low: 0, mid: 0, high: 0) }
+                        Button("Bright") { project.setMasterEQ(low: 0, mid: 0, high: 4) }
+                        Button("Warm") { project.setMasterEQ(low: 3, mid: 0, high: -3) }
+                        Button("Loudness") { project.setMasterEQ(low: 4, mid: -1, high: 3) }
+                    }
+                    .fixedSize().help("Master EQ")
+                }
 
-            Button { project.snapEnabled.toggle() } label: {
-                Image(systemName: "ruler")
-                    .foregroundStyle(project.snapEnabled ? .green : .secondary)
-            }
-            .help("Snap clips to the beat grid")
+                divider
+                group {  // View
+                    iconButton("repeat", active: project.loopActive, help: "Loop region") { project.toggleLoop() }
+                    iconButton("ruler", active: project.snapEnabled, help: "Snap to grid") { project.snapEnabled.toggle() }
+                    Menu(snapLabel) {
+                        Button("Bar") { project.snapDivision = Double(project.beatsPerBar) }
+                        Button("Beat") { project.snapDivision = 1 }
+                        Button("1/2 beat") { project.snapDivision = 0.5 }
+                        Button("1/4 beat") { project.snapDivision = 0.25 }
+                        Button("1/8 beat") { project.snapDivision = 0.125 }
+                    }
+                    .fixedSize().help("Snap resolution")
+                    iconButton("minus.magnifyingglass", help: "Zoom out") {
+                        project.pixelsPerSecond = max(24, project.pixelsPerSecond - 20)
+                    }
+                    iconButton("plus.magnifyingglass", help: "Zoom in") {
+                        project.pixelsPerSecond = min(200, project.pixelsPerSecond + 20)
+                    }
+                }
 
-            Menu(snapLabel) {
-                Button("Bar") { project.snapDivision = Double(project.beatsPerBar) }
-                Button("Beat") { project.snapDivision = 1 }
-                Button("1/2 beat") { project.snapDivision = 0.5 }
-                Button("1/4 beat") { project.snapDivision = 0.25 }
-                Button("1/8 beat") { project.snapDivision = 0.125 }
-            }
-            .frame(width: 64)
-            .help("Snap resolution")
+                divider
+                group {  // Create / IO
+                    iconButton("sparkles", help: "Generate (Suno)") { project.activeSheet = .generate }
+                    Menu {
+                        Button("Audio Track") { project.addEmptyTrack() }
+                        Button("Instrument Track") { project.addInstrumentTrack() }
+                    } label: { Image(systemName: "plus.rectangle.on.rectangle") }
+                        .fixedSize().help("Add a track")
+                    Menu {
+                        Button("Audio file…") { project.requestImport() }
+                        Button("From YouTube…") { project.activeSheet = .youtube }
+                    } label: { Image(systemName: "square.and.arrow.down") }
+                        .fixedSize().help("Import")
+                    iconButton("slider.vertical.3", help: "Mixer") { project.activeSheet = .mixer }
+                    Menu {
+                        Button("Mix → WAV…") { project.exportMixdown() }
+                        Button("Mix → WAV (normalized)…") { project.exportMixdown(normalize: true) }
+                        Button("Mix → AAC (.m4a)…") { project.exportMixdown(aac: true) }
+                        Divider()
+                        Button("Loop region → WAV…") { project.exportLoop() }.disabled(!project.loopActive)
+                        Button("Each track (stems)…") { project.exportStems() }
+                    } label: {
+                        if project.isExporting { ProgressView().controlSize(.small) }
+                        else { Image(systemName: "square.and.arrow.up") }
+                    }
+                    .fixedSize().disabled(project.tracks.isEmpty || project.isExporting).help("Export")
+                }
 
-            HStack(spacing: 6) {
-                Image(systemName: "minus.magnifyingglass").foregroundStyle(.secondary)
-                Slider(value: $project.pixelsPerSecond, in: 24...200).frame(width: 130)
-                Image(systemName: "plus.magnifyingglass").foregroundStyle(.secondary)
-            }
-
-            Button { project.activeSheet = .generate } label: {
-                Label("Generate", systemImage: "sparkles")
-            }
-
-            Button { project.addEmptyTrack() } label: {
-                Label("Track", systemImage: "rectangle.stack.badge.plus")
-            }
-            .help("Add an empty track")
-
-            Menu {
-                Button("Audio file…") { project.requestImport() }
-                Button("From YouTube…") { project.activeSheet = .youtube }
-            } label: {
-                Label("Import", systemImage: "plus")
-            }
-            .frame(width: 76)
-
-            Button { project.activeSheet = .mixer } label: {
-                Label("Mixer", systemImage: "slider.vertical.3")
-            }
-            .help("Open the mixing console")
-
-            Menu {
-                Button("Mix → WAV…") { project.exportMixdown() }
-                Button("Mix → WAV (normalized)…") { project.exportMixdown(normalize: true) }
-                Button("Mix → AAC (.m4a)…") { project.exportMixdown(aac: true) }
-                Divider()
-                Button("Loop region → WAV…") { project.exportLoop() }
-                    .disabled(!project.loopActive)
-                Button("Each track (stems)…") { project.exportStems() }
-            } label: {
-                if project.isExporting {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                if !project.activeJobs.isEmpty {
+                    divider
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text(jobsSummary).font(.caption).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+                    }
                 }
             }
-            .frame(width: 76)
-            .disabled(project.tracks.isEmpty || project.isExporting)
-            .help("Bounce the mix (or the loop region) to WAV")
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private func iconButton(_ symbol: String, active: Bool = false, help: String,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).foregroundStyle(active ? Color.green : Color.primary)
+        }
+        .help(help)
+    }
+
+    private var divider: some View { Divider().frame(height: 18) }
+
+    @ViewBuilder
+    private func group<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        HStack(spacing: 6) { content() }
     }
 }
 
