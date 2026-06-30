@@ -54,8 +54,7 @@ struct GosanApp: App {
                     .disabled(project.selectedClipID == nil)
             }
             CommandMenu("Transport") {
-                Button(project.isPlaying ? "Stop" : "Play") { project.togglePlay() }
-                    .keyboardShortcut(.space, modifiers: [])
+                Button("\(project.isPlaying ? "Stop" : "Play")  (Space)") { project.togglePlay() }
                 Button("Return to Start") { project.seek(to: 0) }
                     .keyboardShortcut(.home, modifiers: [])
                 Button("Go to End") { project.seek(to: project.totalDuration) }

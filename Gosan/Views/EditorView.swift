@@ -7,6 +7,7 @@ struct EditorView: View {
     @EnvironmentObject var project: ProjectStore
     @EnvironmentObject var preview: PreviewPlayer
     @AppStorage("loopBrowserWidth") private var loopBrowserWidth = 290.0
+    @State private var spaceMonitorInstalled = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -81,7 +82,25 @@ struct EditorView: View {
         } message: {
             Text(project.infoMessage ?? "")
         }
-        .onAppear { project.restoreSessionIfAvailable() }
+        .onAppear {
+            project.restoreSessionIfAvailable()
+            installSpaceMonitor()
+        }
+    }
+
+    /// Spacebar toggles play/stop globally — unless you're actively editing a text field
+    /// (so renaming/typing still works). Also clears any auto-grabbed focus on launch so
+    /// the BPM field doesn't swallow the spacebar.
+    private func installSpaceMonitor() {
+        DispatchQueue.main.async { NSApp.keyWindow?.makeFirstResponder(nil) }
+        guard !spaceMonitorInstalled else { return }
+        spaceMonitorInstalled = true
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard event.keyCode == 49 else { return event }          // 49 = space
+            if NSApp.keyWindow?.firstResponder is NSTextView { return event }  // editing text
+            project.togglePlay()
+            return nil                                                // consume
+        }
     }
 }
 
