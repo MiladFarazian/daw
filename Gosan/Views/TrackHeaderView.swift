@@ -108,6 +108,19 @@ struct TrackHeaderView: View {
         .contextMenu {
             Button { draft = track.name; isEditing = true } label: { Label("Rename", systemImage: "pencil") }
             Button { project.duplicateTrack(track) } label: { Label("Duplicate Track", systemImage: "plus.square.on.square") }
+            Menu {
+                Button { project.createGroup(with: [track.id]) } label: { Label("New Group", systemImage: "rectangle.3.group") }
+                if !project.groups.isEmpty {
+                    Divider()
+                    ForEach(project.groups) { g in
+                        Button("Add to \(g.name)") { project.addToGroup(track, group: g) }
+                    }
+                }
+                if track.groupID != nil {
+                    Divider()
+                    Button("Remove from Group") { project.removeFromGroup(track) }
+                }
+            } label: { Label("Group", systemImage: "rectangle.3.group") }
             Button { project.moveTrack(track, by: -1) } label: { Label("Move Up", systemImage: "arrow.up") }
             Button { project.moveTrack(track, by: 1) } label: { Label("Move Down", systemImage: "arrow.down") }
             Menu {

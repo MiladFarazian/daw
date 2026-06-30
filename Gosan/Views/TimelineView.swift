@@ -8,12 +8,18 @@ struct TimelineView: View {
     private let headerWidth: CGFloat = 188
     private let rulerHeight: CGFloat = 26
     private let trackHeight: CGFloat = 96
+    private let groupRowHeight: CGFloat = 30
+
+    private func rowHeight(_ row: TimelineRow) -> CGFloat {
+        if case .group = row { return groupRowHeight } else { return trackHeight }
+    }
 
     var body: some View {
         let pps = project.pixelsPerSecond
         let contentWidth = max(1, CGFloat(project.totalDuration) * pps)
+        let rows = project.timelineRows
         // Explicit heights so the nested scroll layout stays unambiguous.
-        let lanesHeight = rulerHeight + 1 + CGFloat(project.tracks.count) * (trackHeight + 1)
+        let lanesHeight = rulerHeight + 1 + rows.reduce(0) { $0 + rowHeight($1) + 1 }
 
         ScrollView(.vertical, showsIndicators: true) {
             HStack(spacing: 0) {
@@ -21,9 +27,8 @@ struct TimelineView: View {
                 VStack(spacing: 0) {
                     Color.clear.frame(height: rulerHeight)
                     Divider()
-                    ForEach(project.tracks) { track in
-                        TrackHeaderView(track: track)
-                            .frame(height: trackHeight)
+                    ForEach(rows) { row in
+                        headerRow(row)
                         Divider()
                     }
                     Menu {
@@ -70,9 +75,8 @@ struct TimelineView: View {
                                     }
                                 )
                             Divider()
-                            ForEach(project.tracks) { track in
-                                ClipLaneView(track: track, pps: pps)
-                                    .frame(width: contentWidth, height: trackHeight)
+                            ForEach(rows) { row in
+                                laneRow(row, contentWidth: contentWidth, pps: pps)
                                 Divider()
                             }
                         }
@@ -99,6 +103,77 @@ struct TimelineView: View {
                     }
                     .frame(width: contentWidth, height: lanesHeight, alignment: .topLeading)
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func headerRow(_ row: TimelineRow) -> some View {
+        switch row {
+        case .group(let group):
+            GroupHeaderView(group: group).frame(height: groupRowHeight)
+        case .track(let track):
+            TrackHeaderView(track: track).frame(height: trackHeight)
+        }
+    }
+
+    @ViewBuilder
+    private func laneRow(_ row: TimelineRow, contentWidth: CGFloat, pps: Double) -> some View {
+        switch row {
+        case .group(let group):
+            Rectangle()
+                .fill(Palette.color(group.colorIndex).opacity(0.12))
+                .frame(width: contentWidth, height: groupRowHeight)
+        case .track(let track):
+            ClipLaneView(track: track, pps: pps)
+                .frame(width: contentWidth, height: trackHeight)
+        }
+    }
+}
+
+/// A group header row in the track column: collapse, color, name, volume, M/S.
+struct GroupHeaderView: View {
+    @EnvironmentObject var project: ProjectStore
+    let group: TrackGroup
+    @State private var isEditing = false
+    @State private var draft = ""
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Button { project.toggleGroupCollapse(group) } label: {
+                Image(systemName: group.collapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .buttonStyle(.borderless)
+
+            RoundedRectangle(cornerRadius: 2).fill(Palette.color(group.colorIndex)).frame(width: 5, height: 18)
+
+            if isEditing {
+                TextField("Name", text: $draft)
+                    .textFieldStyle(.plain).font(.system(size: 11, weight: .semibold))
+                    .onSubmit { project.renameGroup(group, to: draft); isEditing = false }
+            } else {
+                Text(group.name)
+                    .font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                    .onTapGesture(count: 2) { draft = group.name; isEditing = true }
+            }
+
+            Slider(value: Binding(get: { Double(group.volume) },
+                                  set: { project.setGroupVolume(group, Float($0)) }), in: 0...1)
+                .controlSize(.mini).frame(width: 50).help("Group volume")
+
+            Toggle("M", isOn: Binding(get: { group.muted }, set: { _ in project.toggleGroupMute(group) }))
+                .toggleStyle(.button).controlSize(.mini).help("Mute group")
+            Toggle("S", isOn: Binding(get: { group.soloed }, set: { _ in project.toggleGroupSolo(group) }))
+                .toggleStyle(.button).controlSize(.mini).tint(.yellow).help("Solo group")
+        }
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Palette.color(group.colorIndex).opacity(0.20))
+        .contextMenu {
+            Button { draft = group.name; isEditing = true } label: { Label("Rename Group", systemImage: "pencil") }
+            Button(role: .destructive) { project.ungroup(group) } label: {
+                Label("Ungroup", systemImage: "rectangle.split.3x1")
             }
         }
     }
