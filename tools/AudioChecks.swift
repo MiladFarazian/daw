@@ -292,6 +292,14 @@ struct AudioChecks {
         check("musical typing maps keys to MIDI pitches",
               mtA == 60 && mtJ == 71 && mtAup == 72 && MusicalTyping.pitch(keyCode: 99, octave: 4) == nil)
 
+        // W6) Drum preset: "Four on the Floor" puts a kick on each beat.
+        let fourFloor = DrumPatterns.all.first { $0.name == "Four on the Floor" }!
+        let beat = DrumPatterns.notes(fourFloor, bars: 1, stepDur: 0.1)
+        let kicks = beat.filter { $0.pitch == 36 }.map(\.start).sorted()
+        print("   (four-on-floor kicks at: \(kicks))")
+        check("drum preset lays a kick on every beat",
+              kicks.count == 4 && abs(kicks[1] - 0.4) < 0.001 && abs(kicks[3] - 1.2) < 0.001)
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

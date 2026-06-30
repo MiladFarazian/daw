@@ -195,6 +195,13 @@ final class ProjectStore: ObservableObject {
         if !tracks.isEmpty { play() }   // roll the project so you can play along
     }
 
+    /// Fill a drum track with a preset beat pattern (replaces its notes).
+    func applyDrumPattern(on track: Track, _ preset: DrumPreset, bars: Int, stepDur: TimeInterval) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
+        tracks[ti].notes = DrumPatterns.notes(preset, bars: bars, stepDur: stepDur)
+    }
+
     /// Snap an instrument track's note starts to a grid (seconds).
     func quantizeNotes(on track: Track, to grid: TimeInterval) {
         guard grid > 0, let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }

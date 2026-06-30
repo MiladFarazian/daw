@@ -195,6 +195,36 @@ func chordProgression(root: Int, scale: MusicScale, degrees: [Int],
     return notes
 }
 
+/// A named drum-machine preset: which GM drum hits land on which 16th steps (per bar).
+struct DrumPreset { let name: String; let hits: [(pitch: Int, steps: [Int])] }
+
+enum DrumPatterns {
+    // GM drums: 36 kick, 38 snare, 39 clap, 42 closed hat, 46 open hat, 56 cowbell.
+    static let all: [DrumPreset] = [
+        DrumPreset(name: "Four on the Floor", hits: [(36, [0, 4, 8, 12]), (39, [4, 12]), (42, [2, 6, 10, 14]), (46, [14])]),
+        DrumPreset(name: "Boom Bap", hits: [(36, [0, 10]), (38, [4, 12]), (42, [0, 2, 4, 6, 8, 10, 12, 14])]),
+        DrumPreset(name: "Trap", hits: [(36, [0, 6, 11]), (38, [8]), (42, [0, 2, 4, 6, 8, 10, 12, 13, 14, 15])]),
+        DrumPreset(name: "Rock", hits: [(36, [0, 8]), (38, [4, 12]), (42, [0, 2, 4, 6, 8, 10, 12, 14])]),
+        DrumPreset(name: "Disco", hits: [(36, [0, 4, 8, 12]), (38, [4, 12]), (46, [2, 6, 10, 14]), (42, [0, 4, 8, 12])]),
+        DrumPreset(name: "Afro House", hits: [(36, [0, 3, 6, 10]), (39, [4, 12]), (42, [2, 6, 10, 14]), (56, [1, 5, 9, 13])])
+    ]
+
+    /// Generate notes for a preset, tiled across `bars` (16 steps per bar).
+    static func notes(_ preset: DrumPreset, bars: Int, stepDur: TimeInterval) -> [MIDINote] {
+        var result: [MIDINote] = []
+        for bar in 0..<max(1, bars) {
+            let base = Double(bar * 16) * stepDur
+            for hit in preset.hits {
+                for step in hit.steps {
+                    result.append(MIDINote(pitch: hit.pitch, start: base + Double(step) * stepDur,
+                                           duration: stepDur * 0.9, velocity: 110))
+                }
+            }
+        }
+        return result
+    }
+}
+
 enum ArpPattern { case up, down, upDown }
 
 /// Turn chords (notes sharing a start) into an arpeggio: single notes cycling the
