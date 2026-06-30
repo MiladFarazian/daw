@@ -14,6 +14,17 @@ struct ProjectDocument: Codable {
     var masterEqHigh: Float = 0
     var masterVolume: Float = 1.0
     var beatsPerBar: Int = 4
+    var groups: [GroupData] = []
+
+    struct GroupData: Codable {
+        var id: UUID
+        var name: String
+        var colorIndex: Int
+        var collapsed: Bool = false
+        var volume: Float = 1.0
+        var muted: Bool = false
+        var soloed: Bool = false
+    }
 
     struct TrackData: Codable {
         var name: String
@@ -28,6 +39,7 @@ struct ProjectDocument: Codable {
         var eqHigh: Float = 0
         var isMuted: Bool
         var isSoloed: Bool
+        var groupID: UUID? = nil
         var clips: [ClipData]
         var isInstrument: Bool = false
         var isDrumKit: Bool = false

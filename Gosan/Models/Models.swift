@@ -87,11 +87,43 @@ struct PluginRef: Identifiable, Equatable, Codable {
     var stateData: Data?            // archived full-state (kAudioUnitProperty_ClassInfo)
 }
 
+/// One row in the timeline: a group header or a track lane (so the header column
+/// and the lane area iterate the same list and stay aligned).
+enum TimelineRow: Identifiable {
+    case group(TrackGroup)
+    case track(Track)
+
+    var id: String {
+        switch self {
+        case .group(let g): return "g-\(g.id.uuidString)"
+        case .track(let t): return "t-\(t.id.uuidString)"
+        }
+    }
+}
+
+/// A folder grouping several tracks, with bus-style controls.
+struct TrackGroup: Identifiable, Equatable {
+    let id: UUID
+    var name: String
+    var colorIndex: Int
+    var collapsed = false
+    var volume: Float = 1.0   // multiplies member volumes
+    var muted = false
+    var soloed = false
+
+    init(id: UUID = UUID(), name: String, colorIndex: Int) {
+        self.id = id
+        self.name = name
+        self.colorIndex = colorIndex
+    }
+}
+
 /// One horizontal lane with its own mixer settings.
 struct Track: Identifiable {
     let id = UUID()
     var name: String
     var colorIndex: Int
+    var groupID: UUID?
     var volume: Float = 0.8
     var pan: Float = 0
     var reverb: Float = 0        // 0...1 reverb send

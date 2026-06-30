@@ -22,6 +22,7 @@ final class ProjectStore: ObservableObject {
     @Published var infoMessage: String?   // friendly, non-error notice (e.g. opened Suno manually)
     @Published var activeSheet: EditorSheet?
     @Published var showLoopBrowser = false
+    @Published var groups: [TrackGroup] = []
 
     // Suno generation state.
     @Published var isGenerating = false
@@ -38,8 +39,8 @@ final class ProjectStore: ObservableObject {
     @Published var clipboard: Clip?
     @Published private(set) var canUndo = false
     @Published private(set) var canRedo = false
-    private var undoStack: [[Track]] = []
-    private var redoStack: [[Track]] = []
+    private var undoStack: [(tracks: [Track], groups: [TrackGroup])] = []
+    private var redoStack: [(tracks: [Track], groups: [TrackGroup])] = []
 
     @Published var loopEnabled = false
     @Published var loopStart: TimeInterval = 0
@@ -267,7 +268,7 @@ final class ProjectStore: ObservableObject {
         guard let index = tracks.firstIndex(where: { $0.id == toTrackID }) else { return }
         recordUndo()
         tracks[index].clips.append(Clip(asset: asset, startTime: position))
-        engine.prepare(tracks: tracks)
+        engine.prepare(tracks: effectiveTracks())
     }
 
     // MARK: - Recording
@@ -321,7 +322,7 @@ final class ProjectStore: ObservableObject {
         var track = Track(name: name, colorIndex: tracks.count)
         track.clips = [Clip(asset: asset, startTime: position)]
         tracks.append(track)
-        engine.prepare(tracks: tracks)
+        engine.prepare(tracks: effectiveTracks())
     }
 
     // MARK: - AI (Music.ai)
@@ -566,7 +567,7 @@ final class ProjectStore: ObservableObject {
         guard !tracks.isEmpty else { return }
         if currentTime >= totalDuration { currentTime = 0 }
         let base = currentTime
-        engine.play(tracks: tracks, from: base, metronome: metronomeEnabled, tempo: tempo, beatsPerBar: beatsPerBar)
+        engine.play(tracks: effectiveTracks(), from: base, metronome: metronomeEnabled, tempo: tempo, beatsPerBar: beatsPerBar)
         isPlaying = true
 
         let startedAt = Date()
@@ -575,7 +576,7 @@ final class ProjectStore: ObservableObject {
             Task { @MainActor in
                 guard let self, self.isPlaying else { return }
                 self.currentTime = base + Date().timeIntervalSince(startedAt)
-                self.engine.applyAutomation(tracks: self.tracks, at: self.currentTime)
+                self.engine.applyAutomation(tracks: self.effectiveTracks(), at: self.currentTime)
                 if self.loopActive && self.currentTime >= self.loopEnd {
                     self.seek(to: self.loopStart) // restarts playback from the loop start
                 } else if self.currentTime >= self.totalDuration {
@@ -645,7 +646,7 @@ final class ProjectStore: ObservableObject {
     private func mutate(_ track: Track, _ change: (inout Track) -> Void) {
         guard let index = tracks.firstIndex(where: { $0.id == track.id }) else { return }
         change(&tracks[index])
-        engine.applyMix(tracks: tracks)
+        engine.applyMix(tracks: effectiveTracks())
     }
 
     func deleteTrack(_ track: Track) {
@@ -657,15 +658,103 @@ final class ProjectStore: ObservableObject {
         recordUndo()
         let track = Track(name: "Track \(tracks.count + 1)", colorIndex: tracks.count)
         tracks.append(track)
-        engine.prepare(tracks: tracks)
+        engine.prepare(tracks: effectiveTracks())
     }
+
+    // MARK: - Track groups
+
+    func group(for track: Track) -> TrackGroup? {
+        guard let gid = track.groupID else { return nil }
+        return groups.first { $0.id == gid }
+    }
+
+    /// The ordered timeline rows: each group header followed by its (expanded) members,
+    /// with ungrouped tracks inline. Header column + lane area both iterate this.
+    var timelineRows: [TimelineRow] {
+        guard !groups.isEmpty else { return tracks.map { .track($0) } }
+        var rows: [TimelineRow] = []
+        var emitted = Set<UUID>()
+        for track in tracks {
+            if let gid = track.groupID, let g = groups.first(where: { $0.id == gid }) {
+                if emitted.insert(gid).inserted {
+                    rows.append(.group(g))
+                    if !g.collapsed {
+                        rows.append(contentsOf: tracks.filter { $0.groupID == gid }.map { .track($0) })
+                    }
+                }
+            } else {
+                rows.append(.track(track))
+            }
+        }
+        return rows
+    }
+
+    /// Tracks with group volume/mute/solo baked into their own fields (for the audio engine).
+    func effectiveTracks() -> [Track] {
+        guard !groups.isEmpty else { return tracks }
+        return tracks.map { track in
+            guard let gid = track.groupID, let g = groups.first(where: { $0.id == gid }) else { return track }
+            var t = track
+            t.volume = track.volume * g.volume
+            t.isMuted = track.isMuted || g.muted
+            t.isSoloed = track.isSoloed || g.soloed
+            return t
+        }
+    }
+
+    private func refreshMix() { engine.applyMix(tracks: effectiveTracks()) }
+
+    func createGroup(with trackIDs: [UUID], name: String? = nil) {
+        guard !trackIDs.isEmpty else { return }
+        recordUndo()
+        let group = TrackGroup(name: name ?? "Group \(groups.count + 1)", colorIndex: groups.count)
+        groups.append(group)
+        for i in tracks.indices where trackIDs.contains(tracks[i].id) { tracks[i].groupID = group.id }
+        refreshMix()
+    }
+
+    func ungroup(_ group: TrackGroup) {
+        recordUndo()
+        for i in tracks.indices where tracks[i].groupID == group.id { tracks[i].groupID = nil }
+        groups.removeAll { $0.id == group.id }
+        refreshMix()
+    }
+
+    func addToGroup(_ track: Track, group: TrackGroup) {
+        guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
+        tracks[i].groupID = group.id
+        refreshMix()
+    }
+
+    func removeFromGroup(_ track: Track) {
+        guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
+        tracks[i].groupID = nil
+        refreshMix()
+    }
+
+    private func mutateGroup(_ group: TrackGroup, _ change: (inout TrackGroup) -> Void) {
+        guard let i = groups.firstIndex(where: { $0.id == group.id }) else { return }
+        change(&groups[i])
+    }
+
+    func toggleGroupCollapse(_ group: TrackGroup) { mutateGroup(group) { $0.collapsed.toggle() } }
+    func renameGroup(_ group: TrackGroup, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        mutateGroup(group) { $0.name = trimmed }
+    }
+    func setGroupVolume(_ group: TrackGroup, _ v: Float) { mutateGroup(group) { $0.volume = v }; refreshMix() }
+    func toggleGroupMute(_ group: TrackGroup) { recordUndo(); mutateGroup(group) { $0.muted.toggle() }; refreshMix() }
+    func toggleGroupSolo(_ group: TrackGroup) { recordUndo(); mutateGroup(group) { $0.soloed.toggle() }; refreshMix() }
 
     func addInstrumentTrack() {
         recordUndo()
         var track = Track(name: "Instrument \(tracks.count + 1)", colorIndex: tracks.count)
         track.isInstrument = true
         tracks.append(track)
-        engine.prepare(tracks: tracks)
+        engine.prepare(tracks: effectiveTracks())
     }
 
     @discardableResult
@@ -675,7 +764,7 @@ final class ProjectStore: ObservableObject {
         track.isInstrument = true
         track.isDrumKit = true
         tracks.append(track)
-        engine.prepare(tracks: tracks)
+        engine.prepare(tracks: effectiveTracks())
         return track.id
     }
 
@@ -845,7 +934,7 @@ final class ProjectStore: ObservableObject {
         recordUndo()
         tracks[i][keyPath: lane] = []
         // Restore the static mixer value once automation is gone.
-        engine.applyMix(tracks: tracks)
+        engine.applyMix(tracks: effectiveTracks())
     }
 
     // MARK: - Plugins (Audio Unit inserts)
@@ -872,7 +961,7 @@ final class ProjectStore: ObservableObject {
     /// Copy of `tracks` with each plugin's stateData refreshed from its live AU instance
     /// (so export honors knob tweaks made in plugin windows).
     private func tracksWithLivePluginState() -> [Track] {
-        tracks.map { track in
+        effectiveTracks().map { track in
             guard !track.plugins.isEmpty else { return track }
             var t = track
             t.plugins = track.plugins.enumerated().map { idx, ref in
@@ -925,7 +1014,7 @@ final class ProjectStore: ObservableObject {
             let track = Track(name: name, colorIndex: tracks.count)
             tracks.append(track)
         }
-        engine.prepare(tracks: tracks)
+        engine.prepare(tracks: effectiveTracks())
     }
 
     /// Deep-copy a track (fresh ids, same effect settings + clips) below the original.
@@ -939,7 +1028,7 @@ final class ProjectStore: ObservableObject {
         copy.isMuted = track.isMuted; copy.isSoloed = track.isSoloed
         copy.clips = track.clips.map { pastedCopy(of: $0, at: $0.startTime) }
         tracks.insert(copy, at: i + 1)
-        engine.prepare(tracks: tracks)
+        engine.prepare(tracks: effectiveTracks())
     }
 
     func renameTrack(_ track: Track, to name: String) {
@@ -969,7 +1058,7 @@ final class ProjectStore: ObservableObject {
     // MARK: - Undo / redo (snapshots of the track state)
 
     private func recordUndo() {
-        undoStack.append(tracks)
+        undoStack.append((tracks, groups))
         if undoStack.count > 100 { undoStack.removeFirst() }
         redoStack.removeAll()
         canUndo = true
@@ -978,26 +1067,27 @@ final class ProjectStore: ObservableObject {
 
     func undo() {
         guard let previous = undoStack.popLast() else { return }
-        redoStack.append(tracks)
-        applyTrackState(previous)
+        redoStack.append((tracks, groups))
+        applyTrackState(previous.tracks, previous.groups)
         canUndo = !undoStack.isEmpty
         canRedo = true
     }
 
     func redo() {
         guard let next = redoStack.popLast() else { return }
-        undoStack.append(tracks)
-        applyTrackState(next)
+        undoStack.append((tracks, groups))
+        applyTrackState(next.tracks, next.groups)
         canUndo = true
         canRedo = !redoStack.isEmpty
     }
 
-    private func applyTrackState(_ newTracks: [Track]) {
+    private func applyTrackState(_ newTracks: [Track], _ newGroups: [TrackGroup]) {
         stop()
         selectedClipID = nil
         tracks = newTracks
+        groups = newGroups
         engine.reset()
-        engine.prepare(tracks: newTracks)
+        engine.prepare(tracks: effectiveTracks())
     }
 
     /// Snap a time to the nearest grid division when snapping is on.
@@ -1224,7 +1314,7 @@ final class ProjectStore: ObservableObject {
                     $0.offset = 0
                     $0.duration = asset.duration
                 }
-                self.engine.prepare(tracks: self.tracks)
+                self.engine.prepare(tracks: self.effectiveTracks())
             }
         }
     }
@@ -1251,7 +1341,7 @@ final class ProjectStore: ObservableObject {
                     $0.offset = 0
                     $0.duration = min(asset.duration, keepDuration)
                 }
-                self.engine.prepare(tracks: self.tracks)
+                self.engine.prepare(tracks: self.effectiveTracks())
                 self.isImporting = false
             }
         }
@@ -1273,7 +1363,7 @@ final class ProjectStore: ObservableObject {
                     $0.offset = 0
                     $0.duration = asset.duration
                 }
-                self.engine.prepare(tracks: self.tracks)
+                self.engine.prepare(tracks: self.effectiveTracks())
             }
         }
     }
@@ -1301,7 +1391,7 @@ final class ProjectStore: ObservableObject {
               let index = tracks.firstIndex(where: { $0.id == track.id }) else { return }
         recordUndo()
         tracks[index].clips.append(pastedCopy(of: source, at: currentTime))
-        engine.prepare(tracks: tracks)
+        engine.prepare(tracks: effectiveTracks())
     }
 
     private func pastedCopy(of clip: Clip, at start: TimeInterval) -> Clip {
@@ -1424,6 +1514,7 @@ final class ProjectStore: ObservableObject {
         stop()
         engine.reset()
         tracks = []
+        groups = []
         candidates = []
         markers = []
         setMasterEQ(low: 0, mid: 0, high: 0)
@@ -1528,7 +1619,7 @@ final class ProjectStore: ObservableObject {
                     volume: track.volume, pan: track.pan, reverb: track.reverb,
                     delay: track.delay, compress: track.compress,
                     eqLow: track.eqLow, eqMid: track.eqMid, eqHigh: track.eqHigh,
-                    isMuted: track.isMuted, isSoloed: track.isSoloed,
+                    isMuted: track.isMuted, isSoloed: track.isSoloed, groupID: track.groupID,
                     clips: track.clips.map { clip in
                         ProjectDocument.ClipData(
                             assetFile: absolutePaths ? clip.asset.url.path : clip.asset.url.lastPathComponent,
@@ -1560,7 +1651,12 @@ final class ProjectStore: ObservableObject {
             markers: markers,
             masterEqLow: masterEqLow, masterEqMid: masterEqMid, masterEqHigh: masterEqHigh,
             masterVolume: masterVolume,
-            beatsPerBar: beatsPerBar)
+            beatsPerBar: beatsPerBar,
+            groups: groups.map {
+                ProjectDocument.GroupData(id: $0.id, name: $0.name, colorIndex: $0.colorIndex,
+                                          collapsed: $0.collapsed, volume: $0.volume,
+                                          muted: $0.muted, soloed: $0.soloed)
+            })
     }
 
     private func applyDocument(_ document: ProjectDocument, audioDir: URL?) async {
@@ -1581,6 +1677,7 @@ final class ProjectStore: ObservableObject {
             track.eqHigh = trackData.eqHigh
             track.isMuted = trackData.isMuted
             track.isSoloed = trackData.isSoloed
+            track.groupID = trackData.groupID
             track.isInstrument = trackData.isInstrument
             track.isDrumKit = trackData.isDrumKit
             track.program = trackData.program
@@ -1640,8 +1737,13 @@ final class ProjectStore: ObservableObject {
         setMasterEQ(low: document.masterEqLow, mid: document.masterEqMid, high: document.masterEqHigh)
         setMasterVolume(document.masterVolume)
         beatsPerBar = max(1, document.beatsPerBar)
+        groups = document.groups.map {
+            var g = TrackGroup(id: $0.id, name: $0.name, colorIndex: $0.colorIndex)
+            g.collapsed = $0.collapsed; g.volume = $0.volume; g.muted = $0.muted; g.soloed = $0.soloed
+            return g
+        }
         currentTime = 0
         tracks = rebuilt
-        engine.prepare(tracks: rebuilt)
+        engine.prepare(tracks: effectiveTracks())
     }
 }

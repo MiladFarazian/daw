@@ -33,7 +33,7 @@ struct TransportBar: View {
                     Button { project.togglePlay() } label: {
                         Image(systemName: project.isPlaying ? "stop.fill" : "play.fill").frame(width: 16)
                     }
-                    .keyboardShortcut(.space, modifiers: []).help(project.isPlaying ? "Stop" : "Play")
+                    .help(project.isPlaying ? "Stop" : "Play")   // Space is bound in the Transport menu
                     Button { project.toggleRecord() } label: {
                         let recording = recorder.isRecording || project.isRecordingMIDI
                         Image(systemName: recording ? "stop.circle.fill" : "record.circle")
@@ -169,6 +169,10 @@ struct TransportBar: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
         }
+        // Hug the content's height — otherwise the horizontal ScrollView grabs vertical
+        // space and squishes the timeline.
+        .frame(height: 50)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
