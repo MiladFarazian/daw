@@ -182,9 +182,9 @@ final class AudioEngine {
             nodes[track.id] = TrackNode(player: player, synth: synth, mixer: mixer, eq: eq,
                                         comp: comp, reverb: reverb, delay: delay, plugins: pluginNodes)
 
-            // Post-effects level meter for this track.
+            // Post-everything level meter for this track (tail = last plugin, or delay).
             let id = track.id
-            delay.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
+            tail.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
                 guard let channels = buffer.floatChannelData else { return }
                 let n = Int(buffer.frameLength)
                 var peak: Float = 0
@@ -358,7 +358,7 @@ final class AudioEngine {
     func reset() {
         stop()
         for node in nodes.values {
-            node.delay.removeTap(onBus: 0)
+            (node.plugins.last ?? node.delay).removeTap(onBus: 0)
             var units: [AVAudioNode] = [node.mixer, node.eq, node.comp, node.reverb, node.delay]
             if let player = node.player { units.append(player) }
             if let synth = node.synth { units.append(synth) }
