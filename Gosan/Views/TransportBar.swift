@@ -46,6 +46,10 @@ struct TransportBar: View {
                     iconButton("timer", active: project.countInEnabled, help: "1-bar count-in") {
                         project.countInEnabled.toggle()
                     }
+                    iconButton("pianokeys", active: project.musicalTypingEnabled,
+                               help: "Musical Typing — play instruments from your keyboard (A=C, W=C#, S=D…; Z/X octave)") {
+                        project.toggleMusicalTyping()
+                    }
                     if recorder.isRecording {
                         InputLevelMeter(level: recorder.inputLevel).frame(width: 42, height: 6)
                     }

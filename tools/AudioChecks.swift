@@ -284,6 +284,14 @@ struct AudioChecks {
         check("chord generator builds correct triads",
               cMajorI.map(\.pitch) == [60, 64, 67] && aMinorI.map(\.pitch) == [69, 72, 76])
 
+        // W5) Musical typing maps the keyboard to MIDI (A=C4=60, J=B4=71 at octave 4).
+        let mtA = MusicalTyping.pitch(keyCode: 0, octave: 4)     // A → C4
+        let mtJ = MusicalTyping.pitch(keyCode: 38, octave: 4)    // J → B4
+        let mtAup = MusicalTyping.pitch(keyCode: 0, octave: 5)   // A at octave 5 → C5
+        print("   (musical typing: A=\(mtA ?? -1), J=\(mtJ ?? -1), A@oct5=\(mtAup ?? -1))")
+        check("musical typing maps keys to MIDI pitches",
+              mtA == 60 && mtJ == 71 && mtAup == 72 && MusicalTyping.pitch(keyCode: 99, octave: 4) == nil)
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

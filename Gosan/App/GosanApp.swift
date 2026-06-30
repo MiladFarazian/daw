@@ -73,6 +73,10 @@ struct GosanApp: App {
                 .keyboardShortcut("k", modifiers: .command)
                 Button("Open Mixer") { project.activeSheet = .mixer }
                     .keyboardShortcut("m", modifiers: [.command, .shift])
+                Button(project.musicalTypingEnabled ? "Musical Typing: On" : "Musical Typing: Off") {
+                    project.toggleMusicalTyping()
+                }
+                .keyboardShortcut("k", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .newItem) {
                 Button("New Project") { project.newProject() }

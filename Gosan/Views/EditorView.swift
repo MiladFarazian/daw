@@ -95,11 +95,23 @@ struct EditorView: View {
         DispatchQueue.main.async { NSApp.keyWindow?.makeFirstResponder(nil) }
         guard !spaceMonitorInstalled else { return }
         spaceMonitorInstalled = true
-        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            guard event.keyCode == 49 else { return event }          // 49 = space
-            if NSApp.keyWindow?.firstResponder is NSTextView { return event }  // editing text
-            project.togglePlay()
-            return nil                                                // consume
+        NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { event in
+            let editingText = NSApp.keyWindow?.firstResponder is NSTextView
+            // Spacebar → transport (keyDown only).
+            if event.type == .keyDown, event.keyCode == 49, !editingText {
+                project.togglePlay()
+                return nil
+            }
+            // Musical Typing → play the armed instrument from the computer keyboard.
+            if project.musicalTypingEnabled, !editingText {
+                if event.type == .keyDown {
+                    if event.isARepeat { return MusicalTyping.isMusicalKey(event.keyCode) ? nil : event }
+                    if project.playMusicalKey(keyCode: event.keyCode, on: true) { return nil }
+                } else if event.type == .keyUp {
+                    if project.playMusicalKey(keyCode: event.keyCode, on: false) { return nil }
+                }
+            }
+            return event
         }
     }
 }

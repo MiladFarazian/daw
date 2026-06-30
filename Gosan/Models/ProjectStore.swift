@@ -93,6 +93,8 @@ final class ProjectStore: ObservableObject {
     // MIDI input / recording
     private let midiInput = MIDIInput()
     @Published var midiConnected = false
+    @Published var musicalTypingEnabled = false
+    @Published var musicalTypingOctave = 4
     @Published var armedTrackID: UUID?            // instrument track receiving live MIDI
     @Published private(set) var isRecordingMIDI = false
     private var midiNoteStarts: [Int: TimeInterval] = [:]
@@ -126,6 +128,31 @@ final class ProjectStore: ObservableObject {
     func armTrack(_ track: Track) {
         guard track.isInstrument else { return }
         armedTrackID = (armedTrackID == track.id) ? nil : track.id
+    }
+
+    /// Toggle Musical Typing; auto-arm the first instrument track so keys make sound.
+    func toggleMusicalTyping() {
+        musicalTypingEnabled.toggle()
+        if musicalTypingEnabled, armedTrackID == nil,
+           let inst = tracks.first(where: { $0.isInstrument }) {
+            armedTrackID = inst.id
+        }
+    }
+
+    /// Handle a computer-keyboard key for Musical Typing. Returns true if it was a
+    /// musical key (so the caller consumes the event).
+    func playMusicalKey(keyCode: UInt16, on: Bool) -> Bool {
+        if keyCode == MusicalTyping.octaveDownKey {
+            if on { musicalTypingOctave = max(0, musicalTypingOctave - 1) }
+            return true
+        }
+        if keyCode == MusicalTyping.octaveUpKey {
+            if on { musicalTypingOctave = min(8, musicalTypingOctave + 1) }
+            return true
+        }
+        guard let pitch = MusicalTyping.pitch(keyCode: keyCode, octave: musicalTypingOctave) else { return false }
+        handleIncomingMIDI(isOn: on, pitch: pitch, velocity: 100)
+        return true
     }
 
     private func handleIncomingMIDI(isOn: Bool, pitch: Int, velocity: Int) {
