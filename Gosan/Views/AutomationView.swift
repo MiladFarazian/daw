@@ -29,6 +29,10 @@ struct AutomationView: View {
                              points: track.volumeAutomation, track: track)
                         lane("Pan (L … R)", lane: \.panAutomation, range: -1...1, defaultValue: track.pan,
                              points: track.panAutomation, track: track)
+                        lane("Reverb", lane: \.reverbAutomation, range: 0...1, defaultValue: track.reverb,
+                             points: track.reverbAutomation, track: track)
+                        lane("Delay", lane: \.delayAutomation, range: 0...1, defaultValue: track.delay,
+                             points: track.delayAutomation, track: track)
                     }
                 }
                 .padding(12)

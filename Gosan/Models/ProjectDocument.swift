@@ -34,6 +34,8 @@ struct ProjectDocument: Codable {
         var notes: [NoteData] = []
         var volumeAutomation: [PointData] = []
         var panAutomation: [PointData] = []
+        var reverbAutomation: [PointData] = []
+        var delayAutomation: [PointData] = []
         var plugins: [PluginRef] = []
     }
 

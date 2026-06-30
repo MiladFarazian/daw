@@ -1433,6 +1433,8 @@ final class ProjectStore: ObservableObject {
                     },
                     volumeAutomation: track.volumeAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
                     panAutomation: track.panAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
+                    reverbAutomation: track.reverbAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
+                    delayAutomation: track.delayAutomation.map { ProjectDocument.PointData(time: $0.time, value: $0.value) },
                     plugins: track.plugins.enumerated().map { idx, ref in
                         var r = ref
                         if let data = engine.pluginState(trackID: track.id, index: idx) { r.stateData = data }
@@ -1470,6 +1472,8 @@ final class ProjectStore: ObservableObject {
             }
             track.volumeAutomation = trackData.volumeAutomation.map { AutomationPoint(time: $0.time, value: $0.value) }
             track.panAutomation = trackData.panAutomation.map { AutomationPoint(time: $0.time, value: $0.value) }
+            track.reverbAutomation = trackData.reverbAutomation.map { AutomationPoint(time: $0.time, value: $0.value) }
+            track.delayAutomation = trackData.delayAutomation.map { AutomationPoint(time: $0.time, value: $0.value) }
             track.plugins = trackData.plugins
 
             var clips: [Clip] = []

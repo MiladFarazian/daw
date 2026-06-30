@@ -112,6 +112,8 @@ struct Track: Identifiable {
     // Automation envelopes (empty = no automation; values 0...1 for volume, -1...1 for pan)
     var volumeAutomation: [AutomationPoint] = []
     var panAutomation: [AutomationPoint] = []
+    var reverbAutomation: [AutomationPoint] = []   // 0...1 reverb send
+    var delayAutomation: [AutomationPoint] = []    // 0...1 delay send
 
     // Insert effects (Audio Unit plugins), in chain order
     var plugins: [PluginRef] = []

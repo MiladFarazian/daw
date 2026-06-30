@@ -242,8 +242,7 @@ final class AudioEngine {
     func applyAutomation(tracks: [Track], at time: TimeInterval) {
         let soloing = tracks.contains { $0.isSoloed }
         for track in tracks {
-            guard let node = nodes[track.id],
-                  !track.volumeAutomation.isEmpty || !track.panAutomation.isEmpty else { continue }
+            guard let node = nodes[track.id] else { continue }
             let audible = soloing ? track.isSoloed : !track.isMuted
             if !track.volumeAutomation.isEmpty {
                 node.mixer.outputVolume = audible
@@ -251,6 +250,12 @@ final class AudioEngine {
             }
             if !track.panAutomation.isEmpty {
                 node.mixer.pan = automationValue(track.panAutomation, at: time, default: track.pan)
+            }
+            if !track.reverbAutomation.isEmpty {
+                node.reverb.wetDryMix = automationValue(track.reverbAutomation, at: time, default: track.reverb) * 100
+            }
+            if !track.delayAutomation.isEmpty {
+                node.delay.wetDryMix = automationValue(track.delayAutomation, at: time, default: track.delay) * 100
             }
         }
     }
