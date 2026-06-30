@@ -19,7 +19,7 @@ struct TrackHeaderView: View {
                 )
                 .shadow(color: .black.opacity(0.15), radius: 1, y: 0.5)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 5) {
                 if isEditing {
                     TextField("Name", text: $draft)
                         .textFieldStyle(.plain)
@@ -31,6 +31,14 @@ struct TrackHeaderView: View {
                         .lineLimit(1)
                         .onTapGesture(count: 2) { draft = track.name; isEditing = true }
                         .help("Double-click to rename")
+                }
+                if track.isInstrument {
+                    Button { project.activeSheet = .pianoRoll(track.id) } label: {
+                        Text(PianoRollView.programName(track.program))
+                            .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Edit notes / change sound")
                 }
 
                 HStack(spacing: 6) {

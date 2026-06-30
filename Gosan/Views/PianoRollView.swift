@@ -12,6 +12,7 @@ struct PianoRollView: View {
     private let rowHeight: CGFloat = 16
     private let pps: CGFloat = 120     // pixels per second
     @State private var noteBeats = 1.0 // note length in beats (1 = quarter)
+    @State private var newVelocity = 100.0
 
     private var track: Track? { project.tracks.first { $0.id == trackID } }
     private var pitches: [Int] { Array((lowPitch...highPitch).reversed()) }   // high pitch on top
@@ -37,6 +38,12 @@ struct PianoRollView: View {
                     Text("1/2").tag(2.0); Text("Whole").tag(4.0)
                 }
                 .frame(width: 130)
+                HStack(spacing: 4) {
+                    Image(systemName: "speaker.wave.2.fill").font(.caption2).foregroundStyle(.secondary)
+                    Slider(value: $newVelocity, in: 1...127).frame(width: 80)
+                    Text("\(Int(newVelocity))").font(.caption.monospacedDigit()).frame(width: 26)
+                }
+                .help("Velocity for new notes")
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
             .padding(12)
@@ -69,7 +76,8 @@ struct PianoRollView: View {
                         guard let track else { return }
                         let t = max(0, (Double(value.location.x / pps) / snapSec).rounded(.down) * snapSec)
                         project.addNote(MIDINote(pitch: pitch, start: t,
-                                                 duration: noteBeats * secPerBeat), to: track)
+                                                 duration: noteBeats * secPerBeat,
+                                                 velocity: Int(newVelocity)), to: track)
                         project.auditionNote(track, pitch: pitch)
                     })
                 }
@@ -94,20 +102,76 @@ struct PianoRollView: View {
 
             if let track {
                 ForEach(track.notes) { note in
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.accentColor)
-                        .overlay(RoundedRectangle(cornerRadius: 3).stroke(Color.black.opacity(0.25)))
-                        .frame(width: max(5, CGFloat(note.duration) * pps), height: rowHeight - 2)
-                        .offset(x: CGFloat(note.start) * pps,
-                                y: CGFloat(highPitch - note.pitch) * rowHeight + 1)
-                        .onTapGesture { project.deleteNote(note, from: track) }
-                        .help("Click to delete")
+                    NoteView(note: note, track: track, pps: pps, rowHeight: rowHeight,
+                             lowPitch: lowPitch, highPitch: highPitch, snapSec: snapSec)
                 }
             }
         }
     }
 
     private func isBlackKey(_ pitch: Int) -> Bool { [1, 3, 6, 8, 10].contains(pitch % 12) }
+
+    /// One note: drag the body to move (time + pitch), drag the right edge to resize,
+    /// tap to audition, right-click to delete. Commits to the model on drag end.
+    private struct NoteView: View {
+        @EnvironmentObject var project: ProjectStore
+        let note: MIDINote
+        let track: Track
+        let pps: CGFloat
+        let rowHeight: CGFloat
+        let lowPitch: Int
+        let highPitch: Int
+        let snapSec: Double
+        @State private var moveDrag: CGSize = .zero
+        @State private var resizeDX: CGFloat = 0
+
+        private var baseX: CGFloat { CGFloat(note.start) * pps }
+        private var baseY: CGFloat { CGFloat(highPitch - note.pitch) * rowHeight + 1 }
+        private var baseW: CGFloat { max(6, CGFloat(note.duration) * pps) }
+
+        var body: some View {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color.accentColor.opacity(0.40 + 0.55 * Double(note.velocity) / 127))
+                .overlay(RoundedRectangle(cornerRadius: 3).stroke(.black.opacity(0.25)))
+                .overlay(alignment: .trailing) {
+                    Rectangle().fill(Color.white.opacity(0.001)).frame(width: 8).gesture(resizeGesture)
+                }
+                .frame(width: max(6, baseW + resizeDX), height: rowHeight - 2)
+                .offset(x: baseX + moveDrag.width, y: baseY + moveDrag.height)
+                .gesture(moveGesture)
+                .onTapGesture { project.auditionNote(track, pitch: note.pitch) }
+                .contextMenu {
+                    Button(role: .destructive) { project.deleteNote(note, from: track) } label: {
+                        Label("Delete Note", systemImage: "trash")
+                    }
+                }
+        }
+
+        private var moveGesture: some Gesture {
+            DragGesture(minimumDistance: 3)
+                .onChanged { moveDrag = $0.translation }
+                .onEnded { v in
+                    let nt = max(0, (Double((baseX + v.translation.width) / pps) / snapSec).rounded() * snapSec)
+                    let np = min(highPitch, max(lowPitch, note.pitch - Int((v.translation.height / rowHeight).rounded())))
+                    project.updateNote(note, on: track) { $0.start = nt; $0.pitch = np }
+                    moveDrag = .zero
+                }
+        }
+
+        private var resizeGesture: some Gesture {
+            DragGesture(minimumDistance: 2)
+                .onChanged { resizeDX = $0.translation.width }
+                .onEnded { v in
+                    let nd = max(snapSec, (Double((baseW + v.translation.width) / pps) / snapSec).rounded() * snapSec)
+                    project.updateNote(note, on: track) { $0.duration = nd }
+                    resizeDX = 0
+                }
+        }
+    }
+
+    static func programName(_ program: Int) -> String {
+        programs.first { $0.0 == program }?.1 ?? "Program \(program)"
+    }
 
     /// A handful of common General-MIDI programs.
     static let programs: [(Int, String)] = [
