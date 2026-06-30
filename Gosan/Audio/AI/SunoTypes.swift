@@ -35,6 +35,14 @@ struct CandidateAsset: Identifiable {
 
 /// Which modal sheet the editor is showing (one sheet modifier avoids SwiftUI's
 /// multiple-sheet conflicts).
+/// Health of the local Suno sidecar: running + cookie valid, running but cookie rejected, or down.
+enum SidecarStatus {
+    case checking
+    case ready
+    case unauthorized
+    case offline
+}
+
 enum EditorSheet: Identifiable {
     case generate
     case youtube

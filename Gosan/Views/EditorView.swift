@@ -75,7 +75,7 @@ struct EditorView: View {
         } message: {
             Text(project.lastError ?? "")
         }
-        .alert("Opened Suno in your browser",
+        .alert("Heads up",
                isPresented: Binding(get: { project.infoMessage != nil },
                                     set: { if !$0 { project.infoMessage = nil } })) {
             Button("Got it", role: .cancel) { project.infoMessage = nil }

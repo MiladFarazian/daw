@@ -7,11 +7,21 @@ struct SunoSidecarClient {
 
     /// Is the sidecar reachable? (Any HTTP response counts as "up".)
     func isReachable() async -> Bool {
+        if case .offline = await status() { return false }
+        return true
+    }
+
+    /// Distinguish "ready", "running but cookie rejected (401)", and "not running".
+    func status() async -> SidecarStatus {
         var req = URLRequest(url: baseURL.appendingPathComponent("api/get_limit"))
-        req.timeoutInterval = 3
-        guard let (_, resp) = try? await URLSession.shared.data(for: req),
-              let http = resp as? HTTPURLResponse else { return false }
-        return http.statusCode < 500
+        req.timeoutInterval = 4
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse else { return .offline }
+        if http.statusCode == 401 || http.statusCode == 403 { return .unauthorized }
+        let body = String(data: data, encoding: .utf8) ?? ""
+        if body.localizedCaseInsensitiveContains("unauthorized") { return .unauthorized }
+        if (200..<300).contains(http.statusCode) { return .ready }
+        return http.statusCode < 500 ? .ready : .offline
     }
 
     func generate(_ prompt: GeneratePrompt,

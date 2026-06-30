@@ -16,17 +16,19 @@ struct GeneratePanel: View {
     }
 
     private var sidecarColor: Color {
-        switch project.sidecarReachable {
-        case .some(true): return .green
-        case .some(false): return .red
-        case .none: return .secondary
+        switch project.sidecarStatus {
+        case .ready: return .green
+        case .unauthorized: return .orange
+        case .offline: return .red
+        case .checking: return .secondary
         }
     }
     private var sidecarText: String {
-        switch project.sidecarReachable {
-        case .some(true): return "Suno sidecar connected"
-        case .some(false): return "Sidecar not reachable — start it, or use “Open in Suno (manual)” below"
-        case .none: return "Checking sidecar…"
+        switch project.sidecarStatus {
+        case .ready: return "Suno sidecar connected"
+        case .unauthorized: return "Sidecar running, but your cookie isn’t authorized (401) — re-grab it & restart"
+        case .offline: return "Sidecar not reachable — start it, or use “Open in Suno (manual)” below"
+        case .checking: return "Checking sidecar…"
         }
     }
 

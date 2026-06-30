@@ -29,7 +29,7 @@ final class ProjectStore: ObservableObject {
     @Published var candidates: [CandidateAsset] = []
     @Published var useTaste = true
     @Published var lastNudge: [String] = []
-    @Published var sidecarReachable: Bool?
+    @Published var sidecarStatus: SidecarStatus = .checking
     private var lastPrompt: GeneratePrompt?
 
     @Published var isExporting = false
@@ -440,8 +440,8 @@ final class ProjectStore: ObservableObject {
     /// Probe whether the Suno sidecar is up, for the Generate panel's status dot.
     func checkSidecar() {
         let client = SunoSidecarClient(baseURL: settings.sunoSidecarURL)
-        sidecarReachable = nil
-        Task { sidecarReachable = await client.isReachable() }
+        sidecarStatus = .checking
+        Task { sidecarStatus = await client.status() }
     }
 
     func generate(_ prompt: GeneratePrompt) {
@@ -465,15 +465,22 @@ final class ProjectStore: ObservableObject {
         candidates.removeAll()
 
         Task {
-            // No local Suno API? Don't error — fall back to the manual browser flow.
-            if await client.isReachable() == false {
-                removeJob(jobID)
-                isGenerating = false
-                openInSunoManually(prompt)
-                infoMessage = "Suno has no public API, so Gosan opened suno.com/create and copied your prompt — "
-                    + "paste it, generate, then drag the track back in.\n\nTo make this one-click, run "
-                    + "`make suno-sidecar` (a local Suno API) and set its URL in Settings."
+            // Check the sidecar first and report problems IN-APP (no surprise browser hop).
+            let status = await client.status()
+            sidecarStatus = status
+            switch status {
+            case .offline:
+                removeJob(jobID); isGenerating = false
+                infoMessage = "The local Suno API isn't running. Start it (Terminal: `make suno-sidecar` with your "
+                    + "SUNO_COOKIE), then try Generate again. Or use “Open in Suno (manual).”"
                 return
+            case .unauthorized:
+                removeJob(jobID); isGenerating = false
+                infoMessage = "The Suno sidecar is running but your cookie isn't authorized (HTTP 401). Re-grab the "
+                    + "cookie from suno.com (logged in) and restart the sidecar. Or use “Open in Suno (manual).”"
+                return
+            case .checking, .ready:
+                break
             }
             do {
                 let generated = try await client.generate(effective) { status in
@@ -486,11 +493,12 @@ final class ProjectStore: ObservableObject {
                 removeJob(jobID)
                 isGenerating = false
             } catch {
+                // Stay in-app: surface the failure, leave the manual button as an explicit choice.
                 removeJob(jobID)
                 isGenerating = false
-                openInSunoManually(prompt)
-                infoMessage = "The local Suno API errored (\(error.localizedDescription)), so Gosan opened "
-                    + "suno.com/create with your prompt copied. Paste it, generate, then drag the track back in."
+                sidecarStatus = await client.status()
+                infoMessage = "Suno generation failed: \(error.localizedDescription). The sidecar may have hit Suno's "
+                    + "bot check. You can retry, or use “Open in Suno (manual).”"
             }
         }
     }
