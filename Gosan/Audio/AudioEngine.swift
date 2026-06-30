@@ -63,6 +63,10 @@ final class AudioEngine {
                                   componentManufacturer: kAudioUnitManufacturer_Apple,
                                   componentFlags: 0, componentFlagsMask: 0))
 
+    func setMasterVolume(_ volume: Float) {
+        mainMixer.outputVolume = max(0, min(1, volume))
+    }
+
     func setMasterEQ(low: Float, mid: Float, high: Float) {
         masterEQ.bands[0].gain = low
         masterEQ.bands[1].gain = mid

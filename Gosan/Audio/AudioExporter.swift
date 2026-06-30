@@ -16,7 +16,8 @@ enum AudioExporter {
     }
 
     static func render(tracks: [Track], duration: TimeInterval, to url: URL,
-                       from: TimeInterval = 0, aac: Bool = false, sampleRate: Double = 44_100) throws {
+                       from: TimeInterval = 0, aac: Bool = false, masterVolume: Float = 1.0,
+                       sampleRate: Double = 44_100) throws {
         let totalFrames = AVAudioFramePosition((duration * sampleRate).rounded(.up))
         guard totalFrames > 0,
               let renderFormat = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2) else {
@@ -25,6 +26,7 @@ enum AudioExporter {
 
         let engine = AVAudioEngine()
         let mainMixer = engine.mainMixerNode
+        mainMixer.outputVolume = max(0, min(1, masterVolume))
         let soloing = tracks.contains { $0.isSoloed }
 
         var players: [AVAudioPlayerNode] = []

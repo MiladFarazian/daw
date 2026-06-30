@@ -105,7 +105,8 @@ private struct MasterStrip: View {
 
             HStack(spacing: 8) {
                 TrackMeter(level: project.masterLevel).frame(width: 8)
-                Spacer().frame(width: 20)
+                VerticalFader(value: Binding(get: { Double(project.masterVolume) },
+                                             set: { project.setMasterVolume(Float($0)) }))
             }
             .frame(height: 200)
 

@@ -12,6 +12,7 @@ struct ProjectDocument: Codable {
     var masterEqLow: Float = 0
     var masterEqMid: Float = 0
     var masterEqHigh: Float = 0
+    var masterVolume: Float = 1.0
     var beatsPerBar: Int = 4
 
     struct TrackData: Codable {

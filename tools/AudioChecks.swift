@@ -291,6 +291,17 @@ struct AudioChecks {
         check("imported display name strips the uuid prefix",
               cleaned == "My Song" && AudioAsset.displayName(for: plainName) == "My Song")
 
+        // AA) Master volume scales the final mixdown.
+        var mvTrack = Track(name: "MV", colorIndex: 0); mvTrack.volume = 1.0
+        mvTrack.clips = [Clip(asset: asset, startTime: 0.0)]
+        let mvFull = tmp.appendingPathComponent("mv1.wav"), mvHalf = tmp.appendingPathComponent("mv05.wav")
+        try? FileManager.default.removeItem(at: mvFull); try? FileManager.default.removeItem(at: mvHalf)
+        try AudioExporter.render(tracks: [mvTrack], duration: 2.0, to: mvFull, masterVolume: 1.0)
+        try AudioExporter.render(tracks: [mvTrack], duration: 2.0, to: mvHalf, masterVolume: 0.5)
+        let mvRatio = try rms(mvFull, 0.2, 1.8) > 0 ? rms(mvHalf, 0.2, 1.8) / rms(mvFull, 0.2, 1.8) : 0
+        print(String(format: "   (master 0.5/1.0 ratio: %.2f)", mvRatio))
+        check("master volume scales the mixdown", mvRatio > 0.4 && mvRatio < 0.6)
+
         print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
         if failures > 0 { exit(1) }
     }

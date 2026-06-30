@@ -64,11 +64,17 @@ final class ProjectStore: ObservableObject {
     @Published var masterEqLow: Float = 0
     @Published var masterEqMid: Float = 0
     @Published var masterEqHigh: Float = 0
+    @Published var masterVolume: Float = 1.0
     @Published var beatsPerBar: Int = 4   // time signature numerator (over /4)
 
     func setMasterEQ(low: Float, mid: Float, high: Float) {
         masterEqLow = low; masterEqMid = mid; masterEqHigh = high
         engine.setMasterEQ(low: low, mid: mid, high: high)
+    }
+
+    func setMasterVolume(_ volume: Float) {
+        masterVolume = max(0, min(1, volume))
+        engine.setMasterVolume(masterVolume)
     }
 
     let settings: AppSettings
@@ -1062,10 +1068,12 @@ final class ProjectStore: ObservableObject {
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         let snapshot = tracks
+        let masterVol = masterVolume
         isExporting = true
         Task.detached(priority: .userInitiated) {
             do {
-                try AudioExporter.render(tracks: snapshot, duration: duration, to: url, from: from, aac: aac)
+                try AudioExporter.render(tracks: snapshot, duration: duration, to: url, from: from,
+                                         aac: aac, masterVolume: masterVol)
                 if normalize && !aac { try AudioExporter.normalizeFile(at: url) }
                 await MainActor.run { self.isExporting = false }
             } catch {
@@ -1243,6 +1251,7 @@ final class ProjectStore: ObservableObject {
             },
             markers: markers,
             masterEqLow: masterEqLow, masterEqMid: masterEqMid, masterEqHigh: masterEqHigh,
+            masterVolume: masterVolume,
             beatsPerBar: beatsPerBar)
     }
 
@@ -1315,6 +1324,7 @@ final class ProjectStore: ObservableObject {
         pixelsPerSecond = document.pixelsPerSecond
         markers = document.markers
         setMasterEQ(low: document.masterEqLow, mid: document.masterEqMid, high: document.masterEqHigh)
+        setMasterVolume(document.masterVolume)
         beatsPerBar = max(1, document.beatsPerBar)
         currentTime = 0
         tracks = rebuilt
