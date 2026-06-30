@@ -1,10 +1,12 @@
 import SwiftUI
+import AppKit
 import UniformTypeIdentifiers
 
 /// Top-level editor: transport bar over the timeline (or an empty state).
 struct EditorView: View {
     @EnvironmentObject var project: ProjectStore
     @EnvironmentObject var preview: PreviewPlayer
+    @AppStorage("loopBrowserWidth") private var loopBrowserWidth = 290.0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,8 +22,8 @@ struct EditorView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if project.showLoopBrowser {
-                    Divider()
-                    LoopBrowserPanel().frame(width: 290)
+                    PanelResizeHandle(width: $loopBrowserWidth, minWidth: 220, maxWidth: 560)
+                    LoopBrowserPanel().frame(width: loopBrowserWidth)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -110,6 +112,34 @@ struct YouTubeSheet: View {
         }
         .padding(20)
         .frame(width: 470)
+    }
+}
+
+/// A draggable divider that resizes a right-docked panel (drag left = wider).
+struct PanelResizeHandle: View {
+    @Binding var width: Double
+    let minWidth: Double
+    let maxWidth: Double
+    @State private var base: Double?
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.001))
+            .frame(width: 8)
+            .overlay(Divider())
+            .contentShape(Rectangle())
+            .onHover { inside in
+                if inside { NSCursor.resizeLeftRight.set() } else { NSCursor.arrow.set() }
+            }
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        let start = base ?? width
+                        if base == nil { base = width }
+                        width = min(maxWidth, max(minWidth, start - Double(value.translation.width)))
+                    }
+                    .onEnded { _ in base = nil }
+            )
     }
 }
 
