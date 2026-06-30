@@ -68,12 +68,9 @@ struct AutomationView: View {
                     .stroke(Color.accentColor, lineWidth: 1.5)
                 }
 
-                // breakpoints
+                // breakpoints (drag to move; right-click to delete)
                 ForEach(points) { pt in
-                    Circle().fill(Color.accentColor)
-                        .frame(width: 9, height: 9)
-                        .position(x: CGFloat(pt.time) * pps, y: yFor(pt.value, range: range, height: height))
-                        .onTapGesture { project.removeAutomationPoint(pt, track, lane) }
+                    AutomationDot(point: pt, lane: lane, track: track, range: range, height: height, pps: pps)
                 }
             }
             .frame(width: width, height: height)
@@ -83,7 +80,7 @@ struct AutomationView: View {
                 let v = valueFor(value.location.y, range: range, height: height)
                 project.addAutomationPoint(track, lane, time: time, value: v)
             })
-            Text("Click to add a point · click a point to delete")
+            Text("Click empty space to add a point · drag a point to move · right-click to delete")
                 .font(.caption2).foregroundStyle(.secondary)
         }
     }
@@ -95,5 +92,48 @@ struct AutomationView: View {
     private func valueFor(_ y: CGFloat, range: ClosedRange<Float>, height: CGFloat) -> Float {
         let t = Float(1 - max(0, min(height, y)) / height)
         return range.lowerBound + t * (range.upperBound - range.lowerBound)
+    }
+}
+
+/// A draggable automation breakpoint (commits to the model on drag end).
+private struct AutomationDot: View {
+    @EnvironmentObject var project: ProjectStore
+    let point: AutomationPoint
+    let lane: WritableKeyPath<Track, [AutomationPoint]>
+    let track: Track
+    let range: ClosedRange<Float>
+    let height: CGFloat
+    let pps: CGFloat
+    @State private var drag: CGSize = .zero
+
+    private var baseX: CGFloat { CGFloat(point.time) * pps }
+    private var baseY: CGFloat {
+        let t = (point.value - range.lowerBound) / (range.upperBound - range.lowerBound)
+        return height - CGFloat(t) * height
+    }
+
+    var body: some View {
+        Circle()
+            .fill(Color.accentColor)
+            .overlay(Circle().stroke(.white.opacity(0.7), lineWidth: 1))
+            .frame(width: 11, height: 11)
+            .position(x: baseX + drag.width, y: baseY + drag.height)
+            .gesture(
+                DragGesture()
+                    .onChanged { drag = $0.translation }
+                    .onEnded { value in
+                        let newTime = max(0, Double((baseX + value.translation.width) / pps))
+                        let yy = baseY + value.translation.height
+                        let t = Float(1 - max(0, min(height, yy)) / height)
+                        let newValue = range.lowerBound + t * (range.upperBound - range.lowerBound)
+                        project.moveAutomationPoint(point, track, lane, time: newTime, value: newValue)
+                        drag = .zero
+                    }
+            )
+            .contextMenu {
+                Button(role: .destructive) { project.removeAutomationPoint(point, track, lane) } label: {
+                    Label("Delete Point", systemImage: "trash")
+                }
+            }
     }
 }

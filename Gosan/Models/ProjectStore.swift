@@ -623,6 +623,18 @@ final class ProjectStore: ObservableObject {
         tracks[i][keyPath: lane].sort { $0.time < $1.time }
     }
 
+    /// Move a breakpoint to a new time + value (records one undo step; call on drag end).
+    func moveAutomationPoint(_ point: AutomationPoint, _ track: Track,
+                             _ lane: WritableKeyPath<Track, [AutomationPoint]>,
+                             time: TimeInterval, value: Float) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }),
+              let pi = tracks[ti][keyPath: lane].firstIndex(where: { $0.id == point.id }) else { return }
+        recordUndo()
+        tracks[ti][keyPath: lane][pi].time = max(0, time)
+        tracks[ti][keyPath: lane][pi].value = value
+        tracks[ti][keyPath: lane].sort { $0.time < $1.time }
+    }
+
     func removeAutomationPoint(_ point: AutomationPoint, _ track: Track,
                                _ lane: WritableKeyPath<Track, [AutomationPoint]>) {
         guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
