@@ -21,6 +21,7 @@ final class ProjectStore: ObservableObject {
     @Published var lastError: String?
     @Published var infoMessage: String?   // friendly, non-error notice (e.g. opened Suno manually)
     @Published var activeSheet: EditorSheet?
+    @Published var showLoopBrowser = false
 
     // Suno generation state.
     @Published var isGenerating = false

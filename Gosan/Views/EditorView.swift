@@ -10,10 +10,18 @@ struct EditorView: View {
         VStack(spacing: 0) {
             TransportBar()
             Divider()
-            ZStack {
-                TimelineView()
-                if project.tracks.isEmpty {
-                    EmptyStateView()
+            HStack(spacing: 0) {
+                ZStack {
+                    TimelineView()
+                    if project.tracks.isEmpty {
+                        EmptyStateView()
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if project.showLoopBrowser {
+                    Divider()
+                    LoopBrowserPanel().frame(width: 290)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

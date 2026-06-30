@@ -47,6 +47,53 @@ struct LoopLibraryView: View {
     }
 }
 
+/// A dockable loop browser pinned beside the timeline — drag loops straight onto tracks.
+struct LoopBrowserPanel: View {
+    @EnvironmentObject var loops: LoopLibrary
+    @EnvironmentObject var project: ProjectStore
+    @EnvironmentObject var preview: PreviewPlayer
+    @State private var importing = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Label("Loops", systemImage: "square.stack.3d.up").font(.headline)
+                Spacer()
+                Button { importing = true } label: { Image(systemName: "square.and.arrow.down") }
+                    .buttonStyle(.borderless).help("Import audio into the library")
+                Button { project.showLoopBrowser = false } label: { Image(systemName: "xmark") }
+                    .buttonStyle(.borderless).help("Close")
+            }
+            .padding(10)
+            Divider()
+
+            if loops.loops.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "square.stack.3d.up.slash")
+                        .font(.system(size: 30, weight: .light)).foregroundStyle(.secondary)
+                    Text("No loops yet").font(.subheadline)
+                    Text("Right-click a clip → Save as Loop, import audio, or save a Suno generation. Then drag loops onto a track.")
+                        .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
+            } else {
+                List {
+                    ForEach(loops.loops) { LoopRow(loop: $0) }
+                }
+            }
+
+            Divider()
+            Text("Drag a loop onto a track, or press Add to drop it at the playhead.")
+                .font(.caption2).foregroundStyle(.secondary)
+                .padding(8).frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(.bar)
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.audio], allowsMultipleSelection: true) { result in
+            if case .success(let urls) = result { loops.importFiles(urls) }
+        }
+    }
+}
+
 private struct LoopRow: View {
     @EnvironmentObject var loops: LoopLibrary
     @EnvironmentObject var project: ProjectStore
