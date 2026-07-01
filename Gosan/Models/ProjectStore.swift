@@ -289,7 +289,9 @@ final class ProjectStore: ObservableObject {
 
     /// Create a bass instrument track locked to the best existing chord track, and groove it.
     func addBassPlayer() -> UUID {
-        bassFollowID = chordSources().first?.id
+        if bassFollowID == nil || !tracks.contains(where: { $0.id == bassFollowID }) {
+            bassFollowID = chordSources().first?.id
+        }
         recordUndo()
         var track = Track(name: "Bass", colorIndex: tracks.count)
         track.isInstrument = true
@@ -327,7 +329,9 @@ final class ProjectStore: ObservableObject {
 
     /// Create a lead instrument track over the best existing chord track, and write a topline.
     func addMelodyMaker() -> UUID {
-        melodyFollowID = chordSources().first?.id
+        if melodyFollowID == nil || !tracks.contains(where: { $0.id == melodyFollowID }) {
+            melodyFollowID = chordSources().first?.id
+        }
         recordUndo()
         var track = Track(name: "Melody", colorIndex: tracks.count)
         track.isInstrument = true
@@ -337,6 +341,43 @@ final class ProjectStore: ObservableObject {
         if let created = tracks.first(where: { $0.id == id }) { applyMelody(on: created) }
         engine.prepare(tracks: effectiveTracks())
         return id
+    }
+
+    // MARK: - Song Starter (one-click full arrangement)
+
+    /// Lay down a complete starting arrangement in one shot: chords in `key`, then a bass, a
+    /// topline, and a drummer — all matched to the vibe and following the chords. Additive
+    /// (leaves any existing tracks alone). This is the "beat in one click" of the whole suite.
+    func startSong(key: Int, vibe: SongVibe) {
+        let scale: MusicScale = vibe.minor ? .minor : .major
+        recordUndo()
+        tempo = vibe.tempo
+
+        // 1) Chords (the harmony everything else follows).
+        var keys = Track(name: "Keys", colorIndex: tracks.count)
+        keys.isInstrument = true
+        keys.program = 0            // grand piano
+        tracks.append(keys)
+        let keysID = keys.id
+        if let t = tracks.first(where: { $0.id == keysID }) {
+            generateChords(on: t, root: key, scale: scale, degrees: vibe.degrees, octave: 4)
+        }
+
+        // 2) Bass, 3) Melody — both explicitly follow the new Keys track.
+        bassFollowID = keysID
+        bassSettings = BassSettings(pattern: vibe.bassPattern, octave: 2, drive: 0.7)
+        _ = addBassPlayer()
+
+        melodyFollowID = keysID
+        melodySettings = MelodySettings(density: vibe.melodyDensity, motion: vibe.melodyMotion, register: 5)
+        _ = addMelodyMaker()
+
+        // 4) Drummer groove for the vibe.
+        drummerSettings = DrummerSettings(style: vibe.drumStyle, complexity: vibe.complexity,
+                                          intensity: 0.8, swing: vibe.swing, fillEvery: 4)
+        _ = addDrummerTrack()
+
+        engine.prepare(tracks: effectiveTracks())
     }
 
     /// Snap an instrument track's note starts to a grid (seconds).
@@ -1890,6 +1931,10 @@ final class ProjectStore: ObservableObject {
     /// so the agent can launch straight into any screen and capture it.
     func loadDemoForScreenshot() {
         if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "empty" { newProject(); return }
+        if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "songstarter" { newProject(); activeSheet = .songStarter; return }
+        if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "song" {
+            newProject(); startSong(key: 0, vibe: SongVibe.all[0]); return
+        }
         let peaks: [Float] = (0..<256).map { Float(abs(sin(Double($0) * 0.15)) * 0.85) }
         func asset(_ name: String) -> AudioAsset {
             AudioAsset(url: URL(fileURLWithPath: "/tmp/\(name).wav"), duration: 7, sampleRate: 44_100, peaks: peaks)

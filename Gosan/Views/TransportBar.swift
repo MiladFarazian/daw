@@ -162,6 +162,9 @@ struct TransportBar: View {
 
                 divider
                 group {  // Create / IO
+                    iconButton("music.note.house.fill", help: "Song Starter — one-click chords, bass, melody & drums") {
+                        project.activeSheet = .songStarter
+                    }
                     iconButton("sparkles", help: "Generate (Suno)") { project.activeSheet = .generate }
                     iconButton("square.stack.3d.up", active: project.showLoopBrowser, help: "Loop Library") {
                         project.showLoopBrowser.toggle()

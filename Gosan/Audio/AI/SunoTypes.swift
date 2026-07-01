@@ -46,6 +46,7 @@ enum SidecarStatus {
 enum EditorSheet: Identifiable {
     case generate
     case youtube
+    case songStarter
     case mixer
     case pianoRoll(UUID)
     case automation(UUID)
@@ -63,6 +64,7 @@ enum EditorSheet: Identifiable {
         switch self {
         case .generate: return "generate"
         case .youtube: return "youtube"
+        case .songStarter: return "song-starter"
         case .mixer: return "mixer"
         case .pianoRoll(let id): return "piano-\(id.uuidString)"
         case .automation(let id): return "auto-\(id.uuidString)"

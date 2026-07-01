@@ -433,6 +433,41 @@ func bassPerformance(roots: [Int?], settings s: BassSettings, secPerBar: Double)
     return out
 }
 
+/// A one-click starting point: a genre feel that bundles a progression, tempo, and settings
+/// for the chord / bass / melody / drum generators so they all match out of the gate.
+struct SongVibe: Identifiable, Equatable {
+    let id: Int
+    let name: String
+    let blurb: String
+    let minor: Bool
+    let degrees: [Int]        // 0-indexed diatonic scale degrees, one chord per bar
+    let tempo: Double
+    let drumStyle: Int        // index into DrumPatterns.all
+    let complexity: Double    // drummer
+    let swing: Double         // drummer
+    let bassPattern: Int
+    let melodyDensity: Double
+    let melodyMotion: Double
+
+    static let all: [SongVibe] = [
+        SongVibe(id: 0, name: "Pop", blurb: "bright I–V–vi–IV, four-on-the-floor",
+                 minor: false, degrees: [0, 4, 5, 3], tempo: 116, drumStyle: 0,
+                 complexity: 0.5, swing: 0, bassPattern: 1, melodyDensity: 0.5, melodyMotion: 0.4),
+        SongVibe(id: 1, name: "Lo-fi", blurb: "hazy minor, swung boom-bap",
+                 minor: true, degrees: [0, 5, 2, 6], tempo: 80, drumStyle: 1,
+                 complexity: 0.45, swing: 0.35, bassPattern: 0, melodyDensity: 0.35, melodyMotion: 0.3),
+        SongVibe(id: 2, name: "Trap", blurb: "dark minor, rolling hats, 808s",
+                 minor: true, degrees: [0, 5, 3, 6], tempo: 140, drumStyle: 2,
+                 complexity: 0.7, swing: 0, bassPattern: 4, melodyDensity: 0.3, melodyMotion: 0.35),
+        SongVibe(id: 3, name: "House", blurb: "four-on-the-floor, pumping bass",
+                 minor: false, degrees: [0, 4, 5, 3], tempo: 124, drumStyle: 4,
+                 complexity: 0.6, swing: 0, bassPattern: 4, melodyDensity: 0.7, melodyMotion: 0.5),
+        SongVibe(id: 4, name: "R&B", blurb: "smooth minor, walking bass",
+                 minor: true, degrees: [0, 5, 3, 4], tempo: 92, drumStyle: 1,
+                 complexity: 0.5, swing: 0.2, bassPattern: 2, melodyDensity: 0.5, melodyMotion: 0.55)
+    ]
+}
+
 /// The chord (set of pitch classes 0–11) sounding in each bar of `notes`. Pure.
 func chordTonesPerBar(_ notes: [MIDINote], secPerBar: Double, bars: Int) -> [[Int]] {
     guard secPerBar > 0 else { return [] }

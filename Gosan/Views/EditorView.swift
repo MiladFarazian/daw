@@ -52,6 +52,8 @@ struct EditorView: View {
                     .environmentObject(project.taste)
             case .youtube:
                 YouTubeSheet().environmentObject(project)
+            case .songStarter:
+                SongStarterView().environmentObject(project)
             case .mixer:
                 MixerView().environmentObject(project)
             case .pianoRoll(let id):
