@@ -301,6 +301,44 @@ final class ProjectStore: ObservableObject {
         return id
     }
 
+    // MARK: - Melody Maker (auto-topline over the chords)
+
+    @Published var melodySettings = MelodySettings()
+    @Published var melodyFollowID: UUID?
+
+    /// Generate a topline onto `melodyTrack` that follows its chord track's harmony. A fresh seed
+    /// each call, so "New Melody" gives a new line over the same chords.
+    func applyMelody(on melodyTrack: Track) {
+        guard let ti = tracks.firstIndex(where: { $0.id == melodyTrack.id }) else { return }
+        let secPerBar = Double(beatsPerBar) * 60.0 / max(1, tempo)
+        let source = tracks.first { $0.id == melodyFollowID && $0.id != melodyTrack.id }
+            ?? chordSources(excluding: melodyTrack.id).first
+        guard let source else { lastError = "Add some chords first for the melody to follow."; return }
+        melodyFollowID = source.id
+        let bars = max(1, Int(ceil(source.endTime / secPerBar - 1e-6)))
+        let chordTones = chordTonesPerBar(source.notes, secPerBar: secPerBar, bars: bars)
+        let pool = Array(Set(chordTones.flatMap { $0 })).sorted()      // the scale in play
+        let seed = UInt64.random(in: 0...UInt64.max)
+        recordUndo()
+        tracks[ti].notes = melodyLine(chords: chordTones, pool: pool, settings: melodySettings,
+                                      secPerBar: secPerBar, seed: seed)
+        engine.prepare(tracks: effectiveTracks())
+    }
+
+    /// Create a lead instrument track over the best existing chord track, and write a topline.
+    func addMelodyMaker() -> UUID {
+        melodyFollowID = chordSources().first?.id
+        recordUndo()
+        var track = Track(name: "Melody", colorIndex: tracks.count)
+        track.isInstrument = true
+        track.program = 81          // GM lead 2 (sawtooth)
+        tracks.append(track)
+        let id = track.id
+        if let created = tracks.first(where: { $0.id == id }) { applyMelody(on: created) }
+        engine.prepare(tracks: effectiveTracks())
+        return id
+    }
+
     /// Snap an instrument track's note starts to a grid (seconds).
     func quantizeNotes(on track: Track, to grid: TimeInterval) {
         guard grid > 0, let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }
@@ -1899,6 +1937,12 @@ final class ProjectStore: ObservableObject {
                 bassSettings = BassSettings(pattern: 2, octave: 2, drive: 0.7)   // walking
                 let id = addBassPlayer()
                 activeSheet = .bassPlayer(id)
+            }
+        case "melody":
+            if let i = inst {
+                melodyFollowID = i.id
+                melodySettings = MelodySettings(density: 0.6, motion: 0.4, register: 5)
+                activeSheet = .melodyMaker(addMelodyMaker())
             }
         case "chords": if let i = inst { activeSheet = .chords(i.id) }
         case "automation": if let i = inst { activeSheet = .automation(i.id) }

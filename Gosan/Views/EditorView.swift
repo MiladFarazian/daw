@@ -71,6 +71,8 @@ struct EditorView: View {
                 DrummerView(trackID: id).environmentObject(project)
             case .bassPlayer(let id):
                 BassPlayerView(trackID: id).environmentObject(project)
+            case .melodyMaker(let id):
+                MelodyMakerView(trackID: id).environmentObject(project)
             case .chords(let id):
                 ChordGeneratorView(trackID: id).environmentObject(project)
             case .instrument(let id):

@@ -433,6 +433,65 @@ func bassPerformance(roots: [Int?], settings s: BassSettings, secPerBar: Double)
     return out
 }
 
+/// The chord (set of pitch classes 0–11) sounding in each bar of `notes`. Pure.
+func chordTonesPerBar(_ notes: [MIDINote], secPerBar: Double, bars: Int) -> [[Int]] {
+    guard secPerBar > 0 else { return [] }
+    return (0..<max(1, bars)).map { bar in
+        let start = Double(bar) * secPerBar, end = start + secPerBar
+        let inBar = notes.filter { $0.start < end - 1e-6 && $0.start + $0.duration > start + 1e-6 }
+        return Array(Set(inBar.map { ((($0.pitch % 12) + 12) % 12) })).sorted()
+    }
+}
+
+/// How the auto-melody sits over the chords.
+struct MelodySettings: Equatable {
+    var density: Double = 0.5    // sparse (held notes) … busy (eighths)
+    var motion: Double = 0.4     // smooth (stepwise) … leapy (chord jumps)
+    var register: Int = 5        // octave center (5 ≈ C5)
+}
+
+/// Generate a singable topline that lands chord tones on strong beats and steps through the
+/// scale between them, with smooth voice-leading. Pure and deterministic given `seed`.
+func melodyLine(chords: [[Int]], pool poolIn: [Int], settings s: MelodySettings,
+                secPerBar: Double, seed: UInt64) -> [MIDINote] {
+    guard secPerBar > 0, !chords.isEmpty else { return [] }
+    let pool = (poolIn.isEmpty ? [0, 2, 4, 5, 7, 9, 11] : poolIn).sorted()
+    let center = (s.register + 1) * 12
+    let (bandLo, bandHi) = (center - 3, center + 14)
+    func inBand(_ set: Set<Int>) -> [Int] { (bandLo...bandHi).filter { set.contains((($0 % 12) + 12) % 12) } }
+    let scalePitches = inBand(Set(pool))
+    guard !scalePitches.isEmpty else { return [] }
+    func nearest(_ arr: [Int], to prev: Int) -> Int { arr.min(by: { abs($0 - prev) < abs($1 - prev) }) ?? prev }
+
+    let stepDur = secPerBar / 16
+    var out: [MIDINote] = []
+    var prev = center
+    for (bar, chordPCs) in chords.enumerated() {
+        var rng = SeededRNG(state: seed &+ UInt64(bar) &* 0x9E3779B1)
+        func chance(_ p: Double) -> Bool { Double(rng.next() % 1000) / 1000 < p }
+        let base = Double(bar) * secPerBar
+        let chordPitches = inBand(Set(chordPCs.isEmpty ? pool : chordPCs))
+        let steps = s.density < 0.33 ? [0, 8] : (s.density < 0.66 ? [0, 4, 8, 12] : [0, 2, 4, 6, 8, 10, 12, 14])
+        for st in steps {
+            let strong = st % 8 == 0
+            let target: Int
+            if strong || chance(s.motion) {
+                target = nearest(chordPitches, to: prev)                 // land a chord tone
+            } else {
+                let idx = scalePitches.firstIndex(of: nearest(scalePitches, to: prev)) ?? 0
+                let ni = max(0, min(scalePitches.count - 1, idx + (chance(0.5) ? 1 : -1)))
+                target = scalePitches[ni]                                // step through the scale
+            }
+            let nextStep = steps.first(where: { $0 > st }) ?? 16
+            let dur = max(stepDur * 0.5, Double(nextStep - st) * stepDur * 0.9)
+            out.append(MIDINote(pitch: max(bandLo, min(bandHi, target)),
+                                start: base + Double(st) * stepDur, duration: dur, velocity: 92))
+            prev = target
+        }
+    }
+    return out
+}
+
 /// Small seedable RNG so humanize is deterministic for tests (the app passes a random seed).
 struct SeededRNG: RandomNumberGenerator {
     var state: UInt64

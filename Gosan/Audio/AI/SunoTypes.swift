@@ -54,6 +54,7 @@ enum EditorSheet: Identifiable {
     case stepSequencer(UUID)
     case drummer(UUID)
     case bassPlayer(UUID)
+    case melodyMaker(UUID)
     case chords(UUID)
     case instrument(UUID)
     case analysis(AnalysisResult)
@@ -70,6 +71,7 @@ enum EditorSheet: Identifiable {
         case .stepSequencer(let id): return "step-\(id.uuidString)"
         case .drummer(let id): return "drummer-\(id.uuidString)"
         case .bassPlayer(let id): return "bass-\(id.uuidString)"
+        case .melodyMaker(let id): return "melody-\(id.uuidString)"
         case .chords(let id): return "chords-\(id.uuidString)"
         case .instrument(let id): return "instrument-\(id.uuidString)"
         case .analysis(let result): return result.id.uuidString

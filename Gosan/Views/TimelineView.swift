@@ -41,6 +41,9 @@ struct TimelineView: View {
                             project.activeSheet = .bassPlayer(project.addBassPlayer())
                         } label: { Label("Bass Player", systemImage: "guitars.fill") }
                         Button {
+                            project.activeSheet = .melodyMaker(project.addMelodyMaker())
+                        } label: { Label("Melody Maker", systemImage: "music.note") }
+                        Button {
                             project.activeSheet = .stepSequencer(project.addDrumTrack())
                         } label: { Label("Drum Machine", systemImage: "square.grid.3x3.fill") }
                     } label: {

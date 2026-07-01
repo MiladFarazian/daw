@@ -400,6 +400,21 @@ struct AudioChecks {
                   && bassArp.count == 16                     // 8 eighths × 2 bars
                   && bassArp.allSatisfy { $0.pitch >= 24 && $0.pitch <= 55 })
 
+        // W12) Melody Maker: stays in the key/scale, lands chord tones, scales density, deterministic.
+        let cMajorPool = [0, 2, 4, 5, 7, 9, 11]
+        let barChords = chordTonesPerBar(chords, secPerBar: 2, bars: 2)          // [[0,4,7], [2,5,9]]
+        let melSparse = melodyLine(chords: barChords, pool: cMajorPool,
+                                   settings: MelodySettings(density: 0.2, motion: 0.4, register: 5), secPerBar: 2, seed: 3)
+        let melBusy = melodyLine(chords: barChords, pool: cMajorPool,
+                                 settings: MelodySettings(density: 0.9, motion: 0.4, register: 5), secPerBar: 2, seed: 3)
+        let melBusy2 = melodyLine(chords: barChords, pool: cMajorPool,
+                                  settings: MelodySettings(density: 0.9, motion: 0.4, register: 5), secPerBar: 2, seed: 3)
+        let inKey = melBusy.allSatisfy { cMajorPool.contains((($0.pitch % 12) + 12) % 12) }
+        let melSame = melBusy.map(\.pitch) == melBusy2.map(\.pitch)
+        print("   (melody: sparse \(melSparse.count) → busy \(melBusy.count), in-key \(inKey))")
+        check("melody stays in key, follows chords, scales density",
+              !melSparse.isEmpty && melBusy.count > melSparse.count && inKey && melSame)
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]
