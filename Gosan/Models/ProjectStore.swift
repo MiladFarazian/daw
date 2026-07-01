@@ -676,6 +676,12 @@ final class ProjectStore: ObservableObject {
         markers.sort { $0.time < $1.time }
     }
 
+    /// Add a named arrangement section marker (Intro/Verse/Chorus…) at the playhead.
+    func addSectionMarker(_ name: String) {
+        markers.append(Marker(time: currentTime, name: name))
+        markers.sort { $0.time < $1.time }
+    }
+
     func deleteMarker(_ marker: Marker) { markers.removeAll { $0.id == marker.id } }
 
     func jumpToNextMarker() {
@@ -885,6 +891,14 @@ final class ProjectStore: ObservableObject {
             if Int(step) % 2 == 1 { t += amount * grid }
             tracks[ti].notes[i].start = max(0, t)
         }
+    }
+
+    /// Add subtle timing + velocity variation to a track's notes.
+    func humanizeNotes(on track: Track, timing: TimeInterval, velocity: Int) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }
+        recordUndo()
+        tracks[ti].notes = humanize(tracks[ti].notes, timing: timing, velocity: velocity,
+                                    seed: UInt64.random(in: 1...UInt64.max))
     }
 
     /// Shift every note on an instrument track by a number of semitones.

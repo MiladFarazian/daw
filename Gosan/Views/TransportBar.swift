@@ -93,7 +93,14 @@ struct TransportBar: View {
                 divider
                 group {  // Markers
                     iconButton("chevron.backward.2", help: "Previous marker") { project.jumpToPrevMarker() }
-                    iconButton("flag", help: "Add marker at playhead") { project.addMarker() }
+                    Menu {
+                        Button("Add Marker") { project.addMarker() }
+                        Divider()
+                        ForEach(["Intro", "Verse", "Chorus", "Bridge", "Drop", "Outro"], id: \.self) { section in
+                            Button(section) { project.addSectionMarker(section) }
+                        }
+                    } label: { Image(systemName: "flag") }
+                        .fixedSize().help("Add a marker / section at the playhead")
                     iconButton("chevron.forward.2", help: "Next marker") { project.jumpToNextMarker() }
                 }
 

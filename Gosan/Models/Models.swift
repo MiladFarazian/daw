@@ -247,6 +247,26 @@ enum DrumPatterns {
     }
 }
 
+/// Small seedable RNG so humanize is deterministic for tests (the app passes a random seed).
+struct SeededRNG: RandomNumberGenerator {
+    var state: UInt64
+    mutating func next() -> UInt64 {
+        state = state &* 6364136223846793005 &+ 1442695040888963407
+        return state
+    }
+}
+
+/// Nudge note timing (± `timing` seconds) and velocity (± `velocity`) so a part feels human. Pure.
+func humanize(_ notes: [MIDINote], timing: TimeInterval, velocity: Int, seed: UInt64) -> [MIDINote] {
+    var rng = SeededRNG(state: seed | 1)
+    return notes.map { note in
+        var n = note
+        if timing > 0 { n.start = max(0, note.start + Double.random(in: -timing...timing, using: &rng)) }
+        if velocity > 0 { n.velocity = min(127, max(1, note.velocity + Int.random(in: -velocity...velocity, using: &rng))) }
+        return n
+    }
+}
+
 enum ArpPattern { case up, down, upDown }
 
 /// Turn chords (notes sharing a start) into an arpeggio: single notes cycling the

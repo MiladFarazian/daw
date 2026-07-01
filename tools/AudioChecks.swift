@@ -302,6 +302,18 @@ struct AudioChecks {
                   && snapToScale(64, root: 0, scale: .major) == 64  // E stays
                   && snapToScale(61, root: 9, scale: .minor) == 60) // C# in A-minor → C
 
+        // W9) Humanize nudges timing/velocity within bounds, deterministically per seed.
+        let straight = [MIDINote(pitch: 60, start: 1.0, duration: 0.5, velocity: 100),
+                        MIDINote(pitch: 62, start: 2.0, duration: 0.5, velocity: 100)]
+        let human = humanize(straight, timing: 0.02, velocity: 10, seed: 42)
+        let inBounds = zip(straight, human).allSatisfy {
+            abs($0.start - $1.start) <= 0.0201 && abs($0.velocity - $1.velocity) <= 10
+                && $1.velocity >= 1 && $1.velocity <= 127
+        }
+        let changed = zip(straight, human).contains { $0.start != $1.start || $0.velocity != $1.velocity }
+        let deterministic = humanize(straight, timing: 0.02, velocity: 10, seed: 42).map(\.start) == human.map(\.start)
+        check("humanize varies notes within bounds (seeded)", inBounds && changed && deterministic)
+
         // W5) Musical typing maps the keyboard to MIDI (A=C4=60, J=B4=71 at octave 4).
         let mtA = MusicalTyping.pitch(keyCode: 0, octave: 4)     // A → C4
         let mtJ = MusicalTyping.pitch(keyCode: 38, octave: 4)    // J → B4

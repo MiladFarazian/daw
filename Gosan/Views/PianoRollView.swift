@@ -94,6 +94,10 @@ struct PianoRollView: View {
                                 Button("Medium") { project.swingNotes(on: track, amount: 0.3, grid: secPerBeat / 4) }
                                 Button("Heavy") { project.swingNotes(on: track, amount: 0.4, grid: secPerBeat / 4) }
                             }
+                            Menu("Humanize") {
+                                Button("Subtle") { project.humanizeNotes(on: track, timing: 0.012, velocity: 8) }
+                                Button("Loose") { project.humanizeNotes(on: track, timing: 0.03, velocity: 18) }
+                            }
                         }
                     } label: {
                         Label("Tools", systemImage: "wand.and.stars")
