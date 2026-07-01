@@ -150,7 +150,7 @@ final class AudioEngine {
             // Source: an instrument synth or an audio player → mixer.
             var player: AVAudioPlayerNode?
             var synth: AVAudioUnit?
-            if track.isInstrument, let s = MIDISupport.makeDLSSynth() {
+            if track.isInstrument, let s = MIDISupport.makeInstrument(for: track) {
                 engine.attach(s)
                 engine.connect(s, to: mixer, format: stereo)
                 synth = s
@@ -392,6 +392,11 @@ final class AudioEngine {
     func pluginUnit(trackID: UUID, index: Int) -> AVAudioUnit? {
         guard let node = nodes[trackID], node.plugins.indices.contains(index) else { return nil }
         return node.plugins[index]
+    }
+
+    /// The live AU instrument for an instrument track (for showing its editor).
+    func instrumentUnit(trackID: UUID) -> AVAudioUnit? {
+        nodes[trackID]?.synth
     }
 
     /// Serialize a live plugin's full state (knob positions etc.) for persistence/export.

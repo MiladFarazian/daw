@@ -900,6 +900,18 @@ final class ProjectStore: ObservableObject {
         tracks[i].program = max(0, min(127, program))
     }
 
+    /// Choose the AU instrument for a track (nil = built-in GM synth). Rebuilds the chain.
+    func setInstrument(_ track: Track, _ ref: PluginRef?) {
+        guard let i = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
+        tracks[i].instrumentPlugin = ref
+        engine.reload(tracks: effectiveTracks())
+    }
+
+    func instrumentUnit(trackID: UUID) -> AVAudioUnit? {
+        engine.instrumentUnit(trackID: trackID)
+    }
+
     func auditionNote(_ track: Track, pitch: Int) {
         engine.auditionNote(trackID: track.id, program: track.program, channel: track.midiChannel, pitch: pitch)
     }
@@ -1745,6 +1757,7 @@ final class ProjectStore: ObservableObject {
                             gain: clip.gain, muted: clip.muted, customName: clip.customName)
                     },
                     isInstrument: track.isInstrument, isDrumKit: track.isDrumKit, program: track.program,
+                    instrumentPlugin: track.instrumentPlugin,
                     notes: track.notes.map {
                         ProjectDocument.NoteData(pitch: $0.pitch, start: $0.start,
                                                  duration: $0.duration, velocity: $0.velocity)
@@ -1795,6 +1808,7 @@ final class ProjectStore: ObservableObject {
             track.isInstrument = trackData.isInstrument
             track.isDrumKit = trackData.isDrumKit
             track.program = trackData.program
+            track.instrumentPlugin = trackData.instrumentPlugin
             track.notes = trackData.notes.map {
                 MIDINote(pitch: $0.pitch, start: $0.start, duration: $0.duration, velocity: $0.velocity)
             }

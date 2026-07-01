@@ -180,6 +180,15 @@ struct TrackHeaderView: View {
                 Button { project.activeSheet = .pianoRoll(track.id) } label: {
                     Label("Piano Roll…", systemImage: "pianokeys")
                 }
+                Menu {
+                    Button("Built-in GM Synth") { project.setInstrument(track, nil) }
+                    Divider()
+                    ForEach(PluginHost.availableInstruments()) { au in
+                        Button(au.name) { project.setInstrument(track, PluginHost.ref(for: au)) }
+                    }
+                    Divider()
+                    Button("Open Instrument Editor…") { project.activeSheet = .instrument(track.id) }
+                } label: { Label("Instrument", systemImage: "pianokeys.inverse") }
             }
             Divider()
             Button { project.bounceTrack(track) } label: {

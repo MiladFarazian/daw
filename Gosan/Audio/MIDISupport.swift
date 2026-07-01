@@ -20,6 +20,15 @@ enum MIDISupport {
         return result
     }
 
+    /// The synth for an instrument track: its chosen AU instrument, else the built-in GM synth.
+    /// Drum tracks always use the built-in GM drum kit (channel 9).
+    static func makeInstrument(for track: Track) -> AVAudioUnit? {
+        if !track.isDrumKit, let ref = track.instrumentPlugin, let au = PluginHost.instantiate(ref) {
+            return au
+        }
+        return makeDLSSynth()
+    }
+
     static func program(_ au: AudioUnit, _ program: Int, channel: UInt8 = 0) {
         MusicDeviceMIDIEvent(au, UInt32(0xC0 | channel), UInt32(program & 0x7F), 0, 0)
     }

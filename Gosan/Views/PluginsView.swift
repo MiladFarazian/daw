@@ -91,6 +91,36 @@ struct PluginsView: View {
     }
 }
 
+/// Shows a track's AU-instrument editor (native view).
+struct InstrumentEditorView: View {
+    @EnvironmentObject var project: ProjectStore
+    @Environment(\.dismiss) private var dismiss
+    let trackID: UUID
+
+    private var name: String {
+        project.tracks.first { $0.id == trackID }?.instrumentPlugin?.name ?? "Built-in GM Synth"
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Label(name, systemImage: "pianokeys.inverse").font(.headline)
+                Spacer()
+                Button("Close") { dismiss() }.keyboardShortcut(.defaultAction)
+            }
+            .padding(12)
+            Divider()
+            if let unit = project.instrumentUnit(trackID: trackID) {
+                AUViewHost(unit: unit).frame(minWidth: 500, minHeight: 320)
+            } else {
+                Text("This instrument has no editor (the built-in GM synth is fixed — pick a sound in the piano roll).")
+                    .multilineTextAlignment(.center).foregroundStyle(.secondary)
+                    .frame(width: 500, height: 220).padding()
+            }
+        }
+    }
+}
+
 /// Hosts an Audio Unit's native view controller (AUv3 custom UI; generic fallback otherwise).
 struct AUViewHost: NSViewControllerRepresentable {
     let unit: AVAudioUnit

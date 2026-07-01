@@ -140,6 +140,7 @@ struct Track: Identifiable {
     var isInstrument = false
     var isDrumKit = false        // GM drum map on MIDI channel 9 (for the step sequencer)
     var program: Int = 0         // General-MIDI program (0 = grand piano)
+    var instrumentPlugin: PluginRef?   // an AU instrument to use instead of the built-in GM synth
     var notes: [MIDINote] = []
 
     var midiChannel: UInt8 { isDrumKit ? 9 : 0 }

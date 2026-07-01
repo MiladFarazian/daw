@@ -44,6 +44,7 @@ struct ProjectDocument: Codable {
         var isInstrument: Bool = false
         var isDrumKit: Bool = false
         var program: Int = 0
+        var instrumentPlugin: PluginRef? = nil
         var notes: [NoteData] = []
         var volumeAutomation: [PointData] = []
         var panAutomation: [PointData] = []

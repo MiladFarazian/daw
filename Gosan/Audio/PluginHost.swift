@@ -29,6 +29,19 @@ enum PluginHost {
         return result.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    /// All installed AU instruments (music devices), sorted by name.
+    static func availableInstruments() -> [AvailableAU] {
+        let manager = AVAudioUnitComponentManager.shared()
+        let desc = AudioComponentDescription(componentType: kAudioUnitType_MusicDevice, componentSubType: 0,
+                                             componentManufacturer: 0, componentFlags: 0, componentFlagsMask: 0)
+        let result = manager.components(matching: desc).map { comp -> AvailableAU in
+            let cd = comp.audioComponentDescription
+            return AvailableAU(name: comp.name, manufacturerName: comp.manufacturerName,
+                               type: cd.componentType, subType: cd.componentSubType, manufacturer: cd.componentManufacturer)
+        }
+        return result.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
     static func ref(for au: AvailableAU) -> PluginRef {
         PluginRef(name: au.name, type: au.type, subType: au.subType, manufacturer: au.manufacturer)
     }

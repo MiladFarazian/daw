@@ -65,7 +65,7 @@ enum AudioExporter {
 
             // Source: a synth (instrument track) or a player (audio track) → mixer.
             var player: AVAudioPlayerNode?
-            if track.isInstrument, let synth = MIDISupport.makeDLSSynth() {
+            if track.isInstrument, let synth = MIDISupport.makeInstrument(for: track) {
                 engine.attach(synth)
                 engine.connect(synth, to: mixer, format: renderFormat)
                 synths.append((synth, track.program))

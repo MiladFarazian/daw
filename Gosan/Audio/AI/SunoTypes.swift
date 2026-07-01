@@ -53,6 +53,7 @@ enum EditorSheet: Identifiable {
     case loops
     case stepSequencer(UUID)
     case chords(UUID)
+    case instrument(UUID)
     case analysis(AnalysisResult)
 
     var id: String {
@@ -66,6 +67,7 @@ enum EditorSheet: Identifiable {
         case .loops: return "loops"
         case .stepSequencer(let id): return "step-\(id.uuidString)"
         case .chords(let id): return "chords-\(id.uuidString)"
+        case .instrument(let id): return "instrument-\(id.uuidString)"
         case .analysis(let result): return result.id.uuidString
         }
     }
