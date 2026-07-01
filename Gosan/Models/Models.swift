@@ -463,7 +463,8 @@ func applySwing(_ notes: [MIDINote], amount: Double, grid: TimeInterval) -> [MID
     return notes.map { n in
         let step = (n.start / grid).rounded()
         var t = step * grid
-        if abs(Int(step)) % 2 == 1 { t += amount * grid }
+        // Parity in the Double domain — Int(step) would trap on absurdly large starts.
+        if step.truncatingRemainder(dividingBy: 2) != 0 { t += amount * grid }
         return MIDINote(pitch: n.pitch, start: max(0, t), duration: n.duration, velocity: n.velocity)
     }
 }
@@ -501,6 +502,7 @@ func substituteChords(_ notes: [MIDINote], sub: ChordSub, pool poolIn: [Int],
     guard secPerBar > 0 else { return [] }
     let pool = (poolIn.isEmpty ? [0, 2, 4, 5, 7, 9, 11] : poolIn).sorted()
     var out: [MIDINote] = []
+    var anchored = false
     for bar in 0..<max(1, bars) {
         let start = Double(bar) * secPerBar, end = start + secPerBar
         let inBar = notes.filter { $0.start < end - 1e-6 && $0.start + $0.duration > start + 1e-6 }
@@ -509,8 +511,10 @@ func substituteChords(_ notes: [MIDINote], sub: ChordSub, pool poolIn: [Int],
             out.append(MIDINote(pitch: min(127, max(0, pitch)), start: start,
                                 duration: secPerBar * 0.95, velocity: 88))
         }
-        // Keep bar 0 as the tonic anchor so the progression still resolves home.
-        if bar == 0 {
+        // Keep the first sounding chord as the tonic anchor so the progression resolves home
+        // (using the first non-silent bar, not literally bar 0, in case of a pickup).
+        if !anchored {
+            anchored = true
             var scale: [Int] = [], p = root
             while scale.count < 5 && p < root + 26 { if pool.contains(((p % 12) + 12) % 12) { scale.append(p) }; p += 1 }
             for d in [0, 2, 4] where d < scale.count { emit(scale[d]) }

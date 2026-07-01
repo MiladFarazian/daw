@@ -457,6 +457,21 @@ struct AudioChecks {
                   && abs(swung[2].start - 0.5) < 1e-9 && abs(swung[3].start - 0.85) < 1e-9
                   && swungAgain.map(\.start) == swung.map(\.start))
 
+        // W17) Every generator is crash-safe on empty / zero / degenerate inputs.
+        let edgeOK =
+            drummerPerformance(DrummerSettings(), bars: 0, stepDur: 0.125, seed: 1).isEmpty == false   // clamps to 1 bar
+            && drummerPerformance(DrummerSettings(), bars: 2, stepDur: 0, seed: 1).isEmpty              // zero grid → empty
+            && drummerPerformance(DrummerSettings(), bars: 2, stepDur: 0.125, seed: 1).allSatisfy { $0.velocity >= 1 && $0.velocity <= 127 }
+            && bassPerformance(roots: [], settings: BassSettings(), secPerBar: 1).isEmpty
+            && bassPerformance(roots: [nil, nil], settings: BassSettings(), secPerBar: 1).isEmpty       // silent bars
+            && melodyLine(chords: [], pool: [], settings: MelodySettings(), secPerBar: 1, seed: 1).isEmpty
+            && reharmonize([], color: .ninth, pool: [], secPerBar: 1, bars: 2).isEmpty
+            && substituteChords([], sub: .jazzy, pool: [], secPerBar: 1, bars: 2).isEmpty
+            && applySwing([], amount: 0.3, grid: 0.25).isEmpty
+            && applySwing([MIDINote(pitch: 60, start: 0.5, duration: 0.5)], amount: 0.3, grid: 0).count == 1  // zero grid = identity
+            && moveDiatonic(60, steps: -2, pool: []) == 60
+        check("generators are crash-safe on empty / zero inputs", edgeOK)
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

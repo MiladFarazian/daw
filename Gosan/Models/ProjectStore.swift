@@ -40,8 +40,20 @@ final class ProjectStore: ObservableObject {
     @Published var clipboard: Clip?
     @Published private(set) var canUndo = false
     @Published private(set) var canRedo = false
-    private var undoStack: [(tracks: [Track], groups: [TrackGroup])] = []
-    private var redoStack: [(tracks: [Track], groups: [TrackGroup])] = []
+    /// A full snapshot of the reversible project state (not just tracks — tempo, the tempo
+    /// track, and markers must revert too, or undo leaves them stranded).
+    private struct Snapshot {
+        var tracks: [Track]
+        var groups: [TrackGroup]
+        var tempo: Double
+        var tempoPoints: [TempoPoint]
+        var markers: [Marker]
+    }
+    private var undoStack: [Snapshot] = []
+    private var redoStack: [Snapshot] = []
+    private func currentSnapshot() -> Snapshot {
+        Snapshot(tracks: tracks, groups: groups, tempo: tempo, tempoPoints: tempoPoints, markers: markers)
+    }
 
     @Published var loopEnabled = false
     @Published var loopStart: TimeInterval = 0
@@ -257,8 +269,11 @@ final class ProjectStore: ObservableObject {
 
     /// Create a drum track and open the Drummer on it.
     func addDrummerTrack() -> UUID {
-        let id = addDrumTrack()
-        if let track = tracks.first(where: { $0.id == id }) { applyDrummer(on: track) }
+        var id = UUID()
+        asOneUndoStep {
+            id = addDrumTrack()
+            if let track = tracks.first(where: { $0.id == id }) { applyDrummer(on: track) }
+        }
         return id
     }
 
@@ -278,7 +293,7 @@ final class ProjectStore: ObservableObject {
         let secPerBar = Double(beatsPerBar) * 60.0 / max(1, tempo)
         let source = tracks.first { $0.id == bassFollowID && $0.id != bassTrack.id }
             ?? chordSources(excluding: bassTrack.id).first
-        guard let source else { lastError = "Add some chords first (an instrument track) for the bass to follow."; return }
+        guard let source else { return }   // the panel guides the user to add chords first
         bassFollowID = source.id
         let bars = max(1, Int(ceil(source.endTime / secPerBar - 1e-6)))
         let roots = chordRootsPerBar(source.notes, secPerBar: secPerBar, bars: bars)
@@ -292,14 +307,15 @@ final class ProjectStore: ObservableObject {
         if bassFollowID == nil || !tracks.contains(where: { $0.id == bassFollowID }) {
             bassFollowID = chordSources().first?.id
         }
-        recordUndo()
         var track = Track(name: "Bass", colorIndex: tracks.count)
         track.isInstrument = true
         track.program = 33          // GM electric bass (finger)
-        tracks.append(track)
         let id = track.id
-        if let created = tracks.first(where: { $0.id == id }) { applyBassPlayer(on: created) }
-        engine.prepare(tracks: effectiveTracks())
+        asOneUndoStep {
+            tracks.append(track)
+            if let created = tracks.first(where: { $0.id == id }) { applyBassPlayer(on: created) }
+            engine.prepare(tracks: effectiveTracks())
+        }
         return id
     }
 
@@ -315,7 +331,7 @@ final class ProjectStore: ObservableObject {
         let secPerBar = Double(beatsPerBar) * 60.0 / max(1, tempo)
         let source = tracks.first { $0.id == melodyFollowID && $0.id != melodyTrack.id }
             ?? chordSources(excluding: melodyTrack.id).first
-        guard let source else { lastError = "Add some chords first for the melody to follow."; return }
+        guard let source else { return }   // the panel guides the user to add chords first
         melodyFollowID = source.id
         let bars = max(1, Int(ceil(source.endTime / secPerBar - 1e-6)))
         let chordTones = chordTonesPerBar(source.notes, secPerBar: secPerBar, bars: bars)
@@ -332,14 +348,15 @@ final class ProjectStore: ObservableObject {
         if melodyFollowID == nil || !tracks.contains(where: { $0.id == melodyFollowID }) {
             melodyFollowID = chordSources().first?.id
         }
-        recordUndo()
         var track = Track(name: "Melody", colorIndex: tracks.count)
         track.isInstrument = true
         track.program = 81          // GM lead 2 (sawtooth)
-        tracks.append(track)
         let id = track.id
-        if let created = tracks.first(where: { $0.id == id }) { applyMelody(on: created) }
-        engine.prepare(tracks: effectiveTracks())
+        asOneUndoStep {
+            tracks.append(track)
+            if let created = tracks.first(where: { $0.id == id }) { applyMelody(on: created) }
+            engine.prepare(tracks: effectiveTracks())
+        }
         return id
     }
 
@@ -350,43 +367,44 @@ final class ProjectStore: ObservableObject {
     /// (leaves any existing tracks alone). This is the "beat in one click" of the whole suite.
     func startSong(key: Int, vibe: SongVibe) {
         let scale: MusicScale = vibe.minor ? .minor : .major
-        recordUndo()
-        tempo = vibe.tempo
+        asOneUndoStep {
+            tempo = vibe.tempo
 
-        // 1) Chords (the harmony everything else follows).
-        var keys = Track(name: "Keys", colorIndex: tracks.count)
-        keys.isInstrument = true
-        keys.program = 0            // grand piano
-        tracks.append(keys)
-        let keysID = keys.id
-        if let t = tracks.first(where: { $0.id == keysID }) {
-            generateChords(on: t, root: key, scale: scale, degrees: vibe.degrees, octave: 4)
+            // 1) Chords (the harmony everything else follows).
+            var keys = Track(name: "Keys", colorIndex: tracks.count)
+            keys.isInstrument = true
+            keys.program = 0            // grand piano
+            tracks.append(keys)
+            let keysID = keys.id
+            if let t = tracks.first(where: { $0.id == keysID }) {
+                generateChords(on: t, root: key, scale: scale, degrees: vibe.degrees, octave: 4)
+            }
+
+            // 2) Bass, 3) Melody — both explicitly follow the new Keys track.
+            bassFollowID = keysID
+            bassSettings = BassSettings(pattern: vibe.bassPattern, octave: 2, drive: 0.7)
+            _ = addBassPlayer()
+
+            melodyFollowID = keysID
+            melodySettings = MelodySettings(density: vibe.melodyDensity, motion: vibe.melodyMotion, register: 5)
+            _ = addMelodyMaker()
+
+            // 4) Drummer groove for the vibe.
+            drummerSettings = DrummerSettings(style: vibe.drumStyle, complexity: vibe.complexity,
+                                              intensity: 0.8, swing: vibe.swing, fillEvery: 4)
+            _ = addDrummerTrack()
+
+            engine.prepare(tracks: effectiveTracks())
         }
-
-        // 2) Bass, 3) Melody — both explicitly follow the new Keys track.
-        bassFollowID = keysID
-        bassSettings = BassSettings(pattern: vibe.bassPattern, octave: 2, drive: 0.7)
-        _ = addBassPlayer()
-
-        melodyFollowID = keysID
-        melodySettings = MelodySettings(density: vibe.melodyDensity, motion: vibe.melodyMotion, register: 5)
-        _ = addMelodyMaker()
-
-        // 4) Drummer groove for the vibe.
-        drummerSettings = DrummerSettings(style: vibe.drumStyle, complexity: vibe.complexity,
-                                          intensity: 0.8, swing: vibe.swing, fillEvery: 4)
-        _ = addDrummerTrack()
-
-        engine.prepare(tracks: effectiveTracks())
     }
 
     /// Build a full multi-section arrangement (Intro → Verse → Chorus → … → Outro): the vibe's
     /// chords tiled across each section, with bass / melody / drums varied per section for
     /// dynamic contrast, plus a marker at every section. Additive.
     func startFullSong(key: Int, vibe: SongVibe) {
+      asOneUndoStep {
         let scale: MusicScale = vibe.minor ? .minor : .major
         let form = SongSection.defaultForm
-        recordUndo()
         tempo = vibe.tempo
         let secPerBar = Double(beatsPerBar) * 60.0 / max(1, tempo)
         let stepDur = secPerBar / 16
@@ -429,17 +447,19 @@ final class ProjectStore: ObservableObject {
             barCursor += section.bars
         }
 
-        func instrument(_ name: String, _ program: Int, _ notes: [MIDINote], drum: Bool = false) -> Track {
-            var t = Track(name: name, colorIndex: tracks.count)
+        func instrument(_ name: String, _ program: Int, _ notes: [MIDINote], _ colorIndex: Int, drum: Bool = false) -> Track {
+            var t = Track(name: name, colorIndex: colorIndex)
             t.isInstrument = true; t.isDrumKit = drum; t.program = program; t.notes = notes
             return t
         }
-        tracks.append(instrument("Keys", 0, keysN))
-        tracks.append(instrument("Bass", 33, bassN))
-        tracks.append(instrument("Melody", 81, melN))
-        tracks.append(instrument("Drums", 0, drumN, drum: true))
+        let c0 = tracks.count
+        tracks.append(instrument("Keys", 0, keysN, c0))
+        if !bassN.isEmpty { tracks.append(instrument("Bass", 33, bassN, c0 + 1)) }
+        if !melN.isEmpty { tracks.append(instrument("Melody", 81, melN, c0 + 2)) }
+        tracks.append(instrument("Drums", 0, drumN, c0 + 3, drum: true))
         markers.append(contentsOf: newMarkers)
         engine.prepare(tracks: effectiveTracks())
+      }
     }
 
     /// Snap an instrument track's note starts to a grid (seconds).
@@ -1120,7 +1140,8 @@ final class ProjectStore: ObservableObject {
     @discardableResult
     func addDrumTrack() -> UUID {
         recordUndo()
-        var track = Track(name: "Drums \(tracks.count + 1)", colorIndex: tracks.count)
+        let drumCount = tracks.filter { $0.isDrumKit }.count
+        var track = Track(name: drumCount == 0 ? "Drums" : "Drums \(drumCount + 1)", colorIndex: tracks.count)
         track.isInstrument = true
         track.isDrumKit = true
         tracks.append(track)
@@ -1191,19 +1212,17 @@ final class ProjectStore: ObservableObject {
         let secPerBar = Double(beatsPerBar) * 60.0 / max(1, tempo)
         let bars = max(1, Int(ceil(tracks[ti].endTime / secPerBar - 1e-6)))
         let pool = Array(Set(tracks[ti].notes.map { ((($0.pitch % 12) + 12) % 12) })).sorted()
-        recordUndo()
-        tracks[ti].notes = substituteChords(tracks[ti].notes, sub: sub, pool: pool, secPerBar: secPerBar, bars: bars)
-        // Keep the rhythm section locked: re-run any bass/melody that follows this chord track.
         let sourceID = tracks[ti].id
-        for other in tracks where other.id != sourceID {
-            if bassFollowID == sourceID, other.program >= 32, other.program <= 39, other.isInstrument, !other.isDrumKit {
-                applyBassPlayer(on: other)
+        asOneUndoStep {
+            tracks[ti].notes = substituteChords(tracks[ti].notes, sub: sub, pool: pool, secPerBar: secPerBar, bars: bars)
+            // Keep the rhythm section locked: re-run any bass/melody that follows this chord track.
+            let followers = tracks.filter { $0.id != sourceID && $0.isInstrument && !$0.isDrumKit }
+            for other in followers {
+                if bassFollowID == sourceID, other.program >= 32, other.program <= 39 { applyBassPlayer(on: other) }
+                if melodyFollowID == sourceID, other.program >= 80, other.program <= 87 { applyMelody(on: other) }
             }
-            if melodyFollowID == sourceID, other.program >= 80, other.program <= 87, other.isInstrument, !other.isDrumKit {
-                applyMelody(on: other)
-            }
+            engine.prepare(tracks: effectiveTracks())
         }
-        engine.prepare(tracks: effectiveTracks())
     }
 
     /// Replace a track's notes with an arpeggiated version of its chords.
@@ -1482,35 +1501,51 @@ final class ProjectStore: ObservableObject {
 
     // MARK: - Undo / redo (snapshots of the track state)
 
+    private var suppressUndo = false
+
     private func recordUndo() {
-        undoStack.append((tracks, groups))
+        if suppressUndo { return }
+        undoStack.append(currentSnapshot())
         if undoStack.count > 100 { undoStack.removeFirst() }
         redoStack.removeAll()
         canUndo = true
         canRedo = false
     }
 
+    /// Run `body` as a single undo step — nested recordUndo() calls are folded in, and the
+    /// snapshot is taken before any change, so one undo cleanly reverts the whole operation.
+    private func asOneUndoStep(_ body: @MainActor () -> Void) {
+        if suppressUndo { body(); return }      // already inside a group
+        recordUndo()
+        suppressUndo = true
+        defer { suppressUndo = false }          // stays robust even if body traps
+        body()
+    }
+
     func undo() {
         guard let previous = undoStack.popLast() else { return }
-        redoStack.append((tracks, groups))
-        applyTrackState(previous.tracks, previous.groups)
+        redoStack.append(currentSnapshot())
+        applyState(previous)
         canUndo = !undoStack.isEmpty
         canRedo = true
     }
 
     func redo() {
         guard let next = redoStack.popLast() else { return }
-        undoStack.append((tracks, groups))
-        applyTrackState(next.tracks, next.groups)
+        undoStack.append(currentSnapshot())
+        applyState(next)
         canUndo = true
         canRedo = !redoStack.isEmpty
     }
 
-    private func applyTrackState(_ newTracks: [Track], _ newGroups: [TrackGroup]) {
+    private func applyState(_ s: Snapshot) {
         stop()
         selectedClipID = nil
-        tracks = newTracks
-        groups = newGroups
+        tracks = s.tracks
+        groups = s.groups
+        tempo = s.tempo
+        tempoPoints = s.tempoPoints
+        markers = s.markers
         engine.reset()
         engine.prepare(tracks: effectiveTracks())
     }
@@ -2044,6 +2079,11 @@ final class ProjectStore: ObservableObject {
         }
         if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "fullsong" {
             newProject(); pixelsPerSecond = 30; startFullSong(key: 0, vibe: SongVibe.all[0]); return
+        }
+        // Undo-regression harness: a full song (Trap, 140 BPM, 6 markers, 4 tracks) then one undo
+        // must revert cleanly to an empty 120-BPM project with no orphan markers/tempo.
+        if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "undotest" {
+            newProject(); tempo = 120; startFullSong(key: 0, vibe: SongVibe.all[2]); undo(); return
         }
         let peaks: [Float] = (0..<256).map { Float(abs(sin(Double($0) * 0.15)) * 0.85) }
         func asset(_ name: String) -> AudioAsset {
