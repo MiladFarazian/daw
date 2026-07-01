@@ -456,6 +456,18 @@ enum ChordColor: Int, CaseIterable, Identifiable {
     }
 }
 
+/// Quantize note starts to `grid`, then push the off-beats late by `amount`·grid — a shared
+/// swing feel. Idempotent for amount < 0.5 (it re-quantizes first), so safe to re-apply. Pure.
+func applySwing(_ notes: [MIDINote], amount: Double, grid: TimeInterval) -> [MIDINote] {
+    guard grid > 0 else { return notes }
+    return notes.map { n in
+        let step = (n.start / grid).rounded()
+        var t = step * grid
+        if abs(Int(step)) % 2 == 1 { t += amount * grid }
+        return MIDINote(pitch: n.pitch, start: max(0, t), duration: n.duration, velocity: n.velocity)
+    }
+}
+
 /// Swap chords for related ones to reharmonize a progression (changes the roots, not just voicing).
 enum ChordSub: Int, CaseIterable, Identifiable {
     case relative, bright, jazzy

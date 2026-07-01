@@ -1217,12 +1217,23 @@ final class ProjectStore: ObservableObject {
     func swingNotes(on track: Track, amount: Double, grid: TimeInterval) {
         guard grid > 0, let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }
         recordUndo()
-        for i in tracks[ti].notes.indices {
-            let step = (tracks[ti].notes[i].start / grid).rounded()
-            var t = step * grid
-            if Int(step) % 2 == 1 { t += amount * grid }
-            tracks[ti].notes[i].start = max(0, t)
+        tracks[ti].notes = applySwing(tracks[ti].notes, amount: amount, grid: grid)
+    }
+
+    // MARK: - Groove lock (shared swing across the melodic parts)
+
+    @Published var grooveAmount: Double = 0
+
+    /// Lock bass, melody, and keys into one shuffle by swinging their 8th-notes together. Drums
+    /// keep the Drummer's own feel (so 16th patterns aren't quantized away). Idempotent.
+    func lockGroove(_ amount: Double) {
+        grooveAmount = amount
+        let grid = (60.0 / max(1, tempo)) / 2       // 8th-note swing
+        recordUndo()
+        for ti in tracks.indices where tracks[ti].isInstrument && !tracks[ti].isDrumKit && !tracks[ti].notes.isEmpty {
+            tracks[ti].notes = applySwing(tracks[ti].notes, amount: amount, grid: grid)
         }
+        engine.prepare(tracks: effectiveTracks())
     }
 
     /// Add subtle timing + velocity variation to a track's notes.

@@ -93,6 +93,16 @@ struct TransportBar: View {
                     }
                     .fixedSize().help("Time signature")
                     Menu {
+                        Button("Straight") { project.lockGroove(0) }
+                        Button("Subtle swing") { project.lockGroove(0.2) }
+                        Button("Swing") { project.lockGroove(0.35) }
+                        Button("Hard shuffle") { project.lockGroove(0.45) }
+                    } label: {
+                        Image(systemName: "waveform.path")
+                            .foregroundStyle(project.grooveAmount > 0 ? Color.green : Color.primary)
+                    }
+                    .fixedSize().help("Groove — swing bass, melody & keys into one shuffle")
+                    Menu {
                         Button("Add Tempo Change at Playhead (\(Int(project.tempo)) BPM)") {
                             project.addTempoChange(bpm: project.tempo)
                         }

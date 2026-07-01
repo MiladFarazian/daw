@@ -446,6 +446,17 @@ struct AudioChecks {
                   && subRel.allSatisfy { cMajorPool.contains((($0.pitch % 12) + 12) % 12) }
                   && pcsAt(subJazz, 2, 3.9).count == 4)                             // tritone dom7 = 4 tones
 
+        // W16) Groove lock: off-beats pushed late, on-beats untouched, idempotent (amount < 0.5).
+        let straightN = [MIDINote(pitch: 60, start: 0, duration: 0.25), MIDINote(pitch: 62, start: 0.25, duration: 0.25),
+                         MIDINote(pitch: 64, start: 0.5, duration: 0.25), MIDINote(pitch: 65, start: 0.75, duration: 0.25)]
+        let swung = applySwing(straightN, amount: 0.4, grid: 0.25)      // off-8ths (steps 1,3) +0.1s
+        let swungAgain = applySwing(swung, amount: 0.4, grid: 0.25)
+        print("   (swing starts: \(swung.map { String(format: "%.3f", $0.start) }))")
+        check("groove lock swings off-beats, keeps on-beats, idempotent",
+              abs(swung[0].start - 0) < 1e-9 && abs(swung[1].start - 0.35) < 1e-9
+                  && abs(swung[2].start - 0.5) < 1e-9 && abs(swung[3].start - 0.85) < 1e-9
+                  && swungAgain.map(\.start) == swung.map(\.start))
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]
