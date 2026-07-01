@@ -46,6 +46,10 @@ struct TransportBar: View {
                     iconButton("timer", active: project.countInEnabled, help: "1-bar count-in") {
                         project.countInEnabled.toggle()
                     }
+                    iconButton("scope", active: project.punchEnabled,
+                               help: "Punch in/out — record only the loop region") {
+                        project.punchEnabled.toggle()
+                    }
                     iconButton("pianokeys", active: project.musicalTypingEnabled,
                                help: "Musical Typing — play instruments from your keyboard (A=C, W=C#, S=D…; Z/X octave)") {
                         project.toggleMusicalTyping()

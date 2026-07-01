@@ -49,6 +49,8 @@ final class ProjectStore: ObservableObject {
     var loopActive: Bool { loopEnabled && loopEnd > loopStart + 0.05 }
     @Published var metronomeEnabled = false
     @Published var countInEnabled = false
+    @Published var punchEnabled = false          // record only the loop region
+    private var punchStopAt: TimeInterval?
     @Published var markers: [Marker] = []
     private var tapTimes: [Date] = []
 
@@ -334,7 +336,14 @@ final class ProjectStore: ObservableObject {
 
     private func startRecording() {
         if isPlaying { stop() }
-        recordPosition = currentTime >= totalDuration ? 0 : currentTime
+        // Punch: record only the loop region — start at loop-in, auto-stop at loop-out.
+        if punchEnabled, loopActive {
+            recordPosition = loopStart
+            punchStopAt = loopEnd
+        } else {
+            recordPosition = currentTime >= totalDuration ? 0 : currentTime
+            punchStopAt = nil
+        }
         currentTime = recordPosition
         if countInEnabled {
             engine.playCountIn(tempo: tempo, beatsPerBar: beatsPerBar) { [weak self] in
@@ -346,6 +355,7 @@ final class ProjectStore: ObservableObject {
     }
 
     private func stopRecording() {
+        punchStopAt = nil
         recorder.stopRecording()  // fires onFinish → placeRecording
         stop()
     }
@@ -635,8 +645,10 @@ final class ProjectStore: ObservableObject {
                 guard let self, self.isPlaying else { return }
                 self.currentTime = base + Date().timeIntervalSince(startedAt)
                 self.engine.applyAutomation(tracks: self.effectiveTracks(), at: self.currentTime)
-                if self.loopActive && self.currentTime >= self.loopEnd {
-                    self.seek(to: self.loopStart) // restarts playback from the loop start
+                if self.recorder.isRecording, let stopAt = self.punchStopAt, self.currentTime >= stopAt {
+                    self.stopRecording()                       // punch-out
+                } else if self.loopActive && self.currentTime >= self.loopEnd && !self.recorder.isRecording {
+                    self.seek(to: self.loopStart)              // loop restart (not while recording)
                 } else if self.currentTime >= self.totalDuration {
                     self.stop()
                 }
