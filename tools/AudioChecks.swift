@@ -415,6 +415,18 @@ struct AudioChecks {
         check("melody stays in key, follows chords, scales density",
               !melSparse.isEmpty && melBusy.count > melSparse.count && inKey && melSame)
 
+        // W13) Chord Colors: 9ths add diatonic extensions in key; triads reset to 3 tones.
+        let triadProg = chordProgression(root: 0, scale: .major, degrees: [0, 4, 5, 3], barDuration: 2, octave: 4)
+        let asTriads = reharmonize(triadProg, color: .triad, pool: cMajorPool, secPerBar: 2, bars: 4)
+        let asNinths = reharmonize(triadProg, color: .ninth, pool: cMajorPool, secPerBar: 2, bars: 4)
+        let bar0Ninth = asNinths.filter { $0.start < 1.9 }.map { (($0.pitch % 12) + 12) % 12 }.sorted()
+        print("   (Cmaj9 bar 0 pitch classes: \(bar0Ninth))")
+        check("chord colors add diatonic extensions in key",
+              asTriads.count == 12                                   // 4 bars × 3 triad tones
+                  && asNinths.count == 20                            // 4 bars × 5 (root-3-5-7-9)
+                  && bar0Ninth == [0, 2, 4, 7, 11]                   // C E G B D → Cmaj9
+                  && asNinths.allSatisfy { cMajorPool.contains((($0.pitch % 12) + 12) % 12) })
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

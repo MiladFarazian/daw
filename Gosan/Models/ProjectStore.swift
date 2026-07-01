@@ -1110,6 +1110,18 @@ final class ProjectStore: ObservableObject {
                                              barDuration: barDuration, octave: octave)
     }
 
+    /// Reharmonize an instrument track's chords with a color (7ths / 9ths / sus) — keeps the
+    /// roots (so any following bass/melody still match) but makes plain triads sound new.
+    func reharmonizeChords(on track: Track, color: ChordColor) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }
+        let secPerBar = Double(beatsPerBar) * 60.0 / max(1, tempo)
+        let bars = max(1, Int(ceil(tracks[ti].endTime / secPerBar - 1e-6)))
+        let pool = Array(Set(tracks[ti].notes.map { ((($0.pitch % 12) + 12) % 12) })).sorted()
+        recordUndo()
+        tracks[ti].notes = reharmonize(tracks[ti].notes, color: color, pool: pool, secPerBar: secPerBar, bars: bars)
+        engine.prepare(tracks: effectiveTracks())
+    }
+
     /// Replace a track's notes with an arpeggiated version of its chords.
     func arpeggiateTrack(on track: Track, rate: TimeInterval, pattern: ArpPattern) {
         guard let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }
@@ -1989,6 +2001,7 @@ final class ProjectStore: ObservableObject {
                 melodySettings = MelodySettings(density: 0.6, motion: 0.4, register: 5)
                 activeSheet = .melodyMaker(addMelodyMaker())
             }
+        case "colors": if let i = inst { reharmonizeChords(on: i, color: .ninth); activeSheet = .pianoRoll(i.id) }
         case "chords": if let i = inst { activeSheet = .chords(i.id) }
         case "automation": if let i = inst { activeSheet = .automation(i.id) }
         case "mixer": activeSheet = .mixer

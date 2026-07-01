@@ -192,6 +192,13 @@ struct TrackHeaderView: View {
                     Divider()
                     Button("Open Instrument Editor…") { project.activeSheet = .instrument(track.id) }
                 } label: { Label("Instrument", systemImage: "pianokeys.inverse") }
+                if !track.notes.isEmpty {
+                    Menu {
+                        ForEach(ChordColor.allCases) { color in
+                            Button(color.label) { project.reharmonizeChords(on: track, color: color) }
+                        }
+                    } label: { Label("Chord Colors", systemImage: "paintpalette.fill") }
+                }
             }
             Divider()
             Button { project.bounceTrack(track) } label: {

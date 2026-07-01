@@ -433,6 +433,55 @@ func bassPerformance(roots: [Int?], settings s: BassSettings, secPerBar: Double)
     return out
 }
 
+/// Re-voice a chord: plain triad, or richer diatonic colors that make it "sound new".
+enum ChordColor: Int, CaseIterable, Identifiable {
+    case triad, seventh, ninth, sus4
+    var id: Int { rawValue }
+    var label: String {
+        switch self {
+        case .triad: return "Triads"
+        case .seventh: return "7ths"
+        case .ninth: return "9ths"
+        case .sus4: return "Sus4"
+        }
+    }
+    /// Scale-degree offsets (stacked thirds) above the chord root.
+    var degrees: [Int] {
+        switch self {
+        case .triad: return [0, 2, 4]
+        case .seventh: return [0, 2, 4, 6]
+        case .ninth: return [0, 2, 4, 6, 8]
+        case .sus4: return [0, 3, 4]          // fourth replaces the third
+        }
+    }
+}
+
+/// Reharmonize a chord track (one chord per bar) with the chosen color, staying diatonic to
+/// `pool` and keeping each chord's root register. Pure. Chords voiced as stacked scale thirds.
+func reharmonize(_ notes: [MIDINote], color: ChordColor, pool poolIn: [Int],
+                 secPerBar: Double, bars: Int) -> [MIDINote] {
+    guard secPerBar > 0 else { return [] }
+    let pool = (poolIn.isEmpty ? [0, 2, 4, 5, 7, 9, 11] : poolIn).sorted()
+    var out: [MIDINote] = []
+    for bar in 0..<max(1, bars) {
+        let start = Double(bar) * secPerBar, end = start + secPerBar
+        let inBar = notes.filter { $0.start < end - 1e-6 && $0.start + $0.duration > start + 1e-6 }
+        guard let root = inBar.map(\.pitch).min() else { continue }
+        // Consecutive scale degrees ascending from the root (each entry = one scale step up).
+        var scale: [Int] = []
+        var p = root
+        while scale.count < 12 && p < root + 26 {
+            if pool.contains(((p % 12) + 12) % 12) { scale.append(p) }
+            p += 1
+        }
+        for d in color.degrees where d < scale.count {
+            out.append(MIDINote(pitch: min(127, scale[d]), start: start,
+                                duration: secPerBar * 0.95, velocity: 88))
+        }
+    }
+    return out
+}
+
 /// A one-click starting point: a genre feel that bundles a progression, tempo, and settings
 /// for the chord / bass / melody / drum generators so they all match out of the gate.
 struct SongVibe: Identifiable, Equatable {
