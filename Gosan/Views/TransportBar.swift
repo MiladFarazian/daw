@@ -151,6 +151,7 @@ struct TransportBar: View {
                         .fixedSize().help("Add a track")
                     Menu {
                         Button("Audio file…") { project.requestImport() }
+                        Button("MIDI file (.mid)…") { project.requestMIDIImport() }
                         Button("From YouTube…") { project.activeSheet = .youtube }
                     } label: { Image(systemName: "square.and.arrow.down") }
                         .fixedSize().help("Import")

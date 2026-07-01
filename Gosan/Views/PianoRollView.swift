@@ -99,6 +99,8 @@ struct PianoRollView: View {
                                 Button("Loose") { project.humanizeNotes(on: track, timing: 0.03, velocity: 18) }
                             }
                         }
+                        Divider()
+                        Button("Export MIDI…") { project.exportTrackMIDI(track) }
                     } label: {
                         Label("Tools", systemImage: "wand.and.stars")
                     }

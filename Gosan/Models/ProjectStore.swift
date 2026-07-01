@@ -13,6 +13,7 @@ final class ProjectStore: ObservableObject {
     @Published var isPlaying = false
     @Published var currentTime: TimeInterval = 0
     @Published var showImporter = false
+    @Published var showMIDIImporter = false
     @Published var isImporting = false
     @Published var pixelsPerSecond: Double = 80
 
@@ -246,6 +247,7 @@ final class ProjectStore: ObservableObject {
     // MARK: - Import
 
     func requestImport() { showImporter = true }
+    func requestMIDIImport() { showMIDIImporter = true }
 
     func importAudio(urls: [URL]) {
         for url in urls { importOne(url) }
@@ -815,6 +817,37 @@ final class ProjectStore: ObservableObject {
         recordUndo()
         var track = Track(name: "Instrument \(tracks.count + 1)", colorIndex: tracks.count)
         track.isInstrument = true
+        tracks.append(track)
+        engine.prepare(tracks: effectiveTracks())
+    }
+
+    /// Export an instrument track's notes as a Standard MIDI File.
+    func exportTrackMIDI(_ track: Track) {
+        guard track.isInstrument, !track.notes.isEmpty else { lastError = "This track has no notes to export."; return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "mid") ?? .data]
+        panel.nameFieldStringValue = "\(track.name).mid"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try MIDIFile.write(notes: track.notes, tempo: tempo, channel: track.midiChannel).write(to: url)
+        } catch {
+            lastError = "MIDI export failed: \(error.localizedDescription)"
+        }
+    }
+
+    /// Import a .mid file as a new instrument track (adopts its tempo if the project is empty).
+    func importMIDIFile(_ url: URL) {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url), let parsed = MIDIFile.read(data), !parsed.notes.isEmpty else {
+            lastError = "Couldn't read that MIDI file."
+            return
+        }
+        recordUndo()
+        if tracks.isEmpty { tempo = min(300, max(30, parsed.tempo)) }
+        var track = Track(name: url.deletingPathExtension().lastPathComponent, colorIndex: tracks.count)
+        track.isInstrument = true
+        track.notes = parsed.notes
         tracks.append(track)
         engine.prepare(tracks: effectiveTracks())
     }

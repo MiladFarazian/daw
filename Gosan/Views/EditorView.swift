@@ -38,6 +38,11 @@ struct EditorView: View {
             project.importAudio(urls: urls)
             return true
         }
+        .fileImporter(isPresented: $project.showMIDIImporter,
+                      allowedContentTypes: [UTType(filenameExtension: "mid") ?? .midi, .midi],
+                      allowsMultipleSelection: false) { result in
+            if case .success(let urls) = result, let url = urls.first { project.importMIDIFile(url) }
+        }
         .sheet(item: $project.activeSheet) { sheet in
             switch sheet {
             case .generate:

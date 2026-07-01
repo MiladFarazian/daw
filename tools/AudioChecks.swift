@@ -314,6 +314,20 @@ struct AudioChecks {
         let deterministic = humanize(straight, timing: 0.02, velocity: 10, seed: 42).map(\.start) == human.map(\.start)
         check("humanize varies notes within bounds (seeded)", inBounds && changed && deterministic)
 
+        // W10) MIDI file round-trip: write notes → read back → same pitches + ~same timing.
+        let midiNotes = [MIDINote(pitch: 60, start: 0.0, duration: 0.5, velocity: 100),
+                         MIDINote(pitch: 64, start: 0.5, duration: 0.5, velocity: 90),
+                         MIDINote(pitch: 67, start: 1.0, duration: 1.0, velocity: 110)]
+        let midiData = MIDIFile.write(notes: midiNotes, tempo: 120)
+        let readBack = MIDIFile.read(midiData)
+        let rbPitches = readBack?.notes.map(\.pitch) ?? []
+        print("   (MIDI round-trip: \(rbPitches), tempo \(readBack.map { String(format: "%.0f", $0.tempo) } ?? "nil"))")
+        check("MIDI file round-trips notes + tempo",
+              readBack != nil && rbPitches == [60, 64, 67]
+                  && abs((readBack!.tempo) - 120) < 1
+                  && abs((readBack!.notes[2].start) - 1.0) < 0.01
+                  && abs((readBack!.notes[2].duration) - 1.0) < 0.02)
+
         // W5) Musical typing maps the keyboard to MIDI (A=C4=60, J=B4=71 at octave 4).
         let mtA = MusicalTyping.pitch(keyCode: 0, octave: 4)     // A → C4
         let mtJ = MusicalTyping.pitch(keyCode: 38, octave: 4)    // J → B4
