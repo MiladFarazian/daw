@@ -14,6 +14,9 @@ struct ProjectDocument: Codable {
     var masterEqHigh: Float = 0
     var masterVolume: Float = 1.0
     var beatsPerBar: Int = 4
+    var scaleLockEnabled: Bool = false
+    var scaleLockRoot: Int = 0
+    var scaleLockScale: Int = 0     // 0 = major, 1 = minor
     var groups: [GroupData] = []
 
     struct GroupData: Codable {

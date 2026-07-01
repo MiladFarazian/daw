@@ -47,6 +47,27 @@ struct PianoRollView: View {
                 }
                 .help("New note velocity: \(Int(newVelocity))")
 
+                Menu {
+                    Toggle("Scale Lock", isOn: Binding(get: { project.scaleLockEnabled },
+                                                       set: { project.scaleLockEnabled = $0 }))
+                    Divider()
+                    Picker("Key", selection: Binding(get: { project.scaleLockRoot },
+                                                     set: { project.scaleLockRoot = $0 })) {
+                        ForEach(0..<12, id: \.self) { Text(Self.rootNames[$0]).tag($0) }
+                    }
+                    Picker("Scale", selection: Binding(get: { project.scaleLockScale == .minor },
+                                                       set: { project.scaleLockScale = $0 ? .minor : .major })) {
+                        Text("Major").tag(false); Text("Minor").tag(true)
+                    }
+                } label: {
+                    Image(systemName: project.scaleLockEnabled ? "lock.fill" : "lock.open")
+                        .foregroundStyle(project.scaleLockEnabled ? Color.green : Color.secondary)
+                }
+                .menuStyle(.borderlessButton).fixedSize()
+                .help(project.scaleLockEnabled
+                      ? "Scale Lock: \(Self.rootNames[project.scaleLockRoot]) \(project.scaleLockScale == .major ? "major" : "minor")"
+                      : "Scale Lock (off) — snap added notes into a key")
+
                 if let track {
                     Menu {
                         Button { project.activeSheet = .chords(trackID) } label: {
@@ -98,7 +119,7 @@ struct PianoRollView: View {
                 ForEach(pitches, id: \.self) { pitch in
                     ZStack(alignment: .leading) {
                         Rectangle()
-                            .fill(isBlackKey(pitch) ? Color.primary.opacity(0.06) : Color.clear)
+                            .fill(rowFill(pitch))
                             .frame(width: contentWidth, height: rowHeight)
                         if pitch % 12 == 0 {
                             Text("C\(pitch / 12 - 1)")
@@ -110,10 +131,11 @@ struct PianoRollView: View {
                     .gesture(SpatialTapGesture().onEnded { value in
                         guard let track else { return }
                         let t = max(0, (Double(value.location.x / pps) / snapSec).rounded(.down) * snapSec)
-                        project.addNote(MIDINote(pitch: pitch, start: t,
+                        let snappedPitch = project.snappedPitch(pitch)
+                        project.addNote(MIDINote(pitch: snappedPitch, start: t,
                                                  duration: noteBeats * secPerBeat,
                                                  velocity: Int(newVelocity)), to: track)
-                        project.auditionNote(track, pitch: pitch)
+                        project.auditionNote(track, pitch: snappedPitch)
                     })
                 }
             }
@@ -145,6 +167,12 @@ struct PianoRollView: View {
     }
 
     private func isBlackKey(_ pitch: Int) -> Bool { [1, 3, 6, 8, 10].contains(pitch % 12) }
+
+    /// Row shade: out-of-key rows are dimmed when Scale Lock is on; else black keys are tinted.
+    private func rowFill(_ pitch: Int) -> Color {
+        if project.scaleLockEnabled && !project.pitchInScale(pitch) { return Color.primary.opacity(0.14) }
+        return isBlackKey(pitch) ? Color.primary.opacity(0.06) : Color.clear
+    }
 
     /// One note: drag the body to move (time + pitch), drag the right edge to resize,
     /// tap to audition, right-click to delete. Commits to the model on drag end.
@@ -213,6 +241,8 @@ struct PianoRollView: View {
                 }
         }
     }
+
+    static let rootNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
     static func programName(_ program: Int) -> String {
         programs.first { $0.0 == program }?.1 ?? "Program \(program)"

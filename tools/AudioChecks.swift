@@ -294,6 +294,14 @@ struct AudioChecks {
         check("chord generator builds correct triads",
               cMajorI.map(\.pitch) == [60, 64, 67] && aMinorI.map(\.pitch) == [69, 72, 76])
 
+        // W8) Scale lock: in C major, C#(61)→C(60) or D(62); E(64) stays; A minor snaps too.
+        let cSharpSnap = snapToScale(61, root: 0, scale: .major)   // C# → nearest white key
+        print("   (scale snap: C#→\(cSharpSnap), E→\(snapToScale(64, root: 0, scale: .major)))")
+        check("scale lock snaps to the key",
+              (cSharpSnap == 60 || cSharpSnap == 62)                // C# → C or D
+                  && snapToScale(64, root: 0, scale: .major) == 64  // E stays
+                  && snapToScale(61, root: 9, scale: .minor) == 60) // C# in A-minor → C
+
         // W5) Musical typing maps the keyboard to MIDI (A=C4=60, J=B4=71 at octave 4).
         let mtA = MusicalTyping.pitch(keyCode: 0, octave: 4)     // A → C4
         let mtJ = MusicalTyping.pitch(keyCode: 38, octave: 4)    // J → B4

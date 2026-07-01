@@ -69,6 +69,20 @@ final class ProjectStore: ObservableObject {
     @Published var masterVolume: Float = 1.0
     @Published var beatsPerBar: Int = 4   // time signature numerator (over /4)
 
+    // Scale lock: notes added in the piano roll snap into this key.
+    @Published var scaleLockEnabled = false
+    @Published var scaleLockRoot = 0            // 0 = C
+    @Published var scaleLockScale: MusicScale = .major
+
+    /// Snap a pitch into the locked key (identity when scale lock is off).
+    func snappedPitch(_ pitch: Int) -> Int {
+        scaleLockEnabled ? snapToScale(pitch, root: scaleLockRoot, scale: scaleLockScale) : pitch
+    }
+    /// Is a pitch in the locked key? (Always true when off — used to dim the piano roll.)
+    func pitchInScale(_ pitch: Int) -> Bool {
+        !scaleLockEnabled || snapToScale(pitch, root: scaleLockRoot, scale: scaleLockScale) == pitch
+    }
+
     func setMasterEQ(low: Float, mid: Float, high: Float) {
         masterEqLow = low; masterEqMid = mid; masterEqHigh = high
         engine.setMasterEQ(low: low, mid: mid, high: high)
@@ -1780,6 +1794,8 @@ final class ProjectStore: ObservableObject {
             masterEqLow: masterEqLow, masterEqMid: masterEqMid, masterEqHigh: masterEqHigh,
             masterVolume: masterVolume,
             beatsPerBar: beatsPerBar,
+            scaleLockEnabled: scaleLockEnabled, scaleLockRoot: scaleLockRoot,
+            scaleLockScale: scaleLockScale.rawValue,
             groups: groups.map {
                 ProjectDocument.GroupData(id: $0.id, name: $0.name, colorIndex: $0.colorIndex,
                                           collapsed: $0.collapsed, volume: $0.volume,
@@ -1866,6 +1882,9 @@ final class ProjectStore: ObservableObject {
         setMasterEQ(low: document.masterEqLow, mid: document.masterEqMid, high: document.masterEqHigh)
         setMasterVolume(document.masterVolume)
         beatsPerBar = max(1, document.beatsPerBar)
+        scaleLockEnabled = document.scaleLockEnabled
+        scaleLockRoot = document.scaleLockRoot
+        scaleLockScale = MusicScale(rawValue: document.scaleLockScale) ?? .major
         groups = document.groups.map {
             var g = TrackGroup(id: $0.id, name: $0.name, colorIndex: $0.colorIndex)
             g.collapsed = $0.collapsed; g.volume = $0.volume; g.muted = $0.muted; g.soloed = $0.soloed

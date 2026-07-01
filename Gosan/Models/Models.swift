@@ -183,7 +183,20 @@ func loopFitRate(loopBPM: Int?, projectBPM: Double) -> Float? {
     return abs(rate - 1) > 0.01 ? rate : nil
 }
 
-enum MusicScale { case major, minor }
+enum MusicScale: Int, Codable { case major, minor }
+
+/// Snap a MIDI pitch to the nearest tone in `root`+`scale` (pitch class–based). Pure.
+func snapToScale(_ pitch: Int, root: Int, scale: MusicScale) -> Int {
+    let steps = scale == .major ? [0, 2, 4, 5, 7, 9, 11] : [0, 2, 3, 5, 7, 8, 10]
+    let pc = ((pitch - root) % 12 + 12) % 12
+    if steps.contains(pc) { return pitch }
+    var bestOffset = 0, bestDist = 12
+    for delta in -6...6 where delta != 0 {
+        let candidatePC = ((pc + delta) % 12 + 12) % 12
+        if steps.contains(candidatePC) && abs(delta) < bestDist { bestDist = abs(delta); bestOffset = delta }
+    }
+    return pitch + bestOffset
+}
 
 /// Build a diatonic triad progression as MIDI notes (one chord per bar). Pure.
 /// `root` 0=C…11=B; `degrees` are 0-based scale degrees (0=I, 1=ii … 6=vii°).
