@@ -10,3 +10,12 @@ build/
 
 # macOS
 .DS_Store
+
+# Secrets — never commit cookies / API keys (Suno cookie, Moises key, etc.)
+.env
+.env.*
+*.env
+*cookie*
+*secret*
+*.key
+scratchshots/

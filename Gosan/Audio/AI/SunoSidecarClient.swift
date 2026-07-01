@@ -11,17 +11,23 @@ struct SunoSidecarClient {
         return true
     }
 
-    /// Distinguish "ready", "running but cookie rejected (401)", and "not running".
+    /// Distinguish "ready", "running but the cookie is missing/expired", and "not running".
+    /// Any HTTP response means the sidecar is reachable, so `.offline` is reserved for genuine
+    /// connection failures. A 2xx = ready; anything else from a running sidecar means the cookie
+    /// needs attention — an empty cookie 401s, but an *expired* one 500s ("update SUNO_COOKIE"),
+    /// and both should read as "unauthorized", not "offline".
     func status() async -> SidecarStatus {
         var req = URLRequest(url: baseURL.appendingPathComponent("api/get_limit"))
         req.timeoutInterval = 4
         guard let (data, resp) = try? await URLSession.shared.data(for: req),
               let http = resp as? HTTPURLResponse else { return .offline }
-        if http.statusCode == 401 || http.statusCode == 403 { return .unauthorized }
-        let body = String(data: data, encoding: .utf8) ?? ""
-        if body.localizedCaseInsensitiveContains("unauthorized") { return .unauthorized }
-        if (200..<300).contains(http.statusCode) { return .ready }
-        return http.statusCode < 500 ? .ready : .offline
+        if (200..<300).contains(http.statusCode) {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            // Some builds return 200 with an error envelope; treat those as cookie problems.
+            return body.localizedCaseInsensitiveContains("unauthorized")
+                || body.localizedCaseInsensitiveContains("suno_cookie") ? .unauthorized : .ready
+        }
+        return .unauthorized   // reachable but not serving limits → the cookie is missing/expired
     }
 
     func generate(_ prompt: GeneratePrompt,

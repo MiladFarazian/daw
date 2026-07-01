@@ -48,5 +48,23 @@ if [ ! -d node_modules ]; then
   npm install --no-audit --no-fund
 fi
 
-echo "→ Starting Suno sidecar on http://localhost:3000  (Ctrl-C to stop)"
-npm run dev
+# --- Pick a port (3000 by default; auto-bump if something else already holds it,
+#     e.g. another Next.js dev server — we never kill other people's processes). ---
+PORT="${PORT:-3000}"
+port_free() { ! lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
+if ! port_free "$PORT"; then
+  echo "→ Port $PORT is already in use (another dev server?). Finding a free port…"
+  for p in 3001 3002 3003 3004 3005; do port_free "$p" && { PORT="$p"; break; }; done
+fi
+URL="http://127.0.0.1:$PORT"
+
+echo
+echo "────────────────────────────────────────────────────────────"
+echo "  Suno sidecar → $URL   (Ctrl-C to stop; leave it running)"
+if [ "$PORT" != "3000" ]; then
+  echo "  ⚠  Not the default port. In Gosan → Settings, set the"
+  echo "     'Suno sidecar URL' to:  $URL"
+fi
+echo "────────────────────────────────────────────────────────────"
+echo
+npm run dev -- -p "$PORT"

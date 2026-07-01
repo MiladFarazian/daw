@@ -26,7 +26,7 @@ struct GeneratePanel: View {
     private var sidecarText: String {
         switch project.sidecarStatus {
         case .ready: return "Suno sidecar connected"
-        case .unauthorized: return "Sidecar running, but your cookie isn’t authorized (401) — re-grab it & restart"
+        case .unauthorized: return "Sidecar running, but the Suno cookie is missing or expired — re-grab it & restart the sidecar"
         case .offline: return "Sidecar not reachable — start it, or use “Open in Suno (manual)” below"
         case .checking: return "Checking sidecar…"
         }
