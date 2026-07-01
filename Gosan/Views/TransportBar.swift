@@ -155,6 +155,8 @@ struct TransportBar: View {
                         Divider()
                         Button("Loop region → WAV…") { project.exportLoop() }.disabled(!project.loopActive)
                         Button("Each track (stems)…") { project.exportStems() }
+                        Divider()
+                        Button("Analyze Loudness (LUFS)…") { project.analyzeLoudness() }
                     } label: {
                         if project.isExporting { ProgressView().controlSize(.small) }
                         else { Image(systemName: "square.and.arrow.up") }

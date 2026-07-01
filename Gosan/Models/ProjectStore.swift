@@ -1492,6 +1492,37 @@ final class ProjectStore: ObservableObject {
         exportRange(from: 0, duration: totalDuration, name: name, aac: aac, normalize: normalize)
     }
 
+    /// Render the mix and report its integrated loudness (LUFS) + peak — for hitting
+    /// streaming targets (≈ −14 LUFS).
+    func analyzeLoudness() {
+        guard !tracks.isEmpty, !isExporting else { return }
+        let snapshot = tracksWithLivePluginState()
+        let duration = totalDuration, mv = masterVolume
+        isExporting = true
+        Task.detached(priority: .userInitiated) {
+            let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("loud-\(UUID().uuidString).wav")
+            do {
+                try AudioExporter.render(tracks: snapshot, duration: duration, to: tmp, masterVolume: mv)
+                let lufs = Loudness.integratedLUFS(url: tmp)
+                let peak = Loudness.peakDBFS(url: tmp)
+                try? FileManager.default.removeItem(at: tmp)
+                await MainActor.run {
+                    self.isExporting = false
+                    let l = lufs.map { String(format: "%.1f LUFS", $0) } ?? "—"
+                    let p = peak.map { String(format: "%.1f dBFS", $0) } ?? "—"
+                    self.infoMessage = "Mix loudness: \(l) integrated · peak \(p).\n\n"
+                        + "Streaming targets: ≈ −14 LUFS (Spotify/YouTube), −16 (Apple Music). "
+                        + "Louder (closer to 0) hits harder; keep peak below 0."
+                }
+            } catch {
+                await MainActor.run {
+                    self.isExporting = false
+                    self.lastError = "Loudness analysis failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
     func exportLoop(aac: Bool = false) {
         guard loopActive else { return }
         exportRange(from: loopStart, duration: loopEnd - loopStart, name: "\(name)-loop", aac: aac)

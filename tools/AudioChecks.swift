@@ -221,6 +221,16 @@ struct AudioChecks {
         print(String(format: "   (half/full track-volume ratio: %.2f, expect ~0.5)", volRatio))
         check("track volume bakes into bounce/export", volRatio > 0.4 && volRatio < 0.6)
 
+        // T2) LUFS loudness: a 0.5-amplitude tone reads a sane integrated LUFS + peak ≈ -6 dBFS.
+        let lufs = Loudness.integratedLUFS(url: toneURL)
+        let peakDB = Loudness.peakDBFS(url: toneURL)
+        print(String(format: "   (loudness: %@ LUFS, peak %@ dBFS)",
+                     lufs.map { String(format: "%.1f", $0) } ?? "nil",
+                     peakDB.map { String(format: "%.1f", $0) } ?? "nil"))
+        check("integrated LUFS + peak are sane",
+              lufs != nil && lufs! > -16 && lufs! < -4
+                  && peakDB != nil && abs(peakDB! - (-6.02)) < 0.6)
+
         // U) Pitch shift raises/lowers the fundamental (zero-crossing rate tracks pitch).
         let zcBase = try zeroCrossings(toneURL, 0.5, 1.5)
         let upURL = ClipProcessing.pitchShift(url: toneURL, offset: 0, duration: 2.0, semitones: 12, outputDir: tmp)
