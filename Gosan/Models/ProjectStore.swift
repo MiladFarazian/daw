@@ -1628,6 +1628,7 @@ final class ProjectStore: ObservableObject {
     /// Dev/screenshot hook: load a demo project and optionally open a sheet (env GOSAN_OPEN),
     /// so the agent can launch straight into any screen and capture it.
     func loadDemoForScreenshot() {
+        if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "empty" { newProject(); return }
         let peaks: [Float] = (0..<256).map { Float(abs(sin(Double($0) * 0.15)) * 0.85) }
         func asset(_ name: String) -> AudioAsset {
             AudioAsset(url: URL(fileURLWithPath: "/tmp/\(name).wav"), duration: 7, sampleRate: 44_100, peaks: peaks)

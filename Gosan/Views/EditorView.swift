@@ -206,6 +206,9 @@ struct EmptyStateView: View {
                 Button { project.addInstrumentTrack() } label: {
                     Label("Instrument", systemImage: "pianokeys")
                 }
+                Button { project.activeSheet = .stepSequencer(project.addDrumTrack()) } label: {
+                    Label("Drums", systemImage: "square.grid.3x3.fill")
+                }
             }
             .controlSize(.large)
             if project.isImporting { ProgressView().controlSize(.small) }
