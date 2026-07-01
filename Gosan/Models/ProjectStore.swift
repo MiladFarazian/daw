@@ -237,6 +237,31 @@ final class ProjectStore: ObservableObject {
         tracks[ti].notes = DrumPatterns.notes(preset, bars: bars, stepDur: stepDur)
     }
 
+    // MARK: - Drummer (auto-groove from taste knobs)
+
+    @Published var drummerSettings = DrummerSettings()
+
+    /// Generate a groove onto a drum track from the current Drummer settings. Covers the song
+    /// (or 4 bars, whichever is longer). A fresh seed each call so "Regenerate" gives a new take.
+    func applyDrummer(on track: Track) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }) else { return }
+        recordUndo()
+        let secPerBar = Double(beatsPerBar) * 60.0 / max(1, tempo)
+        let stepDur = secPerBar / 16
+        let existing = tracks.filter { $0.id != track.id }.map(\.endTime).max() ?? 0
+        let bars = max(4, Int(ceil((existing > 0 ? existing : secPerBar * 4) / secPerBar)))
+        let seed = UInt64.random(in: 0...UInt64.max)
+        tracks[ti].notes = drummerPerformance(drummerSettings, bars: bars, stepDur: stepDur, seed: seed)
+        engine.prepare(tracks: effectiveTracks())
+    }
+
+    /// Create a drum track and open the Drummer on it.
+    func addDrummerTrack() -> UUID {
+        let id = addDrumTrack()
+        if let track = tracks.first(where: { $0.id == id }) { applyDrummer(on: track) }
+        return id
+    }
+
     /// Snap an instrument track's note starts to a grid (seconds).
     func quantizeNotes(on track: Track, to grid: TimeInterval) {
         guard grid > 0, let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }
@@ -1823,6 +1848,12 @@ final class ProjectStore: ObservableObject {
         switch open {
         case "pianoroll": if let i = inst { activeSheet = .pianoRoll(i.id) }
         case "stepseq": if let d = drum { activeSheet = .stepSequencer(d.id) }
+        case "drummer":
+            if let d = drum {
+                drummerSettings = DrummerSettings(style: 1, complexity: 0.65, intensity: 0.8, swing: 0.2, fillEvery: 4)
+                applyDrummer(on: d)
+                activeSheet = .drummer(d.id)
+            }
         case "chords": if let i = inst { activeSheet = .chords(i.id) }
         case "automation": if let i = inst { activeSheet = .automation(i.id) }
         case "mixer": activeSheet = .mixer

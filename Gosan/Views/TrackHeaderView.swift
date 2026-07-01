@@ -172,6 +172,9 @@ struct TrackHeaderView: View {
             }
             if track.isDrumKit {
                 Divider()
+                Button { project.activeSheet = .drummer(track.id) } label: {
+                    Label("Drummer…", systemImage: "music.quarternote.3")
+                }
                 Button { project.activeSheet = .stepSequencer(track.id) } label: {
                     Label("Step Sequencer…", systemImage: "square.grid.3x3.fill")
                 }

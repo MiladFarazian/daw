@@ -369,6 +369,21 @@ struct AudioChecks {
         print("   (cycle takes 6.2/2.0: offsets \(tw.map { String(format: "%.0f", $0.offset) }.joined(separator: ",")))")
         check("cycle recording splits into one take per pass", twOK && shortTake.isEmpty)
 
+        // W10) Drummer: complexity adds density, output is deterministic, fills drop toms.
+        let simpleKit = drummerPerformance(DrummerSettings(style: 3, complexity: 0, intensity: 0.7, swing: 0, fillEvery: 0),
+                                           bars: 2, stepDur: 0.125, seed: 7)
+        let busyKit = drummerPerformance(DrummerSettings(style: 3, complexity: 1, intensity: 0.9, swing: 0.3, fillEvery: 0),
+                                         bars: 2, stepDur: 0.125, seed: 7)
+        let busyAgain = drummerPerformance(DrummerSettings(style: 3, complexity: 1, intensity: 0.9, swing: 0.3, fillEvery: 0),
+                                           bars: 2, stepDur: 0.125, seed: 7)
+        let filled = drummerPerformance(DrummerSettings(style: 3, complexity: 0.8, intensity: 0.8, swing: 0, fillEvery: 2),
+                                        bars: 2, stepDur: 0.125, seed: 7)
+        let fillInBar2 = filled.contains { [45, 48, 50].contains($0.pitch) && $0.start >= 2.0 }
+        let sameEachRun = busyKit.map(\.pitch) == busyAgain.map(\.pitch) && busyKit.map(\.start) == busyAgain.map(\.start)
+        print("   (drummer density: simple \(simpleKit.count) → busy \(busyKit.count), fill \(fillInBar2))")
+        check("drummer scales density, stays deterministic, and lays fills",
+              busyKit.count > simpleKit.count && sameEachRun && fillInBar2)
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

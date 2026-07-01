@@ -306,6 +306,79 @@ enum DrumPatterns {
     }
 }
 
+/// Taste knobs for the auto-drummer — a few intuitive dials instead of note editing.
+struct DrummerSettings: Equatable {
+    var style: Int = 0            // index into DrumPatterns.all
+    var complexity: Double = 0.5  // 0 = skeletal, 1 = busy (ghosts, hats, syncopation)
+    var intensity: Double = 0.7   // 0 = soft, 1 = hard-hitting (velocity + accents)
+    var swing: Double = 0.0       // 0 = straight, 1 = hard shuffle
+    var fillEvery: Int = 4        // 0 = no fills; else a drum fill on every Nth bar
+}
+
+/// Generate a humanized drum performance from a style + taste knobs. Pure and deterministic
+/// (same settings + seed → identical notes), so it's fully testable and undo-friendly.
+func drummerPerformance(_ s: DrummerSettings, bars: Int, stepDur: TimeInterval, seed: UInt64) -> [MIDINote] {
+    let styles = DrumPatterns.all
+    guard !styles.isEmpty, stepDur > 0 else { return [] }
+    let preset = styles[min(max(0, s.style), styles.count - 1)]
+    let kick = 36, snare = 38, clap = 39, closedHat = 42, openHat = 46
+    let toms = [50, 48, 45]        // high → low, for fills
+    let barSteps = 16
+
+    let baseVel = 52.0 + s.intensity * 58.0    // ≈ 52…110
+    func vel(_ v: Double) -> Int { max(1, min(127, Int(v.rounded()))) }
+    // Swing pushes odd 16ths later (up to ~60% of a step).
+    func swung(_ step: Int, _ base: Double) -> Double {
+        base + Double(step) * stepDur + (step % 2 == 1 ? s.swing * stepDur * 0.6 : 0)
+    }
+
+    var out: [MIDINote] = []
+    for bar in 0..<max(1, bars) {
+        var rng = SeededRNG(state: seed &+ UInt64(bar) &* 2654435761)
+        func chance(_ p: Double) -> Bool { Double(rng.next() % 1000) / 1000.0 < p }
+        let barBase = Double(bar * barSteps) * stepDur
+        let isFill = s.fillEvery > 0 && (bar + 1) % s.fillEvery == 0
+        var placed = Set<Int>()    // pitch*100+step, to avoid double hits
+        func add(_ pitch: Int, _ step: Int, _ v: Double, dur: Double = 0.9) {
+            guard step >= 0, step < barSteps, placed.insert(pitch * 100 + step).inserted else { return }
+            let accent = step % 4 == 0 ? 12.0 : 0
+            out.append(MIDINote(pitch: pitch, start: swung(step, barBase),
+                                duration: stepDur * dur, velocity: vel(v + accent)))
+        }
+
+        // 1) The style's backbone (on a fill bar, clear the last beat for the fill — kick stays).
+        for hit in preset.hits {
+            for step in hit.steps where !(isFill && step >= 12 && hit.pitch != kick) {
+                add(hit.pitch, step, baseVel)
+            }
+        }
+
+        if !isFill {
+            // 2) Complexity adds hats, ghost snares, and kick syncopation.
+            let hatEvery = s.complexity > 0.66 ? 1 : (s.complexity > 0.33 ? 2 : 4)
+            for step in stride(from: 0, to: barSteps, by: hatEvery) {
+                add(closedHat, step, baseVel * (step % 4 == 0 ? 0.85 : 0.6))
+            }
+            for step in stride(from: 1, to: barSteps, by: 2) where chance(s.complexity * 0.5) {
+                add(snare, step, baseVel * 0.32, dur: 0.5)                  // ghost note
+            }
+            for step in [3, 7, 11, 14] where chance(s.complexity * 0.4) {
+                add(kick, step, baseVel * 0.9)                             // pushed kick
+            }
+            if chance(s.complexity * 0.5) { add(openHat, 14, baseVel * 0.7, dur: 1.4) }
+        } else {
+            // 3) A crescendo tom/snare fill across the last beat.
+            let rollSteps = s.complexity > 0.5 ? [12, 13, 14, 15] : [12, 14]
+            for (i, step) in rollSteps.enumerated() {
+                let cresc = baseVel * (0.7 + 0.3 * Double(i) / Double(max(1, rollSteps.count - 1)))
+                add(toms[min(i, toms.count - 1)], step, cresc)
+                if chance(0.5) { add(snare, step, cresc * 0.9, dur: 0.5) }
+            }
+        }
+    }
+    return out.sorted { $0.start < $1.start }
+}
+
 /// Small seedable RNG so humanize is deterministic for tests (the app passes a random seed).
 struct SeededRNG: RandomNumberGenerator {
     var state: UInt64
