@@ -472,6 +472,35 @@ struct AudioChecks {
             && moveDiatonic(60, steps: -2, pool: []) == 60
         check("generators are crash-safe on empty / zero inputs", edgeOK)
 
+        // W18) Vocal tuning: YIN detection, scale-snap math, and an end-to-end measured correction.
+        var sine220 = [Float](repeating: 0, count: 4096)
+        for i in 0..<4096 { sine220[i] = Float(sin(2 * .pi * 220 * Double(i) / 44100)) * 0.5 }
+        let detected = PitchTune.detectPitch(sine220, sampleRate: 44100) ?? 0
+        let snapMidi = PitchTune.nearestScaleMidi(hz: 445, scalePCs: [])          // chromatic → A4 (69)
+        let corr = PitchTune.correctionCents(hz: 445, scalePCs: [], strength: 1.0) // ~-19 cents toward 440
+        let silent = PitchTune.detectPitch([Float](repeating: 0, count: 4096), sampleRate: 44100)
+        print(String(format: "   (pitch: detected %.1f Hz; 445→MIDI %d, corr %.1f cents)", detected, snapMidi, corr))
+        check("pitch detection + scale-snap math",
+              abs(detected - 220) < 4 && snapMidi == 69 && corr < -10 && corr > -30 && silent == nil)
+
+        // End-to-end: a 448 Hz tone (~31 cents sharp of A4) tuned chromatically snaps toward 440.
+        let sharp = tmp.appendingPathComponent("sharp.wav")
+        try? FileManager.default.removeItem(at: sharp)
+        try writeTone(to: sharp, freq: 448, seconds: 1.0)
+        let tunedURL = PitchTune.tune(url: sharp, offset: 0, duration: 1.0, scalePCs: [], strength: 1.0, outputDir: tmp)
+        var tunedHz = 0.0
+        if let tunedURL, let f = try? AVAudioFile(forReading: tunedURL),
+           let buf = AVAudioPCMBuffer(pcmFormat: f.processingFormat, frameCapacity: AVAudioFrameCount(f.length)) {
+            try f.read(into: buf)
+            let mono = PitchTune.monoSamples(buf)
+            let s = min(max(0, mono.count - 4096), mono.count / 2)          // mid-signal, past priming latency
+            tunedHz = PitchTune.detectPitch(Array(mono[s..<min(mono.count, s + 4096)]),
+                                            sampleRate: f.processingFormat.sampleRate) ?? 0
+        }
+        print(String(format: "   (tuned 448 Hz → %.1f Hz, target 440)", tunedHz))
+        check("vocal tuning snaps a sharp note toward the scale",
+              tunedURL != nil && tunedHz > 435 && tunedHz < 445 && abs(tunedHz - 440) < abs(448 - 440))
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

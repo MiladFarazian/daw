@@ -132,6 +132,14 @@ struct ClipLaneView: View {
                         } label: {
                             Label("Pitch Shift", systemImage: "tuningfork")
                         }
+                        Menu {
+                            Button("Gentle") { project.tuneClip(clip, on: track, strength: 0.5) }
+                            Button("Medium") { project.tuneClip(clip, on: track, strength: 0.8) }
+                            Button("Hard (snap)") { project.tuneClip(clip, on: track, strength: 1.0) }
+                        } label: {
+                            Label(project.scaleLockEnabled ? "Tune to Key" : "Tune (nearest note)",
+                                  systemImage: "music.mic")
+                        }
                         Divider()
                         Button { project.vocalRescue(clip) } label: {
                             Label("Vocal Rescue (enhance → master)", systemImage: "wand.and.stars")

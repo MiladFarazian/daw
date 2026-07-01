@@ -1826,6 +1826,37 @@ final class ProjectStore: ObservableObject {
     }
 
     /// Bake a pitch-shifted copy of a clip (length preserved), ± semitones.
+    /// Pitch classes of the current key (from scale lock), or [] for chromatic (nearest-note).
+    private func currentScalePCs() -> [Int] {
+        guard scaleLockEnabled else { return [] }
+        let steps = scaleLockScale == .major ? [0, 2, 4, 5, 7, 9, 11] : [0, 2, 3, 5, 7, 8, 10]
+        return steps.map { (($0 + scaleLockRoot) % 12 + 12) % 12 }
+    }
+
+    /// Tune a vocal (or any monophonic clip) toward the project key and drop the result on a new
+    /// track, leaving the raw take untouched. `strength` 0…1 (1 = full snap).
+    func tuneClip(_ clip: Clip, on track: Track, strength: Float) {
+        let scalePCs = currentScalePCs()
+        let url = clip.asset.url, offset = clip.offset, duration = clip.duration
+        let startTime = clip.startTime, name = track.name
+        isImporting = true
+        Task.detached(priority: .userInitiated) {
+            guard let dir = try? LibraryStorage.importsDirectory(),
+                  let tuned = PitchTune.tune(url: url, offset: offset, duration: duration,
+                                             scalePCs: scalePCs, strength: strength, outputDir: dir),
+                  let waveform = WaveformLoader.load(url: tuned) else {
+                await MainActor.run { self.isImporting = false; self.lastError = "Tuning failed." }
+                return
+            }
+            let asset = AudioAsset(url: tuned, duration: waveform.duration,
+                                   sampleRate: waveform.sampleRate, peaks: waveform.peaks)
+            await MainActor.run {
+                self.addNamedTrack(name: "\(name) (tuned)", asset: asset, at: startTime)
+                self.isImporting = false
+            }
+        }
+    }
+
     func pitchShiftClip(_ clip: Clip, on track: Track, semitones: Float) {
         let url = clip.asset.url, offset = clip.offset, duration = clip.duration
         let keepDuration = clip.duration
@@ -2047,6 +2078,18 @@ final class ProjectStore: ObservableObject {
 
     private static let projectType = UTType(filenameExtension: "gosan") ?? .json
 
+    /// Dev-only: write a mono sine tone (for the vocal-tuning smoke demo).
+    private static func writeTestTone(to url: URL, freq: Double, seconds: Double, sampleRate: Double = 44_100) {
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1),
+              let file = try? AVAudioFile(forWriting: url, settings: format.settings),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(seconds * sampleRate)) else { return }
+        buffer.frameLength = buffer.frameCapacity
+        if let ch = buffer.floatChannelData?[0] {
+            for i in 0..<Int(buffer.frameLength) { ch[i] = Float(sin(2 * .pi * freq * Double(i) / sampleRate)) * 0.5 }
+        }
+        try? file.write(from: buffer)
+    }
+
     func newProject() {
         stop()
         engine.reset()
@@ -2084,6 +2127,20 @@ final class ProjectStore: ObservableObject {
         // must revert cleanly to an empty 120-BPM project with no orphan markers/tempo.
         if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "undotest" {
             newProject(); tempo = 120; startFullSong(key: 0, vibe: SongVibe.all[2]); undo(); return
+        }
+        // Vocal-tuning runtime smoke: load a slightly-sharp tone and tune it → a "(tuned)" track appears.
+        if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "tune" {
+            newProject()
+            if let dir = try? LibraryStorage.importsDirectory() {
+                let url = dir.appendingPathComponent("demo-vocal.wav")
+                Self.writeTestTone(to: url, freq: 448, seconds: 2)
+                if let wf = WaveformLoader.load(url: url) {
+                    addNamedTrack(name: "Vocal", asset: AudioAsset(url: url, duration: wf.duration,
+                                                                   sampleRate: wf.sampleRate, peaks: wf.peaks))
+                    if let t = tracks.first, let c = t.clips.first { tuneClip(c, on: t, strength: 1.0) }
+                }
+            }
+            return
         }
         let peaks: [Float] = (0..<256).map { Float(abs(sin(Double($0) * 0.15)) * 0.85) }
         func asset(_ name: String) -> AudioAsset {
