@@ -433,6 +433,19 @@ struct AudioChecks {
         check("song form lays sections end to end",
               secStarts == [0, 2, 6, 10, 14, 18] && secTotal == 20)
 
+        // W15) Chord substitution: relatives stay in key (C anchor, G→Em); jazzy adds a tritone dom7.
+        func pcsAt(_ ns: [MIDINote], _ lo: Double, _ hi: Double) -> [Int] {
+            ns.filter { $0.start >= lo && $0.start < hi }.map { ((($0.pitch % 12) + 12) % 12) }.sorted()
+        }
+        let subRel = substituteChords(triadProg, sub: .relative, pool: cMajorPool, secPerBar: 2, bars: 4)
+        let subJazz = substituteChords(triadProg, sub: .jazzy, pool: cMajorPool, secPerBar: 2, bars: 4)
+        print("   (sub bar0 \(pcsAt(subRel, 0, 1.9)) · bar1 \(pcsAt(subRel, 2, 3.9)) · jazzy bar1 count \(pcsAt(subJazz, 2, 3.9).count))")
+        check("chord substitution reharmonizes (in-key relatives + chromatic tritone)",
+              pcsAt(subRel, 0, 1.9) == [0, 4, 7]                                    // bar 0 anchor = C major
+                  && pcsAt(subRel, 2, 3.9) == [4, 7, 11]                            // bar 1 G → Em (down a third)
+                  && subRel.allSatisfy { cMajorPool.contains((($0.pitch % 12) + 12) % 12) }
+                  && pcsAt(subJazz, 2, 3.9).count == 4)                             // tritone dom7 = 4 tones
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

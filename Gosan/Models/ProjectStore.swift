@@ -1184,6 +1184,28 @@ final class ProjectStore: ObservableObject {
         engine.prepare(tracks: effectiveTracks())
     }
 
+    /// Substitute a chord track's progression (relative / bright / jazzy), keeping bar 0 as the
+    /// tonic anchor. Changes the roots, so re-generate any following bass/melody afterward.
+    func substituteProgression(on track: Track, sub: ChordSub) {
+        guard let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }
+        let secPerBar = Double(beatsPerBar) * 60.0 / max(1, tempo)
+        let bars = max(1, Int(ceil(tracks[ti].endTime / secPerBar - 1e-6)))
+        let pool = Array(Set(tracks[ti].notes.map { ((($0.pitch % 12) + 12) % 12) })).sorted()
+        recordUndo()
+        tracks[ti].notes = substituteChords(tracks[ti].notes, sub: sub, pool: pool, secPerBar: secPerBar, bars: bars)
+        // Keep the rhythm section locked: re-run any bass/melody that follows this chord track.
+        let sourceID = tracks[ti].id
+        for other in tracks where other.id != sourceID {
+            if bassFollowID == sourceID, other.program >= 32, other.program <= 39, other.isInstrument, !other.isDrumKit {
+                applyBassPlayer(on: other)
+            }
+            if melodyFollowID == sourceID, other.program >= 80, other.program <= 87, other.isInstrument, !other.isDrumKit {
+                applyMelody(on: other)
+            }
+        }
+        engine.prepare(tracks: effectiveTracks())
+    }
+
     /// Replace a track's notes with an arpeggiated version of its chords.
     func arpeggiateTrack(on track: Track, rate: TimeInterval, pattern: ArpPattern) {
         guard let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }
@@ -2067,6 +2089,7 @@ final class ProjectStore: ObservableObject {
                 activeSheet = .melodyMaker(addMelodyMaker())
             }
         case "colors": if let i = inst { reharmonizeChords(on: i, color: .ninth); activeSheet = .pianoRoll(i.id) }
+        case "substitute": if let i = inst { substituteProgression(on: i, sub: .relative); activeSheet = .pianoRoll(i.id) }
         case "chords": if let i = inst { activeSheet = .chords(i.id) }
         case "automation": if let i = inst { activeSheet = .automation(i.id) }
         case "mixer": activeSheet = .mixer

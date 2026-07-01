@@ -456,6 +456,67 @@ enum ChordColor: Int, CaseIterable, Identifiable {
     }
 }
 
+/// Swap chords for related ones to reharmonize a progression (changes the roots, not just voicing).
+enum ChordSub: Int, CaseIterable, Identifiable {
+    case relative, bright, jazzy
+    var id: Int { rawValue }
+    var label: String {
+        switch self {
+        case .relative: return "Relative (moodier)"
+        case .bright: return "Bright (lift)"
+        case .jazzy: return "Jazzy (tritone)"
+        }
+    }
+}
+
+/// Move a MIDI pitch by `steps` scale degrees within `pool`, staying near its octave. Pure.
+func moveDiatonic(_ midi: Int, steps: Int, pool: [Int]) -> Int {
+    guard !pool.isEmpty else { return midi }
+    let pc = ((midi % 12) + 12) % 12
+    let idx = pool.firstIndex(of: pc) ?? pool.indices.min(by: { abs(pool[$0] - pc) < abs(pool[$1] - pc) })!
+    let n = pool.count
+    let target = idx + steps
+    let octShift = Int(floor(Double(target) / Double(n)))
+    let newPc = pool[((target % n) + n) % n]
+    return (midi - pc) + newPc + 12 * octShift
+}
+
+/// Reharmonize a progression by substituting each bar's chord: a shared-tone third-relation
+/// (relative/bright, stays in key) or a chromatic tritone dom7 (jazzy). Keeps the first chord as
+/// a tonic anchor. Pure and deterministic.
+func substituteChords(_ notes: [MIDINote], sub: ChordSub, pool poolIn: [Int],
+                      secPerBar: Double, bars: Int) -> [MIDINote] {
+    guard secPerBar > 0 else { return [] }
+    let pool = (poolIn.isEmpty ? [0, 2, 4, 5, 7, 9, 11] : poolIn).sorted()
+    var out: [MIDINote] = []
+    for bar in 0..<max(1, bars) {
+        let start = Double(bar) * secPerBar, end = start + secPerBar
+        let inBar = notes.filter { $0.start < end - 1e-6 && $0.start + $0.duration > start + 1e-6 }
+        guard let root = inBar.map(\.pitch).min() else { continue }
+        func emit(_ pitch: Int) {
+            out.append(MIDINote(pitch: min(127, max(0, pitch)), start: start,
+                                duration: secPerBar * 0.95, velocity: 88))
+        }
+        // Keep bar 0 as the tonic anchor so the progression still resolves home.
+        if bar == 0 {
+            var scale: [Int] = [], p = root
+            while scale.count < 5 && p < root + 26 { if pool.contains(((p % 12) + 12) % 12) { scale.append(p) }; p += 1 }
+            for d in [0, 2, 4] where d < scale.count { emit(scale[d]) }
+            continue
+        }
+        switch sub {
+        case .jazzy:
+            for iv in [0, 4, 7, 10] { emit(root + 6 + iv) }        // dom7 a tritone away (chromatic)
+        default:
+            let newRoot = moveDiatonic(root, steps: sub == .relative ? -2 : 2, pool: pool)
+            var scale: [Int] = [], p = newRoot
+            while scale.count < 5 && p < newRoot + 26 { if pool.contains(((p % 12) + 12) % 12) { scale.append(p) }; p += 1 }
+            for d in [0, 2, 4] where d < scale.count { emit(scale[d]) }
+        }
+    }
+    return out
+}
+
 /// Reharmonize a chord track (one chord per bar) with the chosen color, staying diatonic to
 /// `pool` and keeping each chord's root register. Pure. Chords voiced as stacked scale thirds.
 func reharmonize(_ notes: [MIDINote], color: ChordColor, pool poolIn: [Int],

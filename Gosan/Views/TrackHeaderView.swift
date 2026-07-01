@@ -198,6 +198,11 @@ struct TrackHeaderView: View {
                             Button(color.label) { project.reharmonizeChords(on: track, color: color) }
                         }
                     } label: { Label("Chord Colors", systemImage: "paintpalette.fill") }
+                    Menu {
+                        ForEach(ChordSub.allCases) { sub in
+                            Button(sub.label) { project.substituteProgression(on: track, sub: sub) }
+                        }
+                    } label: { Label("Substitute Chords", systemImage: "arrow.triangle.swap") }
                 }
             }
             Divider()
