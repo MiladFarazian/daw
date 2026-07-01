@@ -300,6 +300,14 @@ struct AudioChecks {
         check("drum preset lays a kick on every beat",
               kicks.count == 4 && abs(kicks[1] - 0.4) < 0.001 && abs(kicks[3] - 1.2) < 0.001)
 
+        // W7) Tempo-matched loops: a 120-BPM loop into a 140-BPM project speeds up (rate ~1.17).
+        let fit = loopFitRate(loopBPM: 120, projectBPM: 140)
+        print("   (loop fit rate 120→140: \(fit.map { String(format: "%.3f", $0) } ?? "nil"))")
+        check("loop fit rate matches tempo ratio",
+              fit != nil && abs(fit! - 1.1667) < 0.01
+                  && loopFitRate(loopBPM: 120, projectBPM: 120) == nil
+                  && loopFitRate(loopBPM: nil, projectBPM: 140) == nil)
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

@@ -1255,16 +1255,25 @@ final class ProjectStore: ObservableObject {
     }
 
     /// Drop a library loop onto the timeline as a new track at the playhead.
-    func addLoopToProject(_ loop: LoopEntry) {
+    func addLoopToProject(_ loop: LoopEntry, fitTempo: Bool = false) {
         guard let url = loops.url(for: loop) else { return }
         let at = currentTime
+        let rate = fitTempo ? loopFitRate(loopBPM: loop.bpm, projectBPM: tempo) : nil
+        let duration = loop.duration
         isImporting = true
         Task.detached(priority: .userInitiated) {
-            guard let waveform = WaveformLoader.load(url: url) else {
+            // Fit to project tempo by time-stretching (pitch-preserved) when the loop's BPM is known.
+            var finalURL = url
+            if let rate, let dir = try? LibraryStorage.importsDirectory(),
+               let stretched = ClipProcessing.timeStretch(url: url, offset: 0, duration: duration,
+                                                          rate: rate, outputDir: dir) {
+                finalURL = stretched
+            }
+            guard let waveform = WaveformLoader.load(url: finalURL) else {
                 await MainActor.run { self.isImporting = false }
                 return
             }
-            let asset = AudioAsset(url: url, duration: waveform.duration,
+            let asset = AudioAsset(url: finalURL, duration: waveform.duration,
                                    sampleRate: waveform.sampleRate, peaks: waveform.peaks)
             await MainActor.run {
                 self.addNamedTrack(name: loop.name, asset: asset, at: at)

@@ -174,6 +174,14 @@ struct Track: Identifiable {
     }
 }
 
+/// Time-stretch rate to fit a loop recorded at `loopBPM` into a `projectBPM` project.
+/// nil when unknown or already matching (rate>1 speeds the loop up).
+func loopFitRate(loopBPM: Int?, projectBPM: Double) -> Float? {
+    guard let bpm = loopBPM, bpm > 0, projectBPM > 0 else { return nil }
+    let rate = Float(projectBPM / Double(bpm))
+    return abs(rate - 1) > 0.01 ? rate : nil
+}
+
 enum MusicScale { case major, minor }
 
 /// Build a diatonic triad progression as MIDI notes (one chord per bar). Pure.

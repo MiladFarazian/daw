@@ -52,6 +52,7 @@ struct LoopBrowserPanel: View {
     @EnvironmentObject var loops: LoopLibrary
     @EnvironmentObject var project: ProjectStore
     @EnvironmentObject var preview: PreviewPlayer
+    @AppStorage("fitLoopTempo") private var fitTempo = true
     @State private var importing = false
 
     var body: some View {
@@ -65,6 +66,9 @@ struct LoopBrowserPanel: View {
                     .buttonStyle(.borderless).help("Close")
             }
             .padding(10)
+            Toggle("Fit loops to project tempo", isOn: $fitTempo)
+                .toggleStyle(.checkbox).font(.caption)
+                .padding(.horizontal, 10).padding(.bottom, 6)
             Divider()
 
             if loops.loops.isEmpty {
@@ -98,6 +102,7 @@ private struct LoopRow: View {
     @EnvironmentObject var loops: LoopLibrary
     @EnvironmentObject var project: ProjectStore
     @EnvironmentObject var preview: PreviewPlayer
+    @AppStorage("fitLoopTempo") private var fitTempo = true
     let loop: LoopEntry
 
     private var subtitle: String {
@@ -123,8 +128,8 @@ private struct LoopRow: View {
             }
             Spacer()
 
-            Button("Add") { project.addLoopToProject(loop) }
-                .help("Add to the timeline at the playhead")
+            Button("Add") { project.addLoopToProject(loop, fitTempo: fitTempo) }
+                .help("Add at the playhead" + (fitTempo ? " (fit to project tempo)" : ""))
             Button(role: .destructive) { loops.remove(loop) } label: { Image(systemName: "trash") }
                 .buttonStyle(.borderless)
         }
