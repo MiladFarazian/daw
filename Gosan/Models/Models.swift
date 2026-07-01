@@ -482,6 +482,43 @@ func reharmonize(_ notes: [MIDINote], color: ChordColor, pool poolIn: [Int],
     return out
 }
 
+/// One part of a song's arrangement. Sections share the vibe's chords but vary which parts
+/// play and how hard, so the song breathes (sparse intro → full chorus → outro).
+struct SongSection: Equatable {
+    let name: String
+    let bars: Int
+    let bass: Bool
+    let melody: Bool
+    let drums: Bool
+    let drumComplexity: Double
+    let intensity: Double
+    let melodyDensity: Double
+
+    /// A conventional pop form with dynamic contrast between sections.
+    static let defaultForm: [SongSection] = [
+        SongSection(name: "Intro",  bars: 2, bass: false, melody: false, drums: true,
+                    drumComplexity: 0.3, intensity: 0.5, melodyDensity: 0),
+        SongSection(name: "Verse",  bars: 4, bass: true,  melody: true,  drums: true,
+                    drumComplexity: 0.45, intensity: 0.7, melodyDensity: 0.35),
+        SongSection(name: "Chorus", bars: 4, bass: true,  melody: true,  drums: true,
+                    drumComplexity: 0.7, intensity: 0.95, melodyDensity: 0.6),
+        SongSection(name: "Verse",  bars: 4, bass: true,  melody: true,  drums: true,
+                    drumComplexity: 0.5, intensity: 0.75, melodyDensity: 0.4),
+        SongSection(name: "Chorus", bars: 4, bass: true,  melody: true,  drums: true,
+                    drumComplexity: 0.75, intensity: 1.0, melodyDensity: 0.65),
+        SongSection(name: "Outro",  bars: 2, bass: true,  melody: false, drums: true,
+                    drumComplexity: 0.35, intensity: 0.55, melodyDensity: 0)
+    ]
+
+    /// The starting bar of each section (cumulative), plus the total length. Pure.
+    static func layout(_ form: [SongSection]) -> (starts: [Int], totalBars: Int) {
+        var starts: [Int] = []
+        var cursor = 0
+        for s in form { starts.append(cursor); cursor += s.bars }
+        return (starts, cursor)
+    }
+}
+
 /// A one-click starting point: a genre feel that bundles a progression, tempo, and settings
 /// for the chord / bass / melody / drum generators so they all match out of the gate.
 struct SongVibe: Identifiable, Equatable {

@@ -8,6 +8,7 @@ struct SongStarterView: View {
 
     @State private var key = 0
     @State private var vibeID = 0
+    @State private var fullSong = false
 
     private let roots = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
     private var vibe: SongVibe { SongVibe.all.first { $0.id == vibeID } ?? SongVibe.all[0] }
@@ -50,12 +51,19 @@ struct SongStarterView: View {
                 }
             }
 
+            Picker("Arrangement", selection: $fullSong) {
+                Text("Loop (4 bars)").tag(false)
+                Text("Full song (Intro · Verse · Chorus · Outro)").tag(true)
+            }
+            .pickerStyle(.radioGroup)
+
             Text("Adds four new tracks; your existing tracks are left untouched.")
                 .font(.caption).foregroundStyle(.secondary)
 
             HStack {
                 Button {
-                    project.startSong(key: key, vibe: vibe)
+                    if fullSong { project.startFullSong(key: key, vibe: vibe) }
+                    else { project.startSong(key: key, vibe: vibe) }
                     dismiss()
                 } label: {
                     Label("Generate Song", systemImage: "sparkles")

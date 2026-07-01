@@ -427,6 +427,12 @@ struct AudioChecks {
                   && bar0Ninth == [0, 2, 4, 7, 11]                   // C E G B D → Cmaj9
                   && asNinths.allSatisfy { cMajorPool.contains((($0.pitch % 12) + 12) % 12) })
 
+        // W14) Song form: sections tile end to end with the right total length.
+        let (secStarts, secTotal) = SongSection.layout(SongSection.defaultForm)
+        print("   (song form starts: \(secStarts), total \(secTotal) bars)")
+        check("song form lays sections end to end",
+              secStarts == [0, 2, 6, 10, 14, 18] && secTotal == 20)
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

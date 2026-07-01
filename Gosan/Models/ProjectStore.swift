@@ -380,6 +380,68 @@ final class ProjectStore: ObservableObject {
         engine.prepare(tracks: effectiveTracks())
     }
 
+    /// Build a full multi-section arrangement (Intro → Verse → Chorus → … → Outro): the vibe's
+    /// chords tiled across each section, with bass / melody / drums varied per section for
+    /// dynamic contrast, plus a marker at every section. Additive.
+    func startFullSong(key: Int, vibe: SongVibe) {
+        let scale: MusicScale = vibe.minor ? .minor : .major
+        let form = SongSection.defaultForm
+        recordUndo()
+        tempo = vibe.tempo
+        let secPerBar = Double(beatsPerBar) * 60.0 / max(1, tempo)
+        let stepDur = secPerBar / 16
+        func shift(_ notes: [MIDINote], by t: TimeInterval) -> [MIDINote] {
+            notes.map { MIDINote(pitch: $0.pitch, start: $0.start + t, duration: $0.duration, velocity: $0.velocity) }
+        }
+
+        var keysN: [MIDINote] = [], bassN: [MIDINote] = [], melN: [MIDINote] = [], drumN: [MIDINote] = []
+        var newMarkers: [Marker] = []
+        var barCursor = 0
+        let (starts, _) = SongSection.layout(form)
+        for (i, section) in form.enumerated() {
+            let t0 = Double(starts[i]) * secPerBar
+            newMarkers.append(Marker(time: t0, name: section.name))
+            let degs = (0..<section.bars).map { vibe.degrees[$0 % vibe.degrees.count] }
+            let chords = chordProgression(root: key, scale: scale, degrees: degs, barDuration: secPerBar, octave: 4)
+            keysN += shift(chords, by: t0)
+
+            let chordTones = chordTonesPerBar(chords, secPerBar: secPerBar, bars: section.bars)
+            let pool = Array(Set(chordTones.flatMap { $0 })).sorted()
+            if section.bass {
+                let roots = chordRootsPerBar(chords, secPerBar: secPerBar, bars: section.bars)
+                let line = bassPerformance(roots: roots,
+                                           settings: BassSettings(pattern: vibe.bassPattern, octave: 2, drive: section.intensity),
+                                           secPerBar: secPerBar)
+                bassN += shift(line, by: t0)
+            }
+            if section.melody {
+                let line = melodyLine(chords: chordTones, pool: pool,
+                                      settings: MelodySettings(density: section.melodyDensity, motion: vibe.melodyMotion, register: 5),
+                                      secPerBar: secPerBar, seed: UInt64(barCursor + 1) &* 0x9E37)
+                melN += shift(line, by: t0)
+            }
+            if section.drums {
+                let groove = drummerPerformance(DrummerSettings(style: vibe.drumStyle, complexity: section.drumComplexity,
+                                                                intensity: section.intensity, swing: vibe.swing, fillEvery: 4),
+                                                bars: section.bars, stepDur: stepDur, seed: UInt64(barCursor + 7) &* 0x85EB)
+                drumN += shift(groove, by: t0)
+            }
+            barCursor += section.bars
+        }
+
+        func instrument(_ name: String, _ program: Int, _ notes: [MIDINote], drum: Bool = false) -> Track {
+            var t = Track(name: name, colorIndex: tracks.count)
+            t.isInstrument = true; t.isDrumKit = drum; t.program = program; t.notes = notes
+            return t
+        }
+        tracks.append(instrument("Keys", 0, keysN))
+        tracks.append(instrument("Bass", 33, bassN))
+        tracks.append(instrument("Melody", 81, melN))
+        tracks.append(instrument("Drums", 0, drumN, drum: true))
+        markers.append(contentsOf: newMarkers)
+        engine.prepare(tracks: effectiveTracks())
+    }
+
     /// Snap an instrument track's note starts to a grid (seconds).
     func quantizeNotes(on track: Track, to grid: TimeInterval) {
         guard grid > 0, let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }
@@ -1946,6 +2008,9 @@ final class ProjectStore: ObservableObject {
         if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "songstarter" { newProject(); activeSheet = .songStarter; return }
         if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "song" {
             newProject(); startSong(key: 0, vibe: SongVibe.all[0]); return
+        }
+        if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "fullsong" {
+            newProject(); pixelsPerSecond = 30; startFullSong(key: 0, vibe: SongVibe.all[0]); return
         }
         let peaks: [Float] = (0..<256).map { Float(abs(sin(Double($0) * 0.15)) * 0.85) }
         func asset(_ name: String) -> AudioAsset {
