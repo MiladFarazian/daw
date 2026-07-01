@@ -352,6 +352,16 @@ struct AudioChecks {
                   && loopFitRate(loopBPM: 120, projectBPM: 120) == nil
                   && loopFitRate(loopBPM: nil, projectBPM: 140) == nil)
 
+        // W8) Tempo track: constant tempo lays even beats; a step change halves the spacing.
+        let evenBeats = beatTimes(base: 120, points: [], until: 2.0)   // expect 0,0.5,1.0,1.5,2.0
+        let evenOK = evenBeats.count == 5 && zip(evenBeats, [0, 0.5, 1.0, 1.5, 2.0]).allSatisfy { abs($0 - $1) < 1e-6 }
+        // 120 BPM until t=1 (beats at 0,0.5,1.0), then 240 BPM (beats at 1.25,1.5,1.75,2.0).
+        let stepBeats = beatTimes(base: 120, points: [TempoPoint(time: 1.0, bpm: 240)], until: 2.0)
+        let stepOK = zip(stepBeats.suffix(4), [1.25, 1.5, 1.75, 2.0]).allSatisfy { abs($0 - $1) < 1e-6 }
+        print("   (tempo map step beats: \(stepBeats.map { String(format: "%.2f", $0) }.joined(separator: ",")))")
+        check("tempo track integrates step tempo changes", evenOK && stepOK
+                  && abs(tempoAt(1.5, base: 120, points: [TempoPoint(time: 1.0, bpm: 240)]) - 240) < 1e-6)
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

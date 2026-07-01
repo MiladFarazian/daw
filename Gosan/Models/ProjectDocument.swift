@@ -17,6 +17,7 @@ struct ProjectDocument: Codable {
     var scaleLockEnabled: Bool = false
     var scaleLockRoot: Int = 0
     var scaleLockScale: Int = 0     // 0 = major, 1 = minor
+    var tempoPoints: [TempoPoint] = []
     var groups: [GroupData] = []
 
     struct GroupData: Codable {

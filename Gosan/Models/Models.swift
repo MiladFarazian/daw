@@ -183,6 +183,34 @@ func loopFitRate(loopBPM: Int?, projectBPM: Double) -> Float? {
     return abs(rate - 1) > 0.01 ? rate : nil
 }
 
+/// A tempo change on the tempo track (step change; the base tempo applies before the first).
+struct TempoPoint: Identifiable, Equatable, Codable {
+    var id = UUID()
+    var time: TimeInterval
+    var bpm: Double
+}
+
+/// The BPM in effect at `time` given a base tempo + step tempo changes.
+func tempoAt(_ time: TimeInterval, base: Double, points: [TempoPoint]) -> Double {
+    var bpm = base
+    for p in points.sorted(by: { $0.time < $1.time }) where p.time <= time { bpm = p.bpm }
+    return bpm
+}
+
+/// Times (seconds) of each beat from 0…`until`, integrating step tempo changes. Pure.
+func beatTimes(base: Double, points: [TempoPoint], until: TimeInterval) -> [TimeInterval] {
+    guard until >= 0 else { return [] }
+    var times: [TimeInterval] = []
+    var t = 0.0
+    var guardCount = 0
+    while t <= until && guardCount < 200_000 {
+        times.append(t)
+        t += 60.0 / max(30, tempoAt(t, base: base, points: points))
+        guardCount += 1
+    }
+    return times
+}
+
 enum MusicScale: Int, Codable { case major, minor }
 
 /// Snap a MIDI pitch to the nearest tone in `root`+`scale` (pitch class–based). Pure.

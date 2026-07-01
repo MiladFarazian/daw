@@ -55,12 +55,12 @@ struct TimelineView: View {
                 // Lane area (scrolls horizontally)
                 ScrollView(.horizontal, showsIndicators: true) {
                     ZStack(alignment: .topLeading) {
-                        BeatGridView(pps: pps, tempo: project.tempo, beatsPerBar: project.beatsPerBar)
+                        BeatGridView(pps: pps, tempo: project.tempo, tempoPoints: project.tempoPoints, beatsPerBar: project.beatsPerBar)
                             .frame(width: contentWidth, height: lanesHeight)
                             .allowsHitTesting(false)
 
                         VStack(spacing: 0) {
-                            TimeRulerView(pps: pps, tempo: project.tempo, beatsPerBar: project.beatsPerBar)
+                            TimeRulerView(pps: pps, tempo: project.tempo, tempoPoints: project.tempoPoints, beatsPerBar: project.beatsPerBar)
                                 .frame(width: contentWidth, height: rulerHeight)
                                 .contentShape(Rectangle())
                                 .gesture(
@@ -208,38 +208,33 @@ struct MarkerFlag: View {
 struct TimeRulerView: View {
     let pps: Double
     let tempo: Double
+    let tempoPoints: [TempoPoint]
     let beatsPerBar: Int
 
     var body: some View {
         Canvas { context, size in
             let bpb = max(1, beatsPerBar)
-            let beat = 60.0 / max(1, tempo)
-            let barPx = beat * Double(bpb) * pps
-            guard barPx > 1 else { return }
-            let beatPx = beat * pps
-            let labelBars = barPx >= 26
+            let times = beatTimes(base: tempo, points: tempoPoints, until: Double(size.width) / max(1, pps))
+            guard times.count > 1 else { return }
+            let beatPx = (times[1] - times[0]) * pps
+            let labelBars = beatPx * Double(bpb) >= 26
 
-            var bar = 0
-            var x = 0.0
-            while x <= Double(size.width) {
-                var line = Path()
-                line.move(to: CGPoint(x: x, y: 4)); line.addLine(to: CGPoint(x: x, y: size.height))
-                context.stroke(line, with: .color(.secondary.opacity(0.6)), lineWidth: 1)
-                if labelBars {
-                    let label = Text("\(bar + 1)").font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary)
-                    context.draw(label, at: CGPoint(x: x + 3, y: 8), anchor: .leading)
-                }
-                if beatPx >= 8 {
-                    for b in 1..<bpb {
-                        let bx = x + Double(b) * beatPx
-                        guard bx <= Double(size.width) else { break }
-                        var tick = Path()
-                        tick.move(to: CGPoint(x: bx, y: 14)); tick.addLine(to: CGPoint(x: bx, y: size.height))
-                        context.stroke(tick, with: .color(.secondary.opacity(0.3)), lineWidth: 0.75)
+            for (i, t) in times.enumerated() {
+                let x = t * pps
+                if i % bpb == 0 {                      // bar line
+                    var line = Path()
+                    line.move(to: CGPoint(x: x, y: 4)); line.addLine(to: CGPoint(x: x, y: size.height))
+                    context.stroke(line, with: .color(.secondary.opacity(0.6)), lineWidth: 1)
+                    if labelBars {
+                        let label = Text("\(i / bpb + 1)").font(.system(size: 9, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                        context.draw(label, at: CGPoint(x: x + 3, y: 8), anchor: .leading)
                     }
+                } else if beatPx >= 8 {                // beat tick
+                    var tick = Path()
+                    tick.move(to: CGPoint(x: x, y: 14)); tick.addLine(to: CGPoint(x: x, y: size.height))
+                    context.stroke(tick, with: .color(.secondary.opacity(0.3)), lineWidth: 0.75)
                 }
-                bar += 1
-                x = Double(bar) * barPx
             }
         }
         .background(.bar)
@@ -250,24 +245,21 @@ struct TimeRulerView: View {
 struct BeatGridView: View {
     let pps: Double
     let tempo: Double
+    let tempoPoints: [TempoPoint]
     let beatsPerBar: Int
 
     var body: some View {
         Canvas { context, size in
             let bpb = max(1, beatsPerBar)
-            let beat = 60.0 / max(1, tempo)
-            let beatPx = beat * pps
-            guard beatPx > 4 else { return }
-            var i = 0
-            var x = 0.0
-            while x <= Double(size.width) {
+            let times = beatTimes(base: tempo, points: tempoPoints, until: Double(size.width) / max(1, pps))
+            guard times.count > 1, (times[1] - times[0]) * pps > 4 else { return }
+            for (i, t) in times.enumerated() {
+                let x = t * pps
                 let isBar = i % bpb == 0
                 var line = Path()
                 line.move(to: CGPoint(x: x, y: 0)); line.addLine(to: CGPoint(x: x, y: size.height))
                 context.stroke(line, with: .color(.white.opacity(isBar ? 0.09 : 0.035)),
                                lineWidth: isBar ? 1 : 0.5)
-                i += 1
-                x = Double(i) * beatPx
             }
         }
     }

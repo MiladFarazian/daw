@@ -112,19 +112,23 @@ final class AudioEngine {
     }
 
     /// Schedule clicks on the beat grid, synced to the same t0 as playback.
-    private func scheduleMetronome(tempo: Double, from position: TimeInterval, t0: AVAudioTime, beatsPerBar: Int) {
+    /// Honors the tempo map so clicks land on the same beats the ruler draws.
+    private func scheduleMetronome(tempo: Double, tempoPoints: [TempoPoint], from position: TimeInterval,
+                                   t0: AVAudioTime, beatsPerBar: Int) {
         metronomePlayer.stop()
         guard tempo > 0 else { return }
-        let beat = 60.0 / tempo
-        let firstBeat = Int(ceil(position / beat - 0.0001))
-        for k in 0..<256 {
-            let index = firstBeat + k
-            let whenSeconds = Double(index) * beat - position
-            guard whenSeconds >= 0 else { continue }
-            let when = AVAudioTime(hostTime: t0.hostTime + AVAudioTime.hostTime(forSeconds: whenSeconds))
+        // Beat times from song start; downbeat = global beat index divisible by the bar length.
+        let times = beatTimes(base: tempo, points: tempoPoints, until: position + 600)
+        var scheduled = 0
+        for (index, t) in times.enumerated() {
+            let whenSeconds = t - position
+            guard whenSeconds >= -0.0001 else { continue }
+            let when = AVAudioTime(hostTime: t0.hostTime + AVAudioTime.hostTime(forSeconds: max(0, whenSeconds)))
             if let buffer = (index % max(1, beatsPerBar) == 0) ? accentClick : normalClick {
                 metronomePlayer.scheduleBuffer(buffer, at: when, options: [], completionHandler: nil)
             }
+            scheduled += 1
+            if scheduled >= 256 { break }
         }
         metronomePlayer.play(at: t0)
     }
@@ -271,14 +275,16 @@ final class AudioEngine {
 
     /// Start synchronized playback of all tracks from `position` seconds on the timeline.
     func play(tracks: [Track], from position: TimeInterval, metronome: Bool = false,
-              tempo: Double = 120, beatsPerBar: Int = 4) {
+              tempo: Double = 120, tempoPoints: [TempoPoint] = [], beatsPerBar: Int = 4) {
         prepare(tracks: tracks)
 
         let lead = 0.12 // schedule slightly in the future so every node starts together
         let startHost = mach_absolute_time() + AVAudioTime.hostTime(forSeconds: lead)
         let t0 = AVAudioTime(hostTime: startHost)
 
-        if metronome { scheduleMetronome(tempo: tempo, from: position, t0: t0, beatsPerBar: beatsPerBar) }
+        if metronome {
+            scheduleMetronome(tempo: tempo, tempoPoints: tempoPoints, from: position, t0: t0, beatsPerBar: beatsPerBar)
+        }
 
         for track in tracks {
             guard let node = nodes[track.id] else { continue }

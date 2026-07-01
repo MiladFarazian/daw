@@ -72,6 +72,22 @@ final class ProjectStore: ObservableObject {
     @Published var masterVolume: Float = 1.0
     @Published var beatsPerBar: Int = 4   // time signature numerator (over /4)
 
+    // Tempo track: step tempo changes over the song (empty = constant `tempo`).
+    @Published var tempoPoints: [TempoPoint] = []
+
+    func addTempoChange(bpm: Double) {
+        let clamped = min(300, max(30, bpm.rounded()))
+        recordUndo()
+        tempoPoints.removeAll { abs($0.time - currentTime) < 0.01 }
+        tempoPoints.append(TempoPoint(time: currentTime, bpm: clamped))
+        tempoPoints.sort { $0.time < $1.time }
+    }
+    func removeTempoChange(_ point: TempoPoint) {
+        recordUndo()
+        tempoPoints.removeAll { $0.id == point.id }
+    }
+    func clearTempoTrack() { recordUndo(); tempoPoints = [] }
+
     // Scale lock: notes added in the piano roll snap into this key.
     @Published var scaleLockEnabled = false
     @Published var scaleLockRoot = 0            // 0 = C
@@ -635,7 +651,8 @@ final class ProjectStore: ObservableObject {
         guard !tracks.isEmpty else { return }
         if currentTime >= totalDuration { currentTime = 0 }
         let base = currentTime
-        engine.play(tracks: effectiveTracks(), from: base, metronome: metronomeEnabled, tempo: tempo, beatsPerBar: beatsPerBar)
+        engine.play(tracks: effectiveTracks(), from: base, metronome: metronomeEnabled, tempo: tempo,
+                    tempoPoints: tempoPoints, beatsPerBar: beatsPerBar)
         isPlaying = true
 
         let startedAt = Date()
@@ -1682,6 +1699,7 @@ final class ProjectStore: ObservableObject {
         engine.reset()
         tracks = []
         groups = []
+        tempoPoints = []
         candidates = []
         markers = []
         setMasterEQ(low: 0, mid: 0, high: 0)
@@ -1713,6 +1731,10 @@ final class ProjectStore: ObservableObject {
         drums.notes = DrumPatterns.notes(DrumPatterns.all[0], bars: 2, stepDur: 0.125)
         tracks = [vox, keys, drums]
         tempo = 120
+        // Demo tempo track: half-time drop at the chorus so the grid visibly widens.
+        if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "tempo" {
+            tempoPoints = [TempoPoint(time: 4, bpm: 84), TempoPoint(time: 6, bpm: 150)]
+        }
         markers = [Marker(time: 2, name: "Verse"), Marker(time: 6, name: "Chorus")]
         engine.prepare(tracks: effectiveTracks())
 
@@ -1855,6 +1877,7 @@ final class ProjectStore: ObservableObject {
             beatsPerBar: beatsPerBar,
             scaleLockEnabled: scaleLockEnabled, scaleLockRoot: scaleLockRoot,
             scaleLockScale: scaleLockScale.rawValue,
+            tempoPoints: tempoPoints,
             groups: groups.map {
                 ProjectDocument.GroupData(id: $0.id, name: $0.name, colorIndex: $0.colorIndex,
                                           collapsed: $0.collapsed, volume: $0.volume,
@@ -1944,6 +1967,7 @@ final class ProjectStore: ObservableObject {
         scaleLockEnabled = document.scaleLockEnabled
         scaleLockRoot = document.scaleLockRoot
         scaleLockScale = MusicScale(rawValue: document.scaleLockScale) ?? .major
+        tempoPoints = document.tempoPoints
         groups = document.groups.map {
             var g = TrackGroup(id: $0.id, name: $0.name, colorIndex: $0.colorIndex)
             g.collapsed = $0.collapsed; g.volume = $0.volume; g.muted = $0.muted; g.soloed = $0.soloed

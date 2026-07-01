@@ -92,6 +92,25 @@ struct TransportBar: View {
                         ForEach([2, 3, 4, 5, 6, 7], id: \.self) { n in Button("\(n)/4") { project.beatsPerBar = n } }
                     }
                     .fixedSize().help("Time signature")
+                    Menu {
+                        Button("Add Tempo Change at Playhead (\(Int(project.tempo)) BPM)") {
+                            project.addTempoChange(bpm: project.tempo)
+                        }
+                        if !project.tempoPoints.isEmpty {
+                            Divider()
+                            Section("Remove change") {
+                                ForEach(project.tempoPoints) { pt in
+                                    Button("\(timecode(pt.time))  •  \(Int(pt.bpm)) BPM") { project.removeTempoChange(pt) }
+                                }
+                            }
+                            Divider()
+                            Button("Clear Tempo Track", role: .destructive) { project.clearTempoTrack() }
+                        }
+                    } label: {
+                        Image(systemName: "chart.xyaxis.line")
+                            .foregroundStyle(project.tempoPoints.isEmpty ? Color.primary : Color.green)
+                    }
+                    .fixedSize().help("Tempo track — change tempo over the song")
                 }
 
                 divider
