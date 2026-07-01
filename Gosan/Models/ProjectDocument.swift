@@ -86,5 +86,13 @@ struct ProjectDocument: Codable {
         var gain: Float = 1.0
         var muted: Bool = false
         var customName: String? = nil
+        var takes: [TakeData] = []     // take folder (all takes share this clip's assetFile)
+        var activeTake: Int = 0
+    }
+
+    struct TakeData: Codable {
+        var offset: TimeInterval
+        var duration: TimeInterval
+        var name: String
     }
 }

@@ -41,6 +41,29 @@ struct ClipLaneView: View {
                         } label: {
                             Label("Repeat", systemImage: "repeat")
                         }
+                        if clip.hasTakes {
+                            Menu {
+                                ForEach(Array(clip.takes.enumerated()), id: \.element.id) { i, take in
+                                    Button { project.selectTake(clip, on: track, index: i) } label: {
+                                        Label(take.name,
+                                              systemImage: i == clip.activeTake ? "checkmark.circle.fill" : "circle")
+                                    }
+                                }
+                                Divider()
+                                Button { project.flattenTakes(clip, on: track) } label: {
+                                    Label("Flatten to Active Take", systemImage: "square.stack.3d.down.right")
+                                }
+                                Menu {
+                                    ForEach(Array(clip.takes.enumerated()), id: \.element.id) { i, take in
+                                        Button(role: .destructive) {
+                                            project.deleteTake(clip, on: track, index: i)
+                                        } label: { Text("Delete \(take.name)") }
+                                    }
+                                } label: { Label("Delete Take", systemImage: "trash") }
+                            } label: {
+                                Label("Takes (\(clip.takes.count))", systemImage: "square.stack.3d.up")
+                            }
+                        }
                         Button { renameText = clip.name; renameTarget = clip } label: {
                             Label("Rename…", systemImage: "pencil")
                         }
@@ -232,11 +255,17 @@ struct ClipView: View {
                 UnevenRoundedRectangle(topLeadingRadius: 6, topTrailingRadius: 6)
                     .fill(color.opacity(isSelected ? 1 : 0.85))
                     .frame(height: 15)
-                Text(clip.name)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .padding(.horizontal, 5)
+                HStack(spacing: 3) {
+                    if clip.hasTakes {
+                        Image(systemName: "square.stack.3d.up.fill").font(.system(size: 8))
+                        Text("\(clip.activeTake + 1)/\(clip.takes.count)").font(.system(size: 8, weight: .bold))
+                    }
+                    Text(clip.name)
+                        .font(.system(size: 10, weight: .semibold))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 5)
             }
 
             RoundedRectangle(cornerRadius: 6)

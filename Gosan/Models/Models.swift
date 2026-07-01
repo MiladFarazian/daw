@@ -44,6 +44,14 @@ struct Clip: Identifiable {
     var gain: Float = 1.0             // linear clip gain
     var muted = false
     var customName: String?           // user-set name; falls back to the asset name
+
+    // Take folder: alternate performances of this region (cycle-record stacks passes here).
+    // Empty = a plain single-take clip. The active take's offset/duration are mirrored into
+    // this clip's `offset`/`duration`, so playback and export read the active take for free.
+    var takes: [Take] = []
+    var activeTake: Int = 0
+    var hasTakes: Bool { takes.count > 1 }
+
     var name: String { customName ?? asset.name }
 
     init(asset: AudioAsset, startTime: TimeInterval = 0) {
@@ -52,6 +60,29 @@ struct Clip: Identifiable {
         self.offset = 0
         self.duration = asset.duration
     }
+}
+
+/// One recorded performance inside a take folder. Takes from a single cycle-record pass
+/// share the clip's underlying `asset` and differ only by `offset` into that file.
+struct Take: Identifiable {
+    let id = UUID()
+    var offset: TimeInterval
+    var duration: TimeInterval
+    var name: String
+}
+
+/// Split a continuous cycle recording of `recorded` seconds into equal takes of
+/// `loopLength` each. A pass counts if at least half of it was captured. Pure.
+func cycleTakeWindows(recorded: TimeInterval, loopLength: TimeInterval) -> [Take] {
+    guard loopLength > 0.05, recorded > 0.05 else { return [] }
+    var takes: [Take] = []
+    var offset = 0.0
+    while offset + loopLength * 0.5 <= recorded {
+        takes.append(Take(offset: offset, duration: min(loopLength, recorded - offset),
+                          name: "Take \(takes.count + 1)"))
+        offset += loopLength
+    }
+    return takes
 }
 
 /// A named position on the timeline.

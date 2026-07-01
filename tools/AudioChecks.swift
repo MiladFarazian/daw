@@ -362,6 +362,13 @@ struct AudioChecks {
         check("tempo track integrates step tempo changes", evenOK && stepOK
                   && abs(tempoAt(1.5, base: 120, points: [TempoPoint(time: 1.0, bpm: 240)]) - 240) < 1e-6)
 
+        // W9) Take folder: a 6.2s cycle recording over a 2s loop → one take per pass.
+        let tw = cycleTakeWindows(recorded: 6.2, loopLength: 2.0)
+        let twOK = tw.count == 3 && tw.map(\.offset) == [0, 2, 4] && tw.allSatisfy { abs($0.duration - 2) < 1e-6 }
+        let shortTake = cycleTakeWindows(recorded: 0.4, loopLength: 2.0)   // under half a pass → nothing
+        print("   (cycle takes 6.2/2.0: offsets \(tw.map { String(format: "%.0f", $0.offset) }.joined(separator: ",")))")
+        check("cycle recording splits into one take per pass", twOK && shortTake.isEmpty)
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

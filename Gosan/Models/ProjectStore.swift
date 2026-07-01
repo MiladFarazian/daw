@@ -119,6 +119,8 @@ final class ProjectStore: ObservableObject {
     private let engine = AudioEngine()
     private var ticker: Timer?
     private var recordPosition: TimeInterval = 0
+    // When cycle-recording (loop on, not punch), the loop region the passes get split into takes.
+    private var cycleWindow: (start: TimeInterval, length: TimeInterval)?
 
     @Published var masterLevel: Float = 0
     @Published var trackLevels: [UUID: Float] = [:]
@@ -356,9 +358,13 @@ final class ProjectStore: ObservableObject {
         if punchEnabled, loopActive {
             recordPosition = loopStart
             punchStopAt = loopEnd
+            cycleWindow = nil
         } else {
             recordPosition = currentTime >= totalDuration ? 0 : currentTime
             punchStopAt = nil
+            // Loop (cycle) record: each pass over the region stacks as a take.
+            cycleWindow = (loopActive && loopEnabled && loopEnd > loopStart)
+                ? (start: loopStart, length: loopEnd - loopStart) : nil
         }
         currentTime = recordPosition
         if countInEnabled {
@@ -382,14 +388,24 @@ final class ProjectStore: ObservableObject {
     }
 
     /// Drop the finished take on a new track at the position recording started.
+    /// A cycle recording (loop on) is split into a take folder — one take per pass.
     private func placeRecording(_ url: URL, at position: TimeInterval) {
+        let cycle = cycleWindow
+        cycleWindow = nil
         Task.detached(priority: .userInitiated) {
             guard let waveform = WaveformLoader.load(url: url) else { return }
             let asset = AudioAsset(url: url,
                                    duration: waveform.duration,
                                    sampleRate: waveform.sampleRate,
                                    peaks: waveform.peaks)
-            await MainActor.run { self.addNamedTrack(name: "Recording", asset: asset, at: position) }
+            let takes = cycle.map { cycleTakeWindows(recorded: asset.duration, loopLength: $0.length) } ?? []
+            await MainActor.run {
+                if takes.count > 1, let cw = cycle {
+                    self.addTakeFolderTrack(asset: asset, takes: takes, at: cw.start)
+                } else {
+                    self.addNamedTrack(name: "Recording", asset: asset, at: position)
+                }
+            }
         }
     }
 
@@ -397,6 +413,21 @@ final class ProjectStore: ObservableObject {
         recordUndo()
         var track = Track(name: name, colorIndex: tracks.count)
         track.clips = [Clip(asset: asset, startTime: position)]
+        tracks.append(track)
+        engine.prepare(tracks: effectiveTracks())
+    }
+
+    /// A new track whose single clip is a take folder (the most recent pass is active).
+    private func addTakeFolderTrack(asset: AudioAsset, takes: [Take], at position: TimeInterval) {
+        recordUndo()
+        var track = Track(name: "Recording", colorIndex: tracks.count)
+        var clip = Clip(asset: asset, startTime: position)
+        clip.takes = takes
+        let active = takes.count - 1        // default to the last (most recent) take, like Logic
+        clip.activeTake = active
+        clip.offset = takes[active].offset
+        clip.duration = takes[active].duration
+        track.clips = [clip]
         tracks.append(track)
         engine.prepare(tracks: effectiveTracks())
     }
@@ -1308,6 +1339,43 @@ final class ProjectStore: ObservableObject {
         updateClip(clip, on: track) { $0.muted.toggle() }
     }
 
+    // MARK: - Takes / comping
+
+    /// Make take `index` the active performance. Its offset/duration mirror into the clip,
+    /// so playback and export follow the comp with no other changes.
+    func selectTake(_ clip: Clip, on track: Track, index: Int) {
+        recordUndo()
+        updateClip(clip, on: track) { c in
+            guard c.takes.indices.contains(index) else { return }
+            c.activeTake = index
+            c.offset = c.takes[index].offset
+            c.duration = c.takes[index].duration
+            c.fadeIn = 0; c.fadeOut = 0   // fades were relative to the old take's edges
+        }
+        engine.applyMix(tracks: effectiveTracks())
+    }
+
+    /// Collapse the take folder to just the active take (commit the comp).
+    func flattenTakes(_ clip: Clip, on track: Track) {
+        recordUndo()
+        updateClip(clip, on: track) { $0.takes = []; $0.activeTake = 0 }
+    }
+
+    /// Remove one take from the folder, keeping a sensible active take.
+    func deleteTake(_ clip: Clip, on track: Track, index: Int) {
+        recordUndo()
+        updateClip(clip, on: track) { c in
+            guard c.takes.indices.contains(index), c.takes.count > 1 else { return }
+            c.takes.remove(at: index)
+            let newActive = min(c.activeTake > index ? c.activeTake - 1 : c.activeTake, c.takes.count - 1)
+            c.activeTake = max(0, newActive)
+            c.offset = c.takes[c.activeTake].offset
+            c.duration = c.takes[c.activeTake].duration
+            c.fadeIn = 0; c.fadeOut = 0
+        }
+        engine.applyMix(tracks: effectiveTracks())
+    }
+
     /// Find the selected clip and its track (for keyboard editing commands).
     private func selectedClipAndTrack() -> (Clip, Track)? {
         guard let id = selectedClipID else { return nil }
@@ -1735,6 +1803,17 @@ final class ProjectStore: ObservableObject {
         if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "tempo" {
             tempoPoints = [TempoPoint(time: 4, bpm: 84), TempoPoint(time: 6, bpm: 150)]
         }
+        // Demo take folder: a 3-pass cycle-recorded vocal comp.
+        if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "takes" {
+            var takeClip = Clip(asset: asset("vocal comp"), startTime: 0.5)
+            takeClip.takes = cycleTakeWindows(recorded: 6.0, loopLength: 2.0)
+            takeClip.activeTake = 1
+            takeClip.offset = takeClip.takes[1].offset
+            takeClip.duration = takeClip.takes[1].duration
+            var takeTrack = Track(name: "Vocal Comp", colorIndex: 2)
+            takeTrack.clips = [takeClip]
+            tracks.insert(takeTrack, at: 1)
+        }
         markers = [Marker(time: 2, name: "Verse"), Marker(time: 6, name: "Chorus")]
         engine.prepare(tracks: effectiveTracks())
 
@@ -1850,7 +1929,11 @@ final class ProjectStore: ObservableObject {
                             assetDuration: clip.asset.duration,
                             startTime: clip.startTime, offset: clip.offset, duration: clip.duration,
                             fadeIn: clip.fadeIn, fadeOut: clip.fadeOut, fadeCurve: clip.fadeCurve,
-                            gain: clip.gain, muted: clip.muted, customName: clip.customName)
+                            gain: clip.gain, muted: clip.muted, customName: clip.customName,
+                            takes: clip.takes.map {
+                                ProjectDocument.TakeData(offset: $0.offset, duration: $0.duration, name: $0.name)
+                            },
+                            activeTake: clip.activeTake)
                     },
                     isInstrument: track.isInstrument, isDrumKit: track.isDrumKit, program: track.program,
                     instrumentPlugin: track.instrumentPlugin,
@@ -1951,6 +2034,8 @@ final class ProjectStore: ObservableObject {
                 clip.gain = clipData.gain
                 clip.muted = clipData.muted
                 clip.customName = clipData.customName
+                clip.takes = clipData.takes.map { Take(offset: $0.offset, duration: $0.duration, name: $0.name) }
+                clip.activeTake = clipData.activeTake
                 clips.append(clip)
             }
             track.clips = clips
