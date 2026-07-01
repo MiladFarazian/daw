@@ -170,6 +170,7 @@ struct TransportBar: View {
                         Button("Audio Track") { project.addEmptyTrack() }
                         Button("Instrument Track") { project.addInstrumentTrack() }
                         Button("Drummer (auto-groove)") { project.activeSheet = .drummer(project.addDrummerTrack()) }
+                        Button("Bass Player (follows chords)") { project.activeSheet = .bassPlayer(project.addBassPlayer()) }
                         Button("Drum Machine") { project.activeSheet = .stepSequencer(project.addDrumTrack()) }
                     } label: { Image(systemName: "plus.rectangle.on.rectangle") }
                         .fixedSize().help("Add a track")

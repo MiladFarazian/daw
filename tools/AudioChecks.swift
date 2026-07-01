@@ -384,6 +384,22 @@ struct AudioChecks {
         check("drummer scales density, stays deterministic, and lays fills",
               busyKit.count > simpleKit.count && sameEachRun && fillInBar2)
 
+        // W11) Bass Player: follows chord roots (C then D) and renders the chosen pattern.
+        let chords: [MIDINote] = [
+            MIDINote(pitch: 60, start: 0, duration: 2), MIDINote(pitch: 64, start: 0, duration: 2),
+            MIDINote(pitch: 67, start: 0, duration: 2), MIDINote(pitch: 62, start: 2, duration: 2),
+            MIDINote(pitch: 66, start: 2, duration: 2), MIDINote(pitch: 69, start: 2, duration: 2)
+        ]
+        let roots = chordRootsPerBar(chords, secPerBar: 2, bars: 2)                       // [C=0, D=2]
+        let bassRoots = bassPerformance(roots: roots, settings: BassSettings(pattern: 0, octave: 2, drive: 0.7), secPerBar: 2)
+        let bassArp = bassPerformance(roots: roots, settings: BassSettings(pattern: 3, octave: 2, drive: 0.7), secPerBar: 2)
+        print("   (bass roots: \(bassRoots.map(\.pitch)) from chord roots \(roots))")
+        check("bass follows chord roots + renders patterns",
+              roots == [0, 2]
+                  && bassRoots.map(\.pitch) == [36, 38]     // C2, D2
+                  && bassArp.count == 16                     // 8 eighths × 2 bars
+                  && bassArp.allSatisfy { $0.pitch >= 24 && $0.pitch <= 55 })
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

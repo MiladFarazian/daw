@@ -262,6 +262,45 @@ final class ProjectStore: ObservableObject {
         return id
     }
 
+    // MARK: - Bass Player (auto-bassline following the chords)
+
+    @Published var bassSettings = BassSettings()
+    @Published var bassFollowID: UUID?      // the chord/instrument track the bass locks to
+
+    /// Instrument tracks (with notes) the bass can follow, excluding drums and `exclude`.
+    func chordSources(excluding exclude: UUID? = nil) -> [Track] {
+        tracks.filter { $0.isInstrument && !$0.isDrumKit && !$0.notes.isEmpty && $0.id != exclude }
+    }
+
+    /// Generate a bassline onto `bassTrack` that follows `bassFollowID`'s chords.
+    func applyBassPlayer(on bassTrack: Track) {
+        guard let ti = tracks.firstIndex(where: { $0.id == bassTrack.id }) else { return }
+        let secPerBar = Double(beatsPerBar) * 60.0 / max(1, tempo)
+        let source = tracks.first { $0.id == bassFollowID && $0.id != bassTrack.id }
+            ?? chordSources(excluding: bassTrack.id).first
+        guard let source else { lastError = "Add some chords first (an instrument track) for the bass to follow."; return }
+        bassFollowID = source.id
+        let bars = max(1, Int(ceil(source.endTime / secPerBar - 1e-6)))
+        let roots = chordRootsPerBar(source.notes, secPerBar: secPerBar, bars: bars)
+        recordUndo()
+        tracks[ti].notes = bassPerformance(roots: roots, settings: bassSettings, secPerBar: secPerBar)
+        engine.prepare(tracks: effectiveTracks())
+    }
+
+    /// Create a bass instrument track locked to the best existing chord track, and groove it.
+    func addBassPlayer() -> UUID {
+        bassFollowID = chordSources().first?.id
+        recordUndo()
+        var track = Track(name: "Bass", colorIndex: tracks.count)
+        track.isInstrument = true
+        track.program = 33          // GM electric bass (finger)
+        tracks.append(track)
+        let id = track.id
+        if let created = tracks.first(where: { $0.id == id }) { applyBassPlayer(on: created) }
+        engine.prepare(tracks: effectiveTracks())
+        return id
+    }
+
     /// Snap an instrument track's note starts to a grid (seconds).
     func quantizeNotes(on track: Track, to grid: TimeInterval) {
         guard grid > 0, let ti = tracks.firstIndex(where: { $0.id == track.id }), !tracks[ti].notes.isEmpty else { return }
@@ -1853,6 +1892,13 @@ final class ProjectStore: ObservableObject {
                 drummerSettings = DrummerSettings(style: 1, complexity: 0.65, intensity: 0.8, swing: 0.2, fillEvery: 4)
                 applyDrummer(on: d)
                 activeSheet = .drummer(d.id)
+            }
+        case "bass":
+            if let i = inst {
+                bassFollowID = i.id
+                bassSettings = BassSettings(pattern: 2, octave: 2, drive: 0.7)   // walking
+                let id = addBassPlayer()
+                activeSheet = .bassPlayer(id)
             }
         case "chords": if let i = inst { activeSheet = .chords(i.id) }
         case "automation": if let i = inst { activeSheet = .automation(i.id) }

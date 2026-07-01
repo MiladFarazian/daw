@@ -379,6 +379,60 @@ func drummerPerformance(_ s: DrummerSettings, bars: Int, stepDur: TimeInterval, 
     return out.sorted { $0.start < $1.start }
 }
 
+/// How the auto-bassist plays under the chords.
+struct BassSettings: Equatable {
+    var pattern: Int = 0     // 0 roots, 1 octaves, 2 walking, 3 arpeggio, 4 pump
+    var octave: Int = 2      // bass register (2 ≈ C2)
+    var drive: Double = 0.6  // 0 soft … 1 hard (velocity)
+}
+
+/// The chord root (pitch class 0–11) sounding in each bar of `notes` — the lowest note in
+/// the bar, a reliable bass anchor for chord-generator / imported parts. nil = silent bar. Pure.
+func chordRootsPerBar(_ notes: [MIDINote], secPerBar: Double, bars: Int) -> [Int?] {
+    guard secPerBar > 0 else { return [] }
+    return (0..<max(1, bars)).map { bar in
+        let start = Double(bar) * secPerBar, end = start + secPerBar
+        let inBar = notes.filter { $0.start < end - 1e-6 && $0.start + $0.duration > start + 1e-6 }
+        guard let lowest = inBar.min(by: { $0.pitch < $1.pitch }) else { return nil }
+        return ((lowest.pitch % 12) + 12) % 12
+    }
+}
+
+/// Generate a bassline that follows `roots` (one chord root per bar) in the chosen pattern.
+/// Pure and deterministic — testable, undo-friendly.
+func bassPerformance(roots: [Int?], settings s: BassSettings, secPerBar: Double) -> [MIDINote] {
+    guard secPerBar > 0, !roots.isEmpty else { return [] }
+    func clamp(_ n: Int) -> Int { max(24, min(55, n)) }              // C1…G3
+    func rootNote(_ pc: Int) -> Int { clamp((s.octave + 1) * 12 + ((pc % 12) + 12) % 12) }
+    let vel = max(1, min(127, 60 + Int(s.drive * 55)))
+    func walk(_ r: Int, to target: Int) -> [Int] { [r, r + 7, r + 5, target - 1] }  // root·5·4·leading tone
+
+    var out: [MIDINote] = []
+    for (bar, rootPC) in roots.enumerated() {
+        guard let pc = rootPC else { continue }
+        let base = Double(bar) * secPerBar
+        let r = rootNote(pc)
+        let nextR = rootNote((bar + 1 < roots.count ? roots[bar + 1] : nil) ?? pc)
+        func emit(_ pitch: Int, _ step: Double, _ len: Double) {
+            out.append(MIDINote(pitch: clamp(pitch), start: base + step, duration: len, velocity: vel))
+        }
+        switch s.pattern {
+        case 1:                                                     // octaves on the beat
+            for b in 0..<4 { emit(b % 2 == 0 ? r : r + 12, Double(b) * secPerBar / 4, secPerBar / 4 * 0.9) }
+        case 2:                                                     // walking quarter notes
+            for (i, p) in walk(r, to: nextR).enumerated() { emit(p, Double(i) * secPerBar / 4, secPerBar / 4 * 0.9) }
+        case 3:                                                     // arpeggio eighths
+            let arp = [r, r + 7, r + 12, r + 7]
+            for i in 0..<8 { emit(arp[i % arp.count], Double(i) * secPerBar / 8, secPerBar / 8 * 0.9) }
+        case 4:                                                     // pump — offbeat eighths
+            for b in 0..<4 { emit(r, (Double(b) + 0.5) * secPerBar / 4, secPerBar / 4 * 0.45) }
+        default:                                                    // roots — sustained whole note
+            emit(r, 0, secPerBar * 0.98)
+        }
+    }
+    return out
+}
+
 /// Small seedable RNG so humanize is deterministic for tests (the app passes a random seed).
 struct SeededRNG: RandomNumberGenerator {
     var state: UInt64

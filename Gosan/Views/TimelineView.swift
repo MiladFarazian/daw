@@ -38,6 +38,9 @@ struct TimelineView: View {
                             project.activeSheet = .drummer(project.addDrummerTrack())
                         } label: { Label("Drummer", systemImage: "music.quarternote.3") }
                         Button {
+                            project.activeSheet = .bassPlayer(project.addBassPlayer())
+                        } label: { Label("Bass Player", systemImage: "guitars.fill") }
+                        Button {
                             project.activeSheet = .stepSequencer(project.addDrumTrack())
                         } label: { Label("Drum Machine", systemImage: "square.grid.3x3.fill") }
                     } label: {
