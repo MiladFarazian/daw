@@ -166,6 +166,19 @@ struct ClipLaneView: View {
                         Button { project.sendClipToMoises(clip) } label: {
                             Label("Send to Moises (manual)…", systemImage: "arrow.up.forward.app")
                         }
+                        if clip.asset.sunoClipID != nil {
+                            Divider()
+                            Menu {
+                                Button { project.splitStemsSuno(of: clip) } label: {
+                                    Label("Split to Stems (Suno)", systemImage: "square.stack")
+                                }
+                                Button { project.activeSheet = .extendClip(clip.id) } label: {
+                                    Label("Extend with Suno…", systemImage: "arrow.right.to.line")
+                                }
+                            } label: {
+                                Label("Suno", systemImage: "sparkles")
+                            }
+                        }
                         Divider()
                         Button(role: .destructive) { project.deleteClip(clip, on: track) } label: {
                             Label("Delete Clip", systemImage: "trash")
