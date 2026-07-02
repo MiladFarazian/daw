@@ -41,6 +41,12 @@ struct ClipLaneView: View {
                         } label: {
                             Label("Repeat", systemImage: "repeat")
                         }
+                        Button {
+                            project.setLoop(clip.startTime, clip.startTime + clip.duration)
+                            project.seek(to: clip.startTime)
+                        } label: {
+                            Label("Loop This Section", systemImage: "repeat.circle")
+                        }
                         if clip.hasTakes {
                             Menu {
                                 ForEach(Array(clip.takes.enumerated()), id: \.element.id) { i, take in

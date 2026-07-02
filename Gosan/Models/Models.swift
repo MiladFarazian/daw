@@ -281,13 +281,22 @@ struct DrumPreset { let name: String; let hits: [(pitch: Int, steps: [Int])] }
 
 enum DrumPatterns {
     // GM drums: 36 kick, 38 snare, 39 clap, 42 closed hat, 46 open hat, 56 cowbell.
+    // NOTE: append only — the Drummer + Song Starter reference these by index (DrummerSettings.style,
+    // SongVibe.drumStyle), so reordering would remap existing songs' grooves.
     static let all: [DrumPreset] = [
         DrumPreset(name: "Four on the Floor", hits: [(36, [0, 4, 8, 12]), (39, [4, 12]), (42, [2, 6, 10, 14]), (46, [14])]),
         DrumPreset(name: "Boom Bap", hits: [(36, [0, 10]), (38, [4, 12]), (42, [0, 2, 4, 6, 8, 10, 12, 14])]),
         DrumPreset(name: "Trap", hits: [(36, [0, 6, 11]), (38, [8]), (42, [0, 2, 4, 6, 8, 10, 12, 13, 14, 15])]),
         DrumPreset(name: "Rock", hits: [(36, [0, 8]), (38, [4, 12]), (42, [0, 2, 4, 6, 8, 10, 12, 14])]),
         DrumPreset(name: "Disco", hits: [(36, [0, 4, 8, 12]), (38, [4, 12]), (46, [2, 6, 10, 14]), (42, [0, 4, 8, 12])]),
-        DrumPreset(name: "Afro House", hits: [(36, [0, 3, 6, 10]), (39, [4, 12]), (42, [2, 6, 10, 14]), (56, [1, 5, 9, 13])])
+        DrumPreset(name: "Afro House", hits: [(36, [0, 3, 6, 10]), (39, [4, 12]), (42, [2, 6, 10, 14]), (56, [1, 5, 9, 13])]),
+        DrumPreset(name: "Hip-Hop", hits: [(36, [0, 6, 10]), (38, [4, 12]), (39, [4, 12]), (42, [0, 4, 8, 12])]),
+        DrumPreset(name: "Drill", hits: [(36, [0, 3, 6, 11]), (38, [8]), (39, [8]), (42, [0, 2, 4, 6, 8, 10, 12, 13, 14, 15])]),
+        DrumPreset(name: "Afrobeats", hits: [(36, [0, 6, 10, 13]), (39, [4, 12]), (42, [2, 6, 10, 14]), (37, [0, 4, 8, 12])]),
+        DrumPreset(name: "Amapiano", hits: [(36, [0, 10]), (39, [4, 12]), (42, [2, 6, 10, 14]), (37, [3, 7, 11, 15]), (46, [6, 14])]),
+        DrumPreset(name: "Reggaeton", hits: [(36, [0, 8]), (38, [3, 6, 11, 14]), (42, [0, 2, 4, 6, 8, 10, 12, 14])]),
+        DrumPreset(name: "Funk", hits: [(36, [0, 7, 10]), (38, [4, 12]), (42, [0, 2, 3, 6, 8, 10, 11, 14])]),
+        DrumPreset(name: "Dancehall", hits: [(36, [0, 6, 8, 14]), (38, [4, 12]), (42, [0, 2, 4, 6, 8, 10, 12, 14])])
     ]
 
     /// Generate notes for a preset, tiled across `bars` (16 steps per bar).
