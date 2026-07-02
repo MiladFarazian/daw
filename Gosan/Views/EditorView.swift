@@ -81,6 +81,8 @@ struct EditorView: View {
                 InstrumentEditorView(trackID: id).environmentObject(project)
             case .analysis(let result):
                 AnalysisSheet(analysis: result)
+            case .extendClip(let id):
+                ExtendClipView(clipID: id).environmentObject(project)
             }
         }
         .alert("Something went wrong",

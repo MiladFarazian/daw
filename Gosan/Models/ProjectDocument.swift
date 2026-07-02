@@ -88,6 +88,12 @@ struct ProjectDocument: Codable {
         var customName: String? = nil
         var takes: [TakeData] = []     // take folder (all takes share this clip's assetFile)
         var activeTake: Int = 0
+        /// Suno clip ID for stem-split / extend; nil for non-Suno clips.
+        /// Decoded with decodeIfPresent so old saved projects (missing key) still load.
+        var sunoClipID: String? = nil
+        /// Suno style tags; nil for non-Suno clips or clips generated before Wave 2.
+        /// Decoded with decodeIfPresent so old saved projects (missing key) still load.
+        var sunoStyleTags: String? = nil
     }
 
     struct TakeData: Codable {

@@ -28,10 +28,11 @@ final class ProjectStore: ObservableObject {
     // Suno generation state.
     @Published var isGenerating = false
     @Published var candidates: [CandidateAsset] = []
+    @Published var candidatesRanked = false
     @Published var useTaste = true
     @Published var lastNudge: [String] = []
     @Published var sidecarStatus: SidecarStatus = .checking
-    private var lastPrompt: GeneratePrompt?
+    @Published var sunoCredits: SunoCredits?
 
     @Published var isExporting = false
     @Published var selectedClipID: UUID?
@@ -770,10 +771,16 @@ final class ProjectStore: ObservableObject {
     // MARK: - Suno generation
 
     /// Probe whether the Suno sidecar is up, for the Generate panel's status dot.
+    /// Also refreshes sunoCredits (best-effort; nil if unavailable).
     func checkSidecar() {
         let client = SunoSidecarClient(baseURL: settings.sunoSidecarURL)
         sidecarStatus = .checking
-        Task { sidecarStatus = await client.status() }
+        Task {
+            sidecarStatus = await client.status()
+            if case .ready = sidecarStatus {
+                sunoCredits = await client.credits()
+            }
+        }
     }
 
     func generate(_ prompt: GeneratePrompt) {
@@ -787,7 +794,6 @@ final class ProjectStore: ObservableObject {
             effective = prompt
             lastNudge = []
         }
-        lastPrompt = prompt
 
         let client = SunoSidecarClient(baseURL: settings.sunoSidecarURL)
         let progress = JobProgress(label: "Generate · \(prompt.shortLabel)")
@@ -795,6 +801,7 @@ final class ProjectStore: ObservableObject {
         activeJobs.append(progress)
         isGenerating = true
         candidates.removeAll()
+        candidatesRanked = false
 
         Task {
             // Check the sidecar first and report problems IN-APP (no surprise browser hop).
@@ -804,12 +811,12 @@ final class ProjectStore: ObservableObject {
             case .offline:
                 removeJob(jobID); isGenerating = false
                 infoMessage = "The local Suno API isn't running. Start it (Terminal: `make suno-sidecar` with your "
-                    + "SUNO_COOKIE), then try Generate again. Or use “Open in Suno (manual).”"
+                    + "SUNO_COOKIE), then try Generate again. Or use \u{201C}Open in Suno (manual).\u{201D}"
                 return
             case .unauthorized:
                 removeJob(jobID); isGenerating = false
                 infoMessage = "The Suno sidecar is running but your cookie isn't authorized (HTTP 401). Re-grab the "
-                    + "cookie from suno.com (logged in) and restart the sidecar. Or use “Open in Suno (manual).”"
+                    + "cookie from suno.com (logged in) and restart the sidecar. Or use \u{201C}Open in Suno (manual).\u{201D}"
                 return
             case .checking, .ready:
                 break
@@ -820,7 +827,24 @@ final class ProjectStore: ObservableObject {
                 }
                 for candidate in generated {
                     let asset = try await assetFromRemote(candidate.audioURL, name: candidate.title, defaultExt: "mp3")
-                    candidates.append(CandidateAsset(id: candidate.id, title: candidate.title, asset: asset))
+                    asset.sunoClipID = candidate.id
+                    asset.sunoStyleTags = candidate.styleTags
+                    candidates.append(CandidateAsset(id: candidate.id, title: candidate.title,
+                                                     asset: asset, sunoClipID: candidate.id,
+                                                     prompt: prompt))
+                }
+                // Taste re-rank: stable sort by taste score if we have enough signal.
+                if self.useTaste && self.taste.profile.keepCount >= 3 {
+                    let scored = self.candidates.map { c -> (CandidateAsset, Double) in
+                        let text = c.title + " " + (c.asset.sunoStyleTags ?? "") + " " + c.prompt.text
+                        return (c, self.taste.score(text))
+                    }
+                    let sorted = scored.sorted { $0.1 > $1.1 }.map { $0.0 }
+                    let changed = zip(self.candidates, sorted).contains { $0.0.id != $0.1.id }
+                    self.candidates = sorted
+                    self.candidatesRanked = changed
+                } else {
+                    self.candidatesRanked = false
                 }
                 removeJob(jobID)
                 isGenerating = false
@@ -830,7 +854,76 @@ final class ProjectStore: ObservableObject {
                 isGenerating = false
                 sidecarStatus = await client.status()
                 infoMessage = "Suno generation failed: \(error.localizedDescription). The sidecar may have hit Suno's "
-                    + "bot check. You can retry, or use “Open in Suno (manual).”"
+                    + "bot check. You can retry, or use \u{201C}Open in Suno (manual).\u{201D}"
+            }
+        }
+    }
+
+    /// Custom generate (lyrics + style tags): adds candidates to the tray.
+    /// Does not apply taste bias — custom generate is explicit.
+    func generateCustom(_ req: CustomGenerateRequest) {
+        let client = SunoSidecarClient(baseURL: settings.sunoSidecarURL)
+        let label = req.title.isEmpty ? req.styleTags.prefix(24).description : req.title
+        let progress = JobProgress(label: "Generate · \(label)")
+        let jobID = progress.id
+        activeJobs.append(progress)
+        isGenerating = true
+        candidates.removeAll()
+        candidatesRanked = false
+        lastNudge = []
+
+        Task {
+            let status = await client.status()
+            sidecarStatus = status
+            switch status {
+            case .offline:
+                removeJob(jobID); isGenerating = false
+                infoMessage = "The local Suno API isn't running. Start it (Terminal: `make suno-sidecar` with your "
+                    + "SUNO_COOKIE), then try Generate again. Or use \u{201C}Open in Suno (manual).\u{201D}"
+                return
+            case .unauthorized:
+                removeJob(jobID); isGenerating = false
+                infoMessage = "The Suno sidecar is running but your cookie isn't authorized (HTTP 401). Re-grab the "
+                    + "cookie from suno.com (logged in) and restart the sidecar. Or use \u{201C}Open in Suno (manual).\u{201D}"
+                return
+            case .checking, .ready:
+                break
+            }
+            do {
+                let generated = try await client.customGenerate(req) { status in
+                    Task { @MainActor in self.setJobStatus(jobID, status) }
+                }
+                // Build a GeneratePrompt so taste recording is possible later.
+                let fakePrompt = GeneratePrompt(text: req.lyrics.isEmpty ? req.styleTags : req.lyrics,
+                                                instrumental: req.instrumental)
+                for candidate in generated {
+                    let asset = try await assetFromRemote(candidate.audioURL, name: candidate.title, defaultExt: "mp3")
+                    asset.sunoClipID = candidate.id
+                    asset.sunoStyleTags = candidate.styleTags
+                    candidates.append(CandidateAsset(id: candidate.id, title: candidate.title,
+                                                     asset: asset, sunoClipID: candidate.id,
+                                                     prompt: fakePrompt))
+                }
+                // Taste re-rank.
+                if self.useTaste && self.taste.profile.keepCount >= 3 {
+                    let scored = self.candidates.map { c -> (CandidateAsset, Double) in
+                        let text = c.title + " " + (c.asset.sunoStyleTags ?? "") + " " + c.prompt.text
+                        return (c, self.taste.score(text))
+                    }
+                    let sorted = scored.sorted { $0.1 > $1.1 }.map { $0.0 }
+                    let changed = zip(self.candidates, sorted).contains { $0.0.id != $0.1.id }
+                    self.candidates = sorted
+                    self.candidatesRanked = changed
+                } else {
+                    self.candidatesRanked = false
+                }
+                removeJob(jobID)
+                isGenerating = false
+            } catch {
+                removeJob(jobID)
+                isGenerating = false
+                sidecarStatus = await client.status()
+                infoMessage = "Suno custom generate failed: \(error.localizedDescription)."
             }
         }
     }
@@ -838,14 +931,160 @@ final class ProjectStore: ObservableObject {
     /// Keep a candidate: add it to the timeline and reinforce your taste.
     func addCandidate(_ candidate: CandidateAsset) {
         addNamedTrack(name: candidate.title, asset: candidate.asset)
-        if let prompt = lastPrompt { taste.recordKeep(prompt) }
+        taste.recordKeep(candidate.prompt)
+        if let tags = candidate.asset.sunoStyleTags, !tags.isEmpty {
+            taste.recordKeepTags(tags)
+        }
         candidates.removeAll { $0.id == candidate.id }
+    }
+
+    /// Keep a candidate and immediately split it into stem tracks.
+    /// Falls back to plain addCandidate with a notice if no sunoClipID is present.
+    func addCandidateAsStems(_ candidate: CandidateAsset) {
+        guard let clipID = candidate.sunoClipID else {
+            addCandidate(candidate)
+            infoMessage = "No Suno clip ID on this candidate — added as a plain track."
+            return
+        }
+        // Place a placeholder track first so the user sees it immediately.
+        addNamedTrack(name: candidate.title, asset: candidate.asset)
+        taste.recordKeep(candidate.prompt)
+        if let tags = candidate.asset.sunoStyleTags, !tags.isEmpty {
+            taste.recordKeepTags(tags)
+        }
+        candidates.removeAll { $0.id == candidate.id }
+
+        let client = SunoSidecarClient(baseURL: settings.sunoSidecarURL)
+        let progress = JobProgress(label: "Stems · \(candidate.title)")
+        let jobID = progress.id
+        activeJobs.append(progress)
+        let baseName = candidate.title
+
+        Task {
+            do {
+                let stems = try await client.generateStems(audioID: clipID) { status in
+                    Task { @MainActor in self.setJobStatus(jobID, status) }
+                }
+                for stem in stems {
+                    let asset = try await assetFromRemote(stem.audioURL, name: stem.title, defaultExt: "mp3")
+                    asset.sunoClipID = stem.id
+                    // Inherit source's style tags if the stem clip doesn't have its own.
+                    asset.sunoStyleTags = candidate.asset.sunoStyleTags
+                    addNamedTrack(name: "\(baseName) · \(stem.title)", asset: asset)
+                }
+                removeJob(jobID)
+                infoMessage = "Stems split for \u{201C}\(baseName)\u{201D}."
+            } catch {
+                removeJob(jobID)
+                lastError = "Stem split failed: \(error.localizedDescription)"
+            }
+        }
     }
 
     /// Reject a candidate: drop it and nudge your taste away from this prompt.
     func discardCandidate(_ candidate: CandidateAsset) {
-        if let prompt = lastPrompt { taste.recordReject(prompt) }
+        taste.recordReject(candidate.prompt)
         candidates.removeAll { $0.id == candidate.id }
+    }
+
+    /// Split a Suno clip into stems via the sidecar (requires sunoClipID on the clip's asset).
+    func splitStemsSuno(of clip: Clip) {
+        guard let clipID = clip.asset.sunoClipID else {
+            infoMessage = "This clip has no Suno clip ID — use Moises stem split instead."
+            return
+        }
+        let client = SunoSidecarClient(baseURL: settings.sunoSidecarURL)
+        let progress = JobProgress(label: "Stems · \(clip.name)")
+        let jobID = progress.id
+        activeJobs.append(progress)
+        let baseName = clip.name
+
+        Task {
+            do {
+                let stems = try await client.generateStems(audioID: clipID) { status in
+                    Task { @MainActor in self.setJobStatus(jobID, status) }
+                }
+                // Download all stems then add as one undo step.
+                var downloaded: [(title: String, asset: AudioAsset)] = []
+                for stem in stems {
+                    let asset = try await assetFromRemote(stem.audioURL, name: stem.title, defaultExt: "mp3")
+                    asset.sunoClipID = stem.id
+                    asset.sunoStyleTags = clip.asset.sunoStyleTags
+                    downloaded.append((stem.title, asset))
+                }
+                asOneUndoStep {
+                    for (title, asset) in downloaded {
+                        addNamedTrack(name: "\(baseName) · \(title)", asset: asset)
+                    }
+                }
+                removeJob(jobID)
+                infoMessage = "\(downloaded.count) stem\(downloaded.count == 1 ? "" : "s") added for \u{201C}\(baseName)\u{201D}."
+            } catch {
+                removeJob(jobID)
+                lastError = "Stem split failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    /// Extend a Suno clip from its end. Places the extension as a new clip on the same track,
+    /// starting where the source clip ends. Requires clip.asset.sunoClipID.
+    func extendClip(_ clip: Clip, prompt: String, styleTags: String) {
+        guard let clipID = clip.asset.sunoClipID else {
+            infoMessage = "This clip has no Suno clip ID and cannot be extended via Suno."
+            return
+        }
+        let client = SunoSidecarClient(baseURL: settings.sunoSidecarURL)
+        let progress = JobProgress(label: "Extend · \(clip.name)")
+        let jobID = progress.id
+        activeJobs.append(progress)
+
+        let effectiveStyleTags = styleTags.isEmpty ? (clip.asset.sunoStyleTags ?? "") : styleTags
+        // Continue from what the listener hears at the clip's end (respects trims);
+        // equals the full asset duration for untrimmed clips.
+        let continueAt = clip.offset + clip.duration
+        // Place the new clip immediately after the source clip on the timeline.
+        let insertAt = clip.startTime + clip.duration
+        let clipName = clip.name
+
+        // Capture the track ID so we can find it back on the main actor.
+        var sourceTrackID: UUID? = nil
+        for track in tracks {
+            if track.clips.contains(where: { $0.id == clip.id }) {
+                sourceTrackID = track.id
+                break
+            }
+        }
+        guard let trackID = sourceTrackID else {
+            removeJob(jobID)
+            return
+        }
+
+        Task {
+            do {
+                let generated = try await client.extend(
+                    audioID: clipID, prompt: prompt, styleTags: effectiveStyleTags,
+                    continueAt: continueAt, model: nil) { status in
+                    Task { @MainActor in self.setJobStatus(jobID, status) }
+                }
+                guard let first = generated.first else {
+                    throw AIError.malformed("no extension clip returned")
+                }
+                let asset = try await assetFromRemote(first.audioURL, name: "\(clipName) · ext", defaultExt: "mp3")
+                asset.sunoClipID = first.id
+                asset.sunoStyleTags = first.styleTags ?? clip.asset.sunoStyleTags
+
+                // Place on the same track as the source clip, after it.
+                recordUndo()
+                if let ti = tracks.firstIndex(where: { $0.id == trackID }) {
+                    tracks[ti].clips.append(Clip(asset: asset, startTime: insertAt))
+                    engine.prepare(tracks: effectiveTracks())
+                }
+                removeJob(jobID)
+            } catch {
+                removeJob(jobID)
+                lastError = "Extend failed: \(error.localizedDescription)"
+            }
+        }
     }
 
     /// Manual bridge: export a clip and open Moises so you can split/enhance it in the
@@ -2308,7 +2547,9 @@ final class ProjectStore: ObservableObject {
                             takes: clip.takes.map {
                                 ProjectDocument.TakeData(offset: $0.offset, duration: $0.duration, name: $0.name)
                             },
-                            activeTake: clip.activeTake)
+                            activeTake: clip.activeTake,
+                            sunoClipID: clip.asset.sunoClipID,
+                            sunoStyleTags: clip.asset.sunoStyleTags)
                     },
                     isInstrument: track.isInstrument, isDrumKit: track.isDrumKit, program: track.program,
                     instrumentPlugin: track.instrumentPlugin,
@@ -2398,6 +2639,8 @@ final class ProjectStore: ObservableObject {
                     }.value
                     asset = AudioAsset(url: local, duration: clipData.assetDuration,
                                        sampleRate: clipData.sampleRate, peaks: peaks)
+                    asset.sunoClipID = clipData.sunoClipID
+                    asset.sunoStyleTags = clipData.sunoStyleTags
                     assetCache[clipData.assetFile] = asset
                 }
                 var clip = Clip(asset: asset, startTime: clipData.startTime)

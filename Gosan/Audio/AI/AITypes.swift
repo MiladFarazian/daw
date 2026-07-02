@@ -6,11 +6,12 @@ enum AIError: LocalizedError {
     case malformed(String)
     case jobFailed(String)
     case sidecarUnreachable(String)
+    case outOfCredits
 
     var errorDescription: String? {
         switch self {
         case .noAPIKey:
-            return "No Moises API key set. Add one in Settings (⌘,) — get a free key at developer.moises.ai."
+            return "No Moises API key set. Add one in Settings (\u{2318},) \u{2014} get a free key at developer.moises.ai."
         case .http(let code, let body):
             return "Moises request failed (HTTP \(code)). \(body)"
         case .malformed(let what):
@@ -19,7 +20,9 @@ enum AIError: LocalizedError {
             return "Job failed: \(why)"
         case .sidecarUnreachable(let url):
             return "Couldn't reach the Suno sidecar at \(url). Start a local Suno API "
-                + "(e.g. gcui-art/suno-api) and set its URL in Settings, or use “Open in Suno (manual).”"
+                + "(e.g. gcui-art/suno-api) and set its URL in Settings, or use \u{201C}Open in Suno (manual).\u{201D}"
+        case .outOfCredits:
+            return "Suno credits exhausted \u{2014} top up or wait for the monthly reset."
         }
     }
 }

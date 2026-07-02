@@ -37,6 +37,28 @@ final class TasteEngine: ObservableObject {
         persist()
     }
 
+    /// Score a text string against learned descriptors: sum of weights for each descriptor
+    /// whose token appears (case-insensitive substring) in the text.
+    func score(_ text: String) -> Double {
+        guard !profile.descriptorWeights.isEmpty else { return 0 }
+        let lower = text.lowercased()
+        return profile.descriptorWeights.reduce(0.0) { total, pair in
+            // Match: any comma-split token of the descriptor appears in the text
+            let tokens = pair.key.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+            let matched = tokens.contains { token in !token.isEmpty && lower.contains(token) }
+            return total + (matched ? pair.value : 0)
+        }
+    }
+
+    /// Reinforce descriptors found in Suno style tags (same weighting as recordKeep text path,
+    /// no BPM or instrumental counting).
+    func recordKeepTags(_ tags: String) {
+        for descriptor in TasteTokens.descriptors(from: tags) {
+            profile.descriptorWeights[descriptor, default: 0] += 1.0
+        }
+        persist()
+    }
+
     // MARK: Reads
 
     /// Positively-weighted descriptors, strongest first.

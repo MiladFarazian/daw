@@ -9,6 +9,12 @@ final class AudioAsset: Identifiable, @unchecked Sendable {
     let duration: TimeInterval
     let sampleRate: Double
     var peaks: [Float]
+    /// The Suno clip ID this asset was generated from, if any.
+    /// Persisted via ProjectDocument.ClipData.sunoClipID (optional, backwards-compatible).
+    var sunoClipID: String? = nil
+    /// The Suno style tags this asset was generated with, if any.
+    /// Persisted via ProjectDocument.ClipData.sunoStyleTags (optional, backwards-compatible).
+    var sunoStyleTags: String? = nil
 
     init(url: URL, duration: TimeInterval, sampleRate: Double, peaks: [Float]) {
         self.url = url
@@ -620,23 +626,30 @@ struct SongVibe: Identifiable, Equatable {
     let bassPattern: Int
     let melodyDensity: Double
     let melodyMotion: Double
+    /// Suno style-string seed for this vibe — fed into custom_generate "tags".
+    var styleTags: String
 
     static let all: [SongVibe] = [
         SongVibe(id: 0, name: "Pop", blurb: "bright I–V–vi–IV, four-on-the-floor",
                  minor: false, degrees: [0, 4, 5, 3], tempo: 116, drumStyle: 0,
-                 complexity: 0.5, swing: 0, bassPattern: 1, melodyDensity: 0.5, melodyMotion: 0.4),
+                 complexity: 0.5, swing: 0, bassPattern: 1, melodyDensity: 0.5, melodyMotion: 0.4,
+                 styleTags: "pop, uplifting, catchy, bright synths, four-on-the-floor, radio-ready"),
         SongVibe(id: 1, name: "Lo-fi", blurb: "hazy minor, swung boom-bap",
                  minor: true, degrees: [0, 5, 2, 6], tempo: 80, drumStyle: 1,
-                 complexity: 0.45, swing: 0.35, bassPattern: 0, melodyDensity: 0.35, melodyMotion: 0.3),
+                 complexity: 0.45, swing: 0.35, bassPattern: 0, melodyDensity: 0.35, melodyMotion: 0.3,
+                 styleTags: "lo-fi hip hop, dusty Rhodes, vinyl crackle, laid-back, jazzy chords, mellow"),
         SongVibe(id: 2, name: "Trap", blurb: "dark minor, rolling hats, 808s",
                  minor: true, degrees: [0, 5, 3, 6], tempo: 140, drumStyle: 2,
-                 complexity: 0.7, swing: 0, bassPattern: 4, melodyDensity: 0.3, melodyMotion: 0.35),
+                 complexity: 0.7, swing: 0, bassPattern: 4, melodyDensity: 0.3, melodyMotion: 0.35,
+                 styleTags: "trap, dark minor, rolling hi-hats, 808 sub bass, atmospheric, hard-hitting"),
         SongVibe(id: 3, name: "House", blurb: "four-on-the-floor, pumping bass",
                  minor: false, degrees: [0, 4, 5, 3], tempo: 124, drumStyle: 4,
-                 complexity: 0.6, swing: 0, bassPattern: 4, melodyDensity: 0.7, melodyMotion: 0.5),
+                 complexity: 0.6, swing: 0, bassPattern: 4, melodyDensity: 0.7, melodyMotion: 0.5,
+                 styleTags: "house music, four-on-the-floor, pumping bass, soulful vocals, club-ready, disco-influenced"),
         SongVibe(id: 4, name: "R&B", blurb: "smooth minor, walking bass",
                  minor: true, degrees: [0, 5, 3, 4], tempo: 92, drumStyle: 1,
-                 complexity: 0.5, swing: 0.2, bassPattern: 2, melodyDensity: 0.5, melodyMotion: 0.55)
+                 complexity: 0.5, swing: 0.2, bassPattern: 2, melodyDensity: 0.5, melodyMotion: 0.55,
+                 styleTags: "R&B, smooth minor, neo-soul, warm Rhodes, walking bass, lush harmonies, soulful")
     ]
 }
 

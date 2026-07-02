@@ -19,11 +19,23 @@ struct GeneratePrompt {
     }
 }
 
+/// Parameters for a custom (lyrics + style) Suno generation.
+struct CustomGenerateRequest {
+    var styleTags: String           // Suno "tags"
+    var title: String = ""
+    var lyrics: String = ""         // "prompt" field; empty + instrumental → instrumental custom gen
+    var negativeTags: String = ""
+    var instrumental: Bool = true
+    var model: String? = nil        // nil → sidecar default (chirp-v3-5)
+}
+
 /// A finished Suno clip from the sidecar.
 struct GeneratedCandidate {
     let id: String
     let title: String
     let audioURL: URL
+    let duration: Double?       // from clip JSON "duration", if present
+    let styleTags: String?      // from clip JSON "metadata"→"tags", if present
 }
 
 /// A downloaded candidate, ready to preview and add to the timeline.
@@ -31,6 +43,15 @@ struct CandidateAsset: Identifiable {
     let id: String
     let title: String
     let asset: AudioAsset
+    let sunoClipID: String?     // the Suno clip id, for later stem-split / extend
+    let prompt: GeneratePrompt  // the prompt that produced this candidate (for taste recording)
+}
+
+/// Suno account credit info, fetched from GET /api/get_limit.
+struct SunoCredits {
+    let creditsLeft: Int
+    let monthlyLimit: Int
+    let monthlyUsage: Int
 }
 
 /// Which modal sheet the editor is showing (one sheet modifier avoids SwiftUI's
@@ -59,6 +80,7 @@ enum EditorSheet: Identifiable {
     case chords(UUID)
     case instrument(UUID)
     case analysis(AnalysisResult)
+    case extendClip(UUID)
 
     var id: String {
         switch self {
@@ -77,6 +99,7 @@ enum EditorSheet: Identifiable {
         case .chords(let id): return "chords-\(id.uuidString)"
         case .instrument(let id): return "instrument-\(id.uuidString)"
         case .analysis(let result): return result.id.uuidString
+        case .extendClip(let id): return "extend-\(id.uuidString)"
         }
     }
 }
