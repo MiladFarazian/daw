@@ -13,21 +13,51 @@ struct SunoSidecarClient {
 
     /// Distinguish "ready", "running but the cookie is missing/expired", and "not running".
     /// Any HTTP response means the sidecar is reachable, so `.offline` is reserved for genuine
-    /// connection failures. A 2xx = ready; anything else from a running sidecar means the cookie
-    /// needs attention — an empty cookie 401s, but an *expired* one 500s ("update SUNO_COOKIE"),
-    /// and both should read as "unauthorized", not "offline".
+    /// connection failures on BOTH probe attempts.
+    ///
+    /// Classification (applied to whichever attempt is decisive):
+    ///   • 2xx + body contains "unauthorized"/"suno_cookie" → .unauthorized
+    ///   • 2xx otherwise                                    → .ready
+    ///   • 401 or 403, OR any body with auth markers        → .unauthorized
+    ///   • other non-2xx (e.g. transient 5xx during Next.js cold-start warm-up) → .ready
+    ///     (optimistic: sidecar IS reachable; no auth signal; the real call will surface
+    ///      any genuine error without nagging the user about their cookie first)
     func status() async -> SidecarStatus {
-        var req = URLRequest(url: baseURL.appendingPathComponent("api/get_limit"))
-        req.timeoutInterval = 4
-        guard let (data, resp) = try? await URLSession.shared.data(for: req),
-              let http = resp as? HTTPURLResponse else { return .offline }
-        if (200..<300).contains(http.statusCode) {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            // Some builds return 200 with an error envelope; treat those as cookie problems.
-            return body.localizedCaseInsensitiveContains("unauthorized")
-                || body.localizedCaseInsensitiveContains("suno_cookie") ? .unauthorized : .ready
+        // First probe.
+        let first = await Self.probe(baseURL: baseURL)
+        switch first {
+        case .ready, .unauthorized, .checking:
+            return first
+        case .offline:
+            // Connection failure or transient non-2xx: wait and retry once.
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            return await Self.probe(baseURL: baseURL)
         }
-        return .unauthorized   // reachable but not serving limits → the cookie is missing/expired
+    }
+
+    /// Single GET /api/get_limit probe with a 12-second timeout.
+    /// Returns `.offline` for genuine connection failures; `.unauthorized` for clear auth
+    /// failures; `.ready` for 2xx (non-auth body) or non-auth non-2xx (optimistic).
+    private static func probe(baseURL: URL) async -> SidecarStatus {
+        var req = URLRequest(url: baseURL.appendingPathComponent("api/get_limit"))
+        req.timeoutInterval = 12
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse else {
+            // Could not reach host at all.
+            return .offline
+        }
+        let body = String(data: data, encoding: .utf8) ?? ""
+        let hasAuthMarker = body.localizedCaseInsensitiveContains("unauthorized")
+                         || body.localizedCaseInsensitiveContains("suno_cookie")
+        if (200..<300).contains(http.statusCode) {
+            return hasAuthMarker ? .unauthorized : .ready
+        }
+        // Non-2xx: genuine auth rejection or transient server error.
+        if http.statusCode == 401 || http.statusCode == 403 || hasAuthMarker {
+            return .unauthorized
+        }
+        // Transient non-2xx (e.g. 500 during Next.js cold-start) with no auth signal → optimistic.
+        return .ready
     }
 
     func generate(_ prompt: GeneratePrompt,

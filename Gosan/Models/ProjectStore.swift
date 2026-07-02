@@ -804,23 +804,8 @@ final class ProjectStore: ObservableObject {
         candidatesRanked = false
 
         Task {
-            // Check the sidecar first and report problems IN-APP (no surprise browser hop).
-            let status = await client.status()
-            sidecarStatus = status
-            switch status {
-            case .offline:
-                removeJob(jobID); isGenerating = false
-                infoMessage = "The local Suno API isn't running. Start it (Terminal: `make suno-sidecar` with your "
-                    + "SUNO_COOKIE), then try Generate again. Or use \u{201C}Open in Suno (manual).\u{201D}"
-                return
-            case .unauthorized:
-                removeJob(jobID); isGenerating = false
-                infoMessage = "The Suno sidecar is running but your cookie isn't authorized (HTTP 401). Re-grab the "
-                    + "cookie from suno.com (logged in) and restart the sidecar. Or use \u{201C}Open in Suno (manual).\u{201D}"
-                return
-            case .checking, .ready:
-                break
-            }
+            // Non-blocking status refresh so the indicator dot stays current.
+            Task { self.sidecarStatus = await client.status() }
             do {
                 let generated = try await client.generate(effective) { status in
                     Task { @MainActor in self.setJobStatus(jobID, status) }
@@ -849,12 +834,28 @@ final class ProjectStore: ObservableObject {
                 removeJob(jobID)
                 isGenerating = false
             } catch {
-                // Stay in-app: surface the failure, leave the manual button as an explicit choice.
+                // Stay in-app: classify the REAL error and surface it without a precheck detour.
                 removeJob(jobID)
                 isGenerating = false
-                sidecarStatus = await client.status()
-                infoMessage = "Suno generation failed: \(error.localizedDescription). The sidecar may have hit Suno's "
-                    + "bot check. You can retry, or use \u{201C}Open in Suno (manual).\u{201D}"
+                if case AIError.sidecarUnreachable = error {
+                    sidecarStatus = .offline
+                    infoMessage = "The local Suno API isn't running. Start it (Terminal: `make suno-sidecar` with your "
+                        + "SUNO_COOKIE), then try again. Or use \u{201C}Open in Suno (manual).\u{201D}"
+                } else if case AIError.http(401, _) = error {
+                    sidecarStatus = .unauthorized
+                    infoMessage = "The Suno sidecar is running but your cookie isn't authorized. Re-grab it from "
+                        + "suno.com (logged in) and restart the sidecar. Or use \u{201C}Open in Suno (manual).\u{201D}"
+                } else if case AIError.http(403, _) = error {
+                    sidecarStatus = .unauthorized
+                    infoMessage = "The Suno sidecar is running but your cookie isn't authorized. Re-grab it from "
+                        + "suno.com (logged in) and restart the sidecar. Or use \u{201C}Open in Suno (manual).\u{201D}"
+                } else if case AIError.outOfCredits = error {
+                    infoMessage = (error as? AIError)?.errorDescription ?? error.localizedDescription
+                } else {
+                    Task { self.sidecarStatus = await client.status() }
+                    infoMessage = "Suno generation failed: \(error.localizedDescription). The sidecar may have hit Suno's "
+                        + "bot check. You can retry, or use \u{201C}Open in Suno (manual).\u{201D}"
+                }
             }
         }
     }
@@ -873,22 +874,8 @@ final class ProjectStore: ObservableObject {
         lastNudge = []
 
         Task {
-            let status = await client.status()
-            sidecarStatus = status
-            switch status {
-            case .offline:
-                removeJob(jobID); isGenerating = false
-                infoMessage = "The local Suno API isn't running. Start it (Terminal: `make suno-sidecar` with your "
-                    + "SUNO_COOKIE), then try Generate again. Or use \u{201C}Open in Suno (manual).\u{201D}"
-                return
-            case .unauthorized:
-                removeJob(jobID); isGenerating = false
-                infoMessage = "The Suno sidecar is running but your cookie isn't authorized (HTTP 401). Re-grab the "
-                    + "cookie from suno.com (logged in) and restart the sidecar. Or use \u{201C}Open in Suno (manual).\u{201D}"
-                return
-            case .checking, .ready:
-                break
-            }
+            // Non-blocking status refresh so the indicator dot stays current.
+            Task { self.sidecarStatus = await client.status() }
             do {
                 let generated = try await client.customGenerate(req) { status in
                     Task { @MainActor in self.setJobStatus(jobID, status) }
@@ -920,10 +907,28 @@ final class ProjectStore: ObservableObject {
                 removeJob(jobID)
                 isGenerating = false
             } catch {
+                // Classify the REAL error; no blocking precheck detour.
                 removeJob(jobID)
                 isGenerating = false
-                sidecarStatus = await client.status()
-                infoMessage = "Suno custom generate failed: \(error.localizedDescription)."
+                if case AIError.sidecarUnreachable = error {
+                    sidecarStatus = .offline
+                    infoMessage = "The local Suno API isn't running. Start it (Terminal: `make suno-sidecar` with your "
+                        + "SUNO_COOKIE), then try again. Or use \u{201C}Open in Suno (manual).\u{201D}"
+                } else if case AIError.http(401, _) = error {
+                    sidecarStatus = .unauthorized
+                    infoMessage = "The Suno sidecar is running but your cookie isn't authorized. Re-grab it from "
+                        + "suno.com (logged in) and restart the sidecar. Or use \u{201C}Open in Suno (manual).\u{201D}"
+                } else if case AIError.http(403, _) = error {
+                    sidecarStatus = .unauthorized
+                    infoMessage = "The Suno sidecar is running but your cookie isn't authorized. Re-grab it from "
+                        + "suno.com (logged in) and restart the sidecar. Or use \u{201C}Open in Suno (manual).\u{201D}"
+                } else if case AIError.outOfCredits = error {
+                    infoMessage = (error as? AIError)?.errorDescription ?? error.localizedDescription
+                } else {
+                    Task { self.sidecarStatus = await client.status() }
+                    infoMessage = "Suno generation failed: \(error.localizedDescription). The sidecar may have hit Suno's "
+                        + "bot check. You can retry, or use \u{201C}Open in Suno (manual).\u{201D}"
+                }
             }
         }
     }
