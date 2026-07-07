@@ -32,6 +32,28 @@ final class TasteEngine: ObservableObject {
         persist()
     }
 
+    /// A/B preference from a tournament: reinforce the winner, lightly discourage the loser.
+    /// Lighter than keep/reject (+1.0 / -0.3) because it's a relative choice, not a verdict.
+    func recordComparison(winner: GeneratePrompt, winnerTags: String?, loser: GeneratePrompt, loserTags: String?) {
+        for descriptor in TasteTokens.descriptors(from: winner.text) {
+            profile.descriptorWeights[descriptor, default: 0] += 0.5
+        }
+        if let tags = winnerTags {
+            for descriptor in TasteTokens.descriptors(from: tags) {
+                profile.descriptorWeights[descriptor, default: 0] += 0.5
+            }
+        }
+        for descriptor in TasteTokens.descriptors(from: loser.text) {
+            profile.descriptorWeights[descriptor, default: 0] -= 0.15
+        }
+        if let tags = loserTags {
+            for descriptor in TasteTokens.descriptors(from: tags) {
+                profile.descriptorWeights[descriptor, default: 0] -= 0.15
+            }
+        }
+        persist()
+    }
+
     func reset() {
         profile = TasteProfile()
         persist()

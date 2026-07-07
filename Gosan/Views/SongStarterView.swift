@@ -317,6 +317,15 @@ struct SongStarterView: View {
                     HStack {
                         Text("Results").font(.subheadline.weight(.semibold))
                         Spacer()
+                        if project.candidates.count >= 2 {
+                            Button {
+                                project.activeSheet = .tournament
+                            } label: {
+                                Label("Taste Tournament", systemImage: "trophy")
+                            }
+                            .font(.caption)
+                            .buttonStyle(.bordered)
+                        }
                         Toggle("Split into stems (separate tracks)", isOn: $splitStems)
                             .font(.caption)
                     }

@@ -83,6 +83,11 @@ struct EditorView: View {
                 AnalysisSheet(analysis: result)
             case .extendClip(let id):
                 ExtendClipView(clipID: id).environmentObject(project)
+            case .tournament:
+                TournamentView()
+                    .environmentObject(project)
+                    .environmentObject(preview)
+                    .environmentObject(project.taste)
             }
         }
         .alert("Something went wrong",

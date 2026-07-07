@@ -92,7 +92,19 @@ struct GeneratePanel: View {
 
             Divider()
 
-            Text("Variants").font(.subheadline.weight(.semibold))
+            HStack {
+                Text("Variants").font(.subheadline.weight(.semibold))
+                Spacer()
+                if project.candidates.count >= 2 {
+                    Button {
+                        project.activeSheet = .tournament
+                    } label: {
+                        Label("Taste Tournament", systemImage: "trophy")
+                    }
+                    .font(.caption)
+                    .buttonStyle(.bordered)
+                }
+            }
             if project.candidates.isEmpty {
                 Text("Generated candidates appear here. Preview, then add the ones you like.")
                     .font(.caption).foregroundStyle(.secondary)

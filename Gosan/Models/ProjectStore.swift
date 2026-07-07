@@ -992,6 +992,27 @@ final class ProjectStore: ObservableObject {
         candidates.removeAll { $0.id == candidate.id }
     }
 
+    /// Record one A/B pick's taste signal (routes to TasteEngine so persistence stays centralized).
+    func recordTournamentPick(winner: CandidateAsset, loser: CandidateAsset) {
+        taste.recordComparison(
+            winner: winner.prompt, winnerTags: winner.asset.sunoStyleTags,
+            loser: loser.prompt, loserTags: loser.asset.sunoStyleTags
+        )
+    }
+
+    /// Finish a tournament: keep the champion (adds to timeline, records the real keep), and clear
+    /// the rest of the tray WITHOUT recording additional rejects (the pairwise picks already encoded
+    /// the relative preference — a full reject on every loser would double-count and over-penalize).
+    func concludeTournament(champion: CandidateAsset, asStems: Bool) {
+        if asStems {
+            addCandidateAsStems(champion)
+        } else {
+            addCandidate(champion)
+        }
+        candidates.removeAll()
+        candidatesRanked = false
+    }
+
     /// Split a Suno clip into stems via the sidecar (requires sunoClipID on the clip's asset).
     func splitStemsSuno(of clip: Clip) {
         guard let clipID = clip.asset.sunoClipID else {
@@ -2384,6 +2405,27 @@ final class ProjectStore: ObservableObject {
                     if let t = tracks.first, let c = t.clips.first { tuneClip(c, on: t, strength: 1.0) }
                 }
             }
+            return
+        }
+        // Taste Tournament smoke: seed two auditionable candidates and open the bracket.
+        if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "tournament" {
+            newProject()
+            if let dir = try? LibraryStorage.importsDirectory() {
+                func demoCandidate(_ id: String, _ title: String, freq: Double, tags: String) -> CandidateAsset? {
+                    let url = dir.appendingPathComponent("demo-tourney-\(id).wav")
+                    Self.writeTestTone(to: url, freq: freq, seconds: 3)
+                    guard let wf = WaveformLoader.load(url: url) else { return nil }
+                    let a = AudioAsset(url: url, duration: wf.duration, sampleRate: wf.sampleRate, peaks: wf.peaks)
+                    a.sunoStyleTags = tags
+                    return CandidateAsset(id: id, title: title, asset: a, sunoClipID: id,
+                                          prompt: GeneratePrompt(text: tags, instrumental: true))
+                }
+                candidates = [
+                    demoCandidate("A", "Warm Take", freq: 220, tags: "warm lofi, dusty rhodes"),
+                    demoCandidate("B", "Bright Take", freq: 330, tags: "bright pop, catchy")
+                ].compactMap { $0 }
+            }
+            activeSheet = .tournament
             return
         }
         let peaks: [Float] = (0..<256).map { Float(abs(sin(Double($0) * 0.15)) * 0.85) }
