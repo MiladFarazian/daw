@@ -83,6 +83,8 @@ struct EditorView: View {
                 AnalysisSheet(analysis: result)
             case .extendClip(let id):
                 ExtendClipView(clipID: id).environmentObject(project)
+            case .regenerateSection(let id):
+                RegenerateSectionView(clipID: id).environmentObject(project)
             case .tournament:
                 TournamentView()
                     .environmentObject(project)

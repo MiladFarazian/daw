@@ -1113,6 +1113,82 @@ final class ProjectStore: ObservableObject {
         }
     }
 
+    /// Regenerate a Suno clip's audio from `splitSeconds` (measured from the clip's visible start)
+    /// onward, in its style, and crossfade the new take back in. Everything before the split is kept.
+    /// Requires clip.asset.sunoClipID.
+    func regenerateSection(_ clip: Clip, at splitSeconds: TimeInterval, prompt: String, styleTags: String) {
+        guard let clipID = clip.asset.sunoClipID else {
+            infoMessage = "This clip has no Suno clip ID and can't be regenerated."
+            return
+        }
+        let client = SunoSidecarClient(baseURL: settings.sunoSidecarURL)
+        let split = min(max(splitSeconds, 0.1), max(0.1, clip.duration - 0.1))
+        let progress = JobProgress(label: "Regenerating from \(timecode(split)) · \(clip.name)")
+        let jobID = progress.id
+        activeJobs.append(progress)
+
+        let effectiveStyleTags = styleTags.isEmpty ? (clip.asset.sunoStyleTags ?? "") : styleTags
+        // Continue from the chosen point within the underlying asset (respects trims).
+        let continueAt = clip.offset + split
+        let clipName = clip.name
+
+        // Capture the track ID so we can find it back on the main actor.
+        var sourceTrackID: UUID? = nil
+        for track in tracks {
+            if track.clips.contains(where: { $0.id == clip.id }) {
+                sourceTrackID = track.id
+                break
+            }
+        }
+        guard let trackID = sourceTrackID else {
+            removeJob(jobID)
+            return
+        }
+
+        Task {
+            do {
+                let generated = try await client.extend(
+                    audioID: clipID, prompt: prompt, styleTags: effectiveStyleTags,
+                    continueAt: continueAt, model: nil) { status in
+                    Task { @MainActor in self.setJobStatus(jobID, status) }
+                }
+                guard let first = generated.first else {
+                    throw AIError.malformed("no regenerated clip returned")
+                }
+                let asset = try await assetFromRemote(first.audioURL, name: "\(clipName) · regen", defaultExt: "mp3")
+                asset.sunoClipID = first.id
+                asset.sunoStyleTags = first.styleTags ?? clip.asset.sunoStyleTags
+
+                // Butt-splice the new take at the split point under a single undo step.
+                // Each track has ONE player node, which can't mix overlapping segments, so the
+                // clips must be adjacent (like extendClip) rather than overlapped. A short linear
+                // fade baked into each side (source out → silence, new in ← silence) keeps the
+                // seam click-free without needing a true overlapping crossfade.
+                let seam = min(0.06, split / 2, asset.duration / 2)
+                asOneUndoStep {
+                    guard let ti = tracks.firstIndex(where: { $0.id == trackID }),
+                          let ci = tracks[ti].clips.firstIndex(where: { $0.id == clip.id }) else { return }
+                    let sourceStart = tracks[ti].clips[ci].startTime
+                    tracks[ti].clips[ci].duration = split
+                    tracks[ti].clips[ci].fadeOut = seam
+                    tracks[ti].clips[ci].fadeCurve = 0
+
+                    var newClip = Clip(asset: asset, startTime: sourceStart + split)
+                    newClip.offset = 0
+                    newClip.duration = asset.duration
+                    newClip.fadeIn = seam
+                    newClip.fadeCurve = 0
+                    tracks[ti].clips.append(newClip)
+                    engine.prepare(tracks: effectiveTracks())
+                }
+                removeJob(jobID)
+            } catch {
+                removeJob(jobID)
+                lastError = "Regenerate failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
     /// Manual bridge: export a clip and open Moises so you can split/enhance it in the
     /// app you already use, then drag the results back onto the timeline.
     func sendClipToMoises(_ clip: Clip) {
@@ -2403,6 +2479,22 @@ final class ProjectStore: ObservableObject {
                     addNamedTrack(name: "Vocal", asset: AudioAsset(url: url, duration: wf.duration,
                                                                    sampleRate: wf.sampleRate, peaks: wf.peaks))
                     if let t = tracks.first, let c = t.clips.first { tuneClip(c, on: t, strength: 1.0) }
+                }
+            }
+            return
+        }
+        // Section-regenerate smoke: seed one Suno-provenance clip and open the Regenerate sheet.
+        if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "regen" {
+            newProject()
+            if let dir = try? LibraryStorage.importsDirectory() {
+                let url = dir.appendingPathComponent("demo-regen.wav")
+                Self.writeTestTone(to: url, freq: 220, seconds: 8)
+                if let wf = WaveformLoader.load(url: url) {
+                    let a = AudioAsset(url: url, duration: wf.duration, sampleRate: wf.sampleRate, peaks: wf.peaks)
+                    a.sunoClipID = "demo-regen"
+                    a.sunoStyleTags = "warm lofi, dusty rhodes"
+                    addNamedTrack(name: "Idea", asset: a)
+                    if let c = tracks.first?.clips.first { activeSheet = .regenerateSection(c.id) }
                 }
             }
             return

@@ -81,6 +81,7 @@ enum EditorSheet: Identifiable {
     case instrument(UUID)
     case analysis(AnalysisResult)
     case extendClip(UUID)
+    case regenerateSection(UUID)
     case tournament
 
     var id: String {
@@ -101,6 +102,7 @@ enum EditorSheet: Identifiable {
         case .instrument(let id): return "instrument-\(id.uuidString)"
         case .analysis(let result): return result.id.uuidString
         case .extendClip(let id): return "extend-\(id.uuidString)"
+        case .regenerateSection(let id): return "regen-\(id.uuidString)"
         case .tournament: return "tournament"
         }
     }

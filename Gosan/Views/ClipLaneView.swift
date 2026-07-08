@@ -175,6 +175,9 @@ struct ClipLaneView: View {
                                 Button { project.activeSheet = .extendClip(clip.id) } label: {
                                     Label("Extend with Suno…", systemImage: "arrow.right.to.line")
                                 }
+                                Button { project.activeSheet = .regenerateSection(clip.id) } label: {
+                                    Label("Regenerate from here…", systemImage: "arrow.triangle.2.circlepath")
+                                }
                             } label: {
                                 Label("Suno", systemImage: "sparkles")
                             }
