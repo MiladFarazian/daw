@@ -13,9 +13,9 @@ enum AIError: LocalizedError {
         case .noAPIKey:
             return "No Moises API key set. Add one in Settings (\u{2318},) \u{2014} get a free key at developer.moises.ai."
         case .http(let code, let body):
-            return "Moises request failed (HTTP \(code)). \(body)"
+            return "Request failed (HTTP \(code)). \(body)"
         case .malformed(let what):
-            return "Unexpected response from Moises: \(what)"
+            return "Unexpected response: \(what)"
         case .jobFailed(let why):
             return "Job failed: \(why)"
         case .sidecarUnreachable(let url):

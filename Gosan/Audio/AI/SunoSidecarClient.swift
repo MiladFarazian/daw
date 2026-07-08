@@ -241,16 +241,19 @@ struct SunoSidecarClient {
             try Self.check(gresp, gdata)
 
             let clips = try Self.clips(from: gdata)
-            if clips.contains(where: { ($0["status"] as? String) == "error" }) {
+            // An errored sibling shouldn't discard clips that finished successfully:
+            // drop errored clips first, then judge completeness over what's left.
+            let nonErrored = clips.filter { ($0["status"] as? String) != "error" }
+            if nonErrored.isEmpty {
                 throw AIError.jobFailed("Suno returned an error status")
             }
 
-            lastWithAudio = clips.compactMap(Self.candidate)
-            let complete = clips.filter { ($0["status"] as? String) == "complete" }.compactMap(Self.candidate)
-            if !complete.isEmpty && complete.count == clips.count {
+            lastWithAudio = nonErrored.compactMap(Self.candidate)
+            let complete = nonErrored.filter { ($0["status"] as? String) == "complete" }.compactMap(Self.candidate)
+            if !complete.isEmpty && complete.count == nonErrored.count {
                 return complete
             }
-            progress("Generating (\(lastWithAudio.count)/\(clips.count))")
+            progress("Generating (\(lastWithAudio.count)/\(nonErrored.count))")
         }
 
         // Timed out — return anything that already has audio, else fail.

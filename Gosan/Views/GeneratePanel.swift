@@ -36,7 +36,7 @@ struct GeneratePanel: View {
     private var canGenerateCustom: Bool {
         let tagsEmpty   = customStyleTags.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let lyricsEmpty = customLyrics.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        return !(tagsEmpty && lyricsEmpty) && !project.isGenerating
+        return !(tagsEmpty && lyricsEmpty) && !project.isGenerating && !isWritingLyrics
     }
 
     private var sidecarColor: Color {
@@ -57,6 +57,7 @@ struct GeneratePanel: View {
     }
 
     var body: some View {
+        ScrollView {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Label("Generate with Suno", systemImage: "sparkles").font(.headline)
@@ -131,7 +132,9 @@ struct GeneratePanel: View {
             tasteSection
         }
         .padding(20)
+        }
         .frame(width: 520)
+        .frame(maxHeight: 580)
         .onAppear { project.checkSidecar() }
     }
 

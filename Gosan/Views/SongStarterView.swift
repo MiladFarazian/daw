@@ -168,7 +168,9 @@ struct SongStarterView: View {
                             vibeID = v.id
                             isMinor = v.minor
                             bpm = v.tempo
-                            customized = false
+                            // Don't reset `customized` — a hand-edited prompt shouldn't be
+                            // silently overwritten by a vibe pick; recompileIfNeeded() no-ops
+                            // when the user has already customized the text.
                             recompileIfNeeded()
                         } label: {
                             HStack(spacing: 10) {
@@ -352,7 +354,8 @@ struct SongStarterView: View {
     // MARK: - Chip row helper
     private func chipRow(chips: [String]) -> some View {
         FlexHStack(chips: chips, activeChips: $activeChips, onChange: {
-            customized = false
+            // Chips still toggle their own highlight (in FlexHStack) without resetting
+            // `customized` — recompileIfNeeded() no-ops once the prompt's been hand-edited.
             recompileIfNeeded()
         })
     }

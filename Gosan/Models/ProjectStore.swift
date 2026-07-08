@@ -33,6 +33,9 @@ final class ProjectStore: ObservableObject {
     @Published var lastNudge: [String] = []
     @Published var sidecarStatus: SidecarStatus = .checking
     @Published var sunoCredits: SunoCredits?
+    /// Clip IDs with an in-flight Suno job (extend/regenerate/stem split) — guards against
+    /// concurrent jobs corrupting the same track's single player node.
+    @Published var busyClipIDs: Set<UUID> = []
 
     @Published var isExporting = false
     @Published var selectedClipID: UUID?
@@ -783,6 +786,30 @@ final class ProjectStore: ObservableObject {
         }
     }
 
+    /// Classify a Suno sidecar error for the stem/extend/regenerate catch blocks: sets
+    /// `sidecarStatus` and returns cookie/offline guidance for connectivity or auth failures
+    /// (mirroring generate()/generateCustom()'s classification), otherwise falls back to the
+    /// caller's action-specific message.
+    private func classifySunoError(_ error: Error, fallback: String) -> String {
+        if case AIError.sidecarUnreachable = error {
+            sidecarStatus = .offline
+            return "The local Suno API isn't running. Start it (Terminal: `make suno-sidecar` with your "
+                + "SUNO_COOKIE), then try again. Or use \u{201C}Open in Suno (manual).\u{201D}"
+        } else if case AIError.http(401, _) = error {
+            sidecarStatus = .unauthorized
+            return "The Suno sidecar is running but your cookie isn't authorized. Re-grab it from "
+                + "suno.com (logged in) and restart the sidecar. Or use \u{201C}Open in Suno (manual).\u{201D}"
+        } else if case AIError.http(403, _) = error {
+            sidecarStatus = .unauthorized
+            return "The Suno sidecar is running but your cookie isn't authorized. Re-grab it from "
+                + "suno.com (logged in) and restart the sidecar. Or use \u{201C}Open in Suno (manual).\u{201D}"
+        } else if case AIError.outOfCredits = error {
+            return (error as? AIError)?.errorDescription ?? error.localizedDescription
+        } else {
+            return fallback
+        }
+    }
+
     func generate(_ prompt: GeneratePrompt) {
         // Bias toward learned taste (the original prompt is what we reinforce on keep).
         let effective: GeneratePrompt
@@ -970,25 +997,52 @@ final class ProjectStore: ObservableObject {
                 let stems = try await client.generateStems(audioID: clipID) { status in
                     Task { @MainActor in self.setJobStatus(jobID, status) }
                 }
+                // Download all stems before touching the timeline, so a failure partway through
+                // can't leave the project with some stems added and others missing.
+                var downloaded: [(title: String, asset: AudioAsset)] = []
                 for stem in stems {
                     let asset = try await assetFromRemote(stem.audioURL, name: stem.title, defaultExt: "mp3")
                     asset.sunoClipID = stem.id
                     // Inherit source's style tags if the stem clip doesn't have its own.
                     asset.sunoStyleTags = candidate.asset.sunoStyleTags
-                    addNamedTrack(name: "\(baseName) · \(stem.title)", asset: asset)
+                    downloaded.append((stem.title, asset))
+                }
+                let labels = Self.dedupedStemLabels(downloaded.map { $0.title })
+                asOneUndoStep {
+                    for (i, entry) in downloaded.enumerated() {
+                        addNamedTrack(name: "\(baseName) · \(labels[i])", asset: entry.asset)
+                    }
                 }
                 removeJob(jobID)
                 infoMessage = "Stems split for \u{201C}\(baseName)\u{201D}."
             } catch {
                 removeJob(jobID)
-                lastError = "Stem split failed: \(error.localizedDescription)"
+                lastError = classifySunoError(error, fallback: "Stem split failed: \(error.localizedDescription)")
             }
+        }
+    }
+
+    /// Builds per-stem track name labels: falls back to a positional "Stem N" label when a
+    /// stem's title is empty or collides with another stem's title in the same batch, so
+    /// tracks never end up with identical or blank names.
+    private static func dedupedStemLabels(_ titles: [String]) -> [String] {
+        var counts: [String: Int] = [:]
+        for t in titles { counts[t, default: 0] += 1 }
+        return titles.enumerated().map { i, t in
+            (t.isEmpty || (counts[t] ?? 0) > 1) ? "Stem \(i + 1)" : t
         }
     }
 
     /// Reject a candidate: drop it and nudge your taste away from this prompt.
     func discardCandidate(_ candidate: CandidateAsset) {
         taste.recordReject(candidate.prompt)
+        candidates.removeAll { $0.id == candidate.id }
+    }
+
+    /// Remove a candidate from the tray without recording any taste signal (e.g. a tournament
+    /// loser that's already had its comparison recorded — a reject here would double-count it,
+    /// and leaving it in the tray would let it be re-added later at full +1.0 taste weight).
+    func removeCandidate(_ candidate: CandidateAsset) {
         candidates.removeAll { $0.id == candidate.id }
     }
 
@@ -1019,6 +1073,13 @@ final class ProjectStore: ObservableObject {
             infoMessage = "This clip has no Suno clip ID — use Moises stem split instead."
             return
         }
+        guard !busyClipIDs.contains(clip.id) else {
+            infoMessage = "This clip already has a Suno job running — wait for it to finish."
+            return
+        }
+        let clipUUID = clip.id
+        busyClipIDs.insert(clipUUID)
+
         let client = SunoSidecarClient(baseURL: settings.sunoSidecarURL)
         let progress = JobProgress(label: "Stems · \(clip.name)")
         let jobID = progress.id
@@ -1038,16 +1099,19 @@ final class ProjectStore: ObservableObject {
                     asset.sunoStyleTags = clip.asset.sunoStyleTags
                     downloaded.append((stem.title, asset))
                 }
+                let labels = Self.dedupedStemLabels(downloaded.map { $0.title })
                 asOneUndoStep {
-                    for (title, asset) in downloaded {
-                        addNamedTrack(name: "\(baseName) · \(title)", asset: asset)
+                    for (i, entry) in downloaded.enumerated() {
+                        addNamedTrack(name: "\(baseName) · \(labels[i])", asset: entry.asset)
                     }
                 }
                 removeJob(jobID)
                 infoMessage = "\(downloaded.count) stem\(downloaded.count == 1 ? "" : "s") added for \u{201C}\(baseName)\u{201D}."
+                busyClipIDs.remove(clipUUID)
             } catch {
                 removeJob(jobID)
-                lastError = "Stem split failed: \(error.localizedDescription)"
+                lastError = classifySunoError(error, fallback: "Stem split failed: \(error.localizedDescription)")
+                busyClipIDs.remove(clipUUID)
             }
         }
     }
@@ -1059,6 +1123,13 @@ final class ProjectStore: ObservableObject {
             infoMessage = "This clip has no Suno clip ID and cannot be extended via Suno."
             return
         }
+        guard !busyClipIDs.contains(clip.id) else {
+            infoMessage = "This clip already has a Suno job running — wait for it to finish."
+            return
+        }
+        let clipUUID = clip.id
+        busyClipIDs.insert(clipUUID)
+
         let client = SunoSidecarClient(baseURL: settings.sunoSidecarURL)
         let progress = JobProgress(label: "Extend · \(clip.name)")
         let jobID = progress.id
@@ -1082,6 +1153,7 @@ final class ProjectStore: ObservableObject {
         }
         guard let trackID = sourceTrackID else {
             removeJob(jobID)
+            busyClipIDs.remove(clipUUID)
             return
         }
 
@@ -1099,16 +1171,26 @@ final class ProjectStore: ObservableObject {
                 asset.sunoClipID = first.id
                 asset.sunoStyleTags = first.styleTags ?? clip.asset.sunoStyleTags
 
+                // Suno's extend can return a FULL re-render from 0:00 rather than just the new
+                // tail; measure the returned asset's duration against continueAt to detect that
+                // and skip the re-rendered lead-in instead of assuming tail-only audio.
+                let leadIn = (asset.duration > continueAt + 0.5) ? continueAt : 0
+
                 // Place on the same track as the source clip, after it.
                 recordUndo()
                 if let ti = tracks.firstIndex(where: { $0.id == trackID }) {
-                    tracks[ti].clips.append(Clip(asset: asset, startTime: insertAt))
+                    var newClip = Clip(asset: asset, startTime: insertAt)
+                    newClip.offset = leadIn
+                    newClip.duration = max(0.1, asset.duration - leadIn)
+                    tracks[ti].clips.append(newClip)
                     engine.prepare(tracks: effectiveTracks())
                 }
                 removeJob(jobID)
+                busyClipIDs.remove(clipUUID)
             } catch {
                 removeJob(jobID)
-                lastError = "Extend failed: \(error.localizedDescription)"
+                lastError = classifySunoError(error, fallback: "Extend failed: \(error.localizedDescription)")
+                busyClipIDs.remove(clipUUID)
             }
         }
     }
@@ -1121,6 +1203,13 @@ final class ProjectStore: ObservableObject {
             infoMessage = "This clip has no Suno clip ID and can't be regenerated."
             return
         }
+        guard !busyClipIDs.contains(clip.id) else {
+            infoMessage = "This clip already has a Suno job running — wait for it to finish."
+            return
+        }
+        let clipUUID = clip.id
+        busyClipIDs.insert(clipUUID)
+
         let client = SunoSidecarClient(baseURL: settings.sunoSidecarURL)
         let split = min(max(splitSeconds, 0.1), max(0.1, clip.duration - 0.1))
         let progress = JobProgress(label: "Regenerating from \(timecode(split)) · \(clip.name)")
@@ -1142,6 +1231,7 @@ final class ProjectStore: ObservableObject {
         }
         guard let trackID = sourceTrackID else {
             removeJob(jobID)
+            busyClipIDs.remove(clipUUID)
             return
         }
 
@@ -1159,6 +1249,11 @@ final class ProjectStore: ObservableObject {
                 asset.sunoClipID = first.id
                 asset.sunoStyleTags = first.styleTags ?? clip.asset.sunoStyleTags
 
+                // Suno's extend/regenerate can return a FULL re-render from 0:00 rather than
+                // just the new tail; measure the returned asset's duration against continueAt
+                // to detect that and skip the re-rendered lead-in instead of assuming tail-only.
+                let leadIn = (asset.duration > continueAt + 0.5) ? continueAt : 0
+
                 // Butt-splice the new take at the split point under a single undo step.
                 // Each track has ONE player node, which can't mix overlapping segments, so the
                 // clips must be adjacent (like extendClip) rather than overlapped. A short linear
@@ -1174,17 +1269,19 @@ final class ProjectStore: ObservableObject {
                     tracks[ti].clips[ci].fadeCurve = 0
 
                     var newClip = Clip(asset: asset, startTime: sourceStart + split)
-                    newClip.offset = 0
-                    newClip.duration = asset.duration
+                    newClip.offset = leadIn
+                    newClip.duration = max(0.1, asset.duration - leadIn)
                     newClip.fadeIn = seam
                     newClip.fadeCurve = 0
                     tracks[ti].clips.append(newClip)
                     engine.prepare(tracks: effectiveTracks())
                 }
                 removeJob(jobID)
+                busyClipIDs.remove(clipUUID)
             } catch {
                 removeJob(jobID)
-                lastError = "Regenerate failed: \(error.localizedDescription)"
+                lastError = classifySunoError(error, fallback: "Regenerate failed: \(error.localizedDescription)")
+                busyClipIDs.remove(clipUUID)
             }
         }
     }

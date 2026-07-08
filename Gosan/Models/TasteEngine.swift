@@ -60,16 +60,29 @@ final class TasteEngine: ObservableObject {
     }
 
     /// Score a text string against learned descriptors: sum of weights for each descriptor
-    /// whose token appears (case-insensitive substring) in the text.
+    /// whose token appears as a whole word (or phrase) in the text — not merely as a
+    /// substring, so "house" doesn't match "warehouse" and "trap" doesn't match "trapped".
     func score(_ text: String) -> Double {
         guard !profile.descriptorWeights.isEmpty else { return 0 }
-        let lower = text.lowercased()
         return profile.descriptorWeights.reduce(0.0) { total, pair in
             // Match: any comma-split token of the descriptor appears in the text
-            let tokens = pair.key.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
-            let matched = tokens.contains { token in !token.isEmpty && lower.contains(token) }
+            let tokens = pair.key.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            let matched = tokens.contains { token in !token.isEmpty && Self.wordBoundaryMatch(token, in: text) }
             return total + (matched ? pair.value : 0)
         }
+    }
+
+    /// Whole-word/phrase match: true if `token` appears in `text` on word boundaries rather
+    /// than as a substring of a larger word. Case-insensitive, deterministic.
+    private static func wordBoundaryMatch(_ token: String, in text: String) -> Bool {
+        let trimmed = token.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return false }
+        let pattern = "\\b" + NSRegularExpression.escapedPattern(for: trimmed) + "\\b"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return false
+        }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.firstMatch(in: text, options: [], range: range) != nil
     }
 
     /// Reinforce descriptors found in Suno style tags (same weighting as recordKeep text path,
@@ -101,10 +114,9 @@ final class TasteEngine: ObservableObject {
     /// Append the strongest learned descriptors (and a preferred tempo) that the
     /// prompt doesn't already mention. Returns the new prompt and what was added.
     func bias(_ prompt: GeneratePrompt) -> (prompt: GeneratePrompt, added: [String]) {
-        let existing = prompt.text.lowercased()
         var added: [String] = []
 
-        for (descriptor, _) in topDescriptors.prefix(3) where !existing.contains(descriptor) {
+        for (descriptor, _) in topDescriptors.prefix(3) where !Self.wordBoundaryMatch(descriptor, in: prompt.text) {
             added.append(descriptor)
         }
         if let bpm = preferredBPM, TasteTokens.bpm(from: prompt.text) == nil {

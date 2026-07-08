@@ -215,6 +215,11 @@ struct TournamentView: View {
 
     private func pick(winner: CandidateAsset, loser: CandidateAsset) {
         project.recordTournamentPick(winner: winner, loser: loser)
+        // Eliminate the loser from the tray immediately — its comparison signal is already
+        // recorded, so it can't be re-added later at full +1.0 taste weight, and reopening
+        // the tournament won't replay this matchup (the local bracket runs off `queue`/
+        // `winners`/`entrants`, which are untouched by mutating project.candidates here).
+        project.removeCandidate(loser)
         comparisons += 1
         preview.stop()
 

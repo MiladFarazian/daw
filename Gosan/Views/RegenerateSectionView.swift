@@ -136,11 +136,16 @@ struct RegenerateSectionView: View {
                 Label("Regenerate", systemImage: "sparkles")
             }
             .buttonStyle(.borderedProminent)
-            .disabled(project.isGenerating)
+            .disabled(project.isGenerating || project.busyClipIDs.contains(clipID))
 
             if project.isGenerating { ProgressView().controlSize(.small) }
             Spacer()
             Button("Cancel") { dismiss() }
+        }
+
+        if project.busyClipIDs.contains(clipID) {
+            Text("A Suno job is already running on this clip.")
+                .font(.caption2).foregroundStyle(.secondary)
         }
     }
 }
