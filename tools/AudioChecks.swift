@@ -548,6 +548,23 @@ struct AudioChecks {
                      cMajKey.map { "\($0.root)\($0.minor ? "m" : "M")" } ?? "nil",
                      aMinKey.map { "\($0.root)\($0.minor ? "m" : "M")" } ?? "nil"))
         check("audio analysis detects tempo from a drum loop", abs(bpm - 132) < 2 && silentBPM == nil)
+        // A second percussive variant (98 BPM, 8s — the smoke demo's loop) must also gate out.
+        var drums98 = [Float](repeating: 0, count: Int(asr * 8))
+        var t98 = 0.0
+        while Int(t98 * asr) < drums98.count {
+            let kick = Int(t98 * asr)
+            for i in 0..<Int(0.08 * asr) where kick + i < drums98.count {
+                drums98[kick + i] += Float(sin(2 * .pi * 60 * Double(i) / asr) * exp(-Double(i) / (0.02 * asr))) * 0.9
+            }
+            let hat = Int((t98 + 60.0 / 98.0 / 2) * asr)
+            for i in 0..<Int(0.02 * asr) where hat + i < drums98.count {
+                drums98[hat + i] += Float(sin(2 * .pi * 4000 * Double(i) / asr) * exp(-Double(i) / (0.004 * asr))) * 0.3
+            }
+            t98 += 60.0 / 98.0
+        }
+        check("percussive material reports no key",
+              AudioAnalysis.detectKey(drums, sampleRate: asr) == nil
+                  && AudioAnalysis.detectKey(drums98, sampleRate: asr) == nil)
         check("audio analysis detects major and minor keys",
               cMajKey?.root == 0 && cMajKey?.minor == false
                   && aMinKey?.root == 9 && aMinKey?.minor == true)

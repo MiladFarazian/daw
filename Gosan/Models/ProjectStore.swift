@@ -677,11 +677,32 @@ final class ProjectStore: ObservableObject {
     /// Analyze a clip (key / BPM / chords …) and present the result.
     func analyze(_ clip: Clip) {
         let asset = clip.asset
+        let url = asset.url, offset = clip.offset, duration = clip.duration
+        let hasKey = settings.hasAPIKey
         Task {
+            // Local first: tempo + key are detected on-device, instantly and offline.
+            let local = await Task.detached(priority: .userInitiated) {
+                AudioAnalysis.analyze(url: url, offset: offset, duration: duration)
+            }.value
+            var fields: [String: String] = [:]
+            fields["Tempo"] = local.bpm.map { String(format: "%.0f BPM (detected)", $0) } ?? "—"
+            fields["Key"] = local.key.map { "\(noteName($0.root)) \($0.minor ? "minor" : "major") (detected)" } ?? "—"
+            fields["Length"] = String(format: "%.1f s", duration)
+
+            guard hasKey else {
+                fields["Chords · sections"] = "Add a Music.ai key in Settings for the full analysis"
+                activeSheet = .analysis(AnalysisResult(title: asset.name, result: fields))
+                return
+            }
             do {
                 let result = try await runWorkflow(label: "Analyze · \(clip.name)", workflow: settings.analyzeWorkflow, asset: asset)
-                activeSheet = .analysis(AnalysisResult(title: asset.name, result: result))
-            } catch { lastError = error.localizedDescription }
+                fields.merge(result) { _, cloud in cloud }   // the full analysis wins on clashes
+                activeSheet = .analysis(AnalysisResult(title: asset.name, result: fields))
+            } catch {
+                // Cloud failed — still show what we heard locally.
+                fields["Chords · sections"] = "Cloud analysis failed: \(error.localizedDescription)"
+                activeSheet = .analysis(AnalysisResult(title: asset.name, result: fields))
+            }
         }
     }
 
@@ -2675,6 +2696,19 @@ final class ProjectStore: ObservableObject {
                     addNamedTrack(name: "Loop", asset: AudioAsset(url: url, duration: wf.duration,
                                                                   sampleRate: wf.sampleRate, peaks: wf.peaks))
                     if let t = tracks.first, let c = t.clips.first { fitClipToProject(c, on: t, matchKey: false) }
+                }
+            }
+            return
+        }
+        if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "analyze" {
+            newProject()
+            if let dir = try? LibraryStorage.importsDirectory() {
+                let url = dir.appendingPathComponent("demo-loop-98.wav")
+                Self.writeTestLoop(to: url, bpm: 98, seconds: 8)
+                if let wf = WaveformLoader.load(url: url) {
+                    addNamedTrack(name: "Loop", asset: AudioAsset(url: url, duration: wf.duration,
+                                                                  sampleRate: wf.sampleRate, peaks: wf.peaks))
+                    if let t = tracks.first, let c = t.clips.first { analyze(c) }
                 }
             }
             return

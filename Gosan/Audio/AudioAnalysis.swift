@@ -156,6 +156,15 @@ enum AudioAnalysis {
     static func detectKey(_ x: [Float], sampleRate: Double) -> (root: Int, minor: Bool)? {
         let c = chroma(x, sampleRate: sampleRate)
         guard c.count == 12 else { return nil }
+        // Percussive/atonal gates: tonal material has a few strong pitch classes and a
+        // near-silent rest; broadband transients smear medium energy across many bins —
+        // and pile it into the chromatic NEIGHBORS of the peak, which harmony never does.
+        let muddy = c.filter { $0 >= 0.18 && $0 < 0.5 }.count
+        guard muddy <= 5 else { return nil }
+        if let peakIdx = c.indices.max(by: { c[$0] < c[$1] }) {
+            let up = c[(peakIdx + 1) % 12], down = c[(peakIdx + 11) % 12]
+            guard up < 0.5, down < 0.5 else { return nil }
+        }
         var best: (score: Float, root: Int, minor: Bool) = (-2, 0, false)
         for root in 0..<12 {
             // Rotate the chroma so index 0 is the candidate root.
