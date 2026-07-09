@@ -498,6 +498,46 @@ final class ProjectStore: ObservableObject {
     func requestImport() { showImporter = true }
     func requestMIDIImport() { showMIDIImporter = true }
 
+    // MARK: - Import fit suggestion (GarageBand-style, non-blocking)
+
+    struct FitSuggestion: Identifiable, Equatable {
+        let id = UUID()
+        let assetURL: URL
+        let clipName: String
+        let srcBPM: Double
+        let keyRoot: Int?
+        let keyMinor: Bool
+    }
+    @Published var fitSuggestion: FitSuggestion?
+
+    /// After an import lands, listen to it in the background; when its tempo clearly
+    /// differs from the project's, offer a one-tap fit in a banner. Never blocks.
+    private func suggestFitAfterImport(asset: AudioAsset) {
+        guard asset.duration >= 4, asset.duration <= 120 else { return }
+        let url = asset.url, target = tempo, name = asset.name, duration = asset.duration
+        Task.detached(priority: .utility) {
+            let a = AudioAnalysis.analyze(url: url, offset: 0, duration: duration)
+            guard let bpm = a.bpm else { return }
+            let rate = AudioAnalysis.foldedRate(srcBPM: bpm, targetBPM: target)
+            guard abs(rate - 1) > 0.03 else { return }
+            await MainActor.run {
+                self.fitSuggestion = FitSuggestion(assetURL: url, clipName: name, srcBPM: bpm,
+                                                   keyRoot: a.key?.root, keyMinor: a.key?.minor ?? false)
+            }
+        }
+    }
+
+    /// Accept the banner: fit the newest clip that uses the suggested asset.
+    func acceptFitSuggestion(_ s: FitSuggestion, matchKey: Bool) {
+        fitSuggestion = nil
+        for track in tracks.reversed() {
+            if let clip = track.clips.last(where: { $0.asset.url == s.assetURL }) {
+                fitClipToProject(clip, on: track, matchKey: matchKey)
+                return
+            }
+        }
+    }
+
     func importAudio(urls: [URL]) {
         for url in urls { importOne(url) }
     }
@@ -528,6 +568,7 @@ final class ProjectStore: ObservableObject {
                     self.addTrack(with: asset)
                 }
                 self.isImporting = false
+                self.suggestFitAfterImport(asset: asset)
             }
         }
     }
@@ -553,6 +594,7 @@ final class ProjectStore: ObservableObject {
                 await MainActor.run {
                     self.addNamedTrack(name: asset.name, asset: asset)
                     self.isImporting = false
+                    self.suggestFitAfterImport(asset: asset)
                 }
             } catch {
                 await MainActor.run {
@@ -2696,6 +2738,21 @@ final class ProjectStore: ObservableObject {
                     addNamedTrack(name: "Loop", asset: AudioAsset(url: url, duration: wf.duration,
                                                                   sampleRate: wf.sampleRate, peaks: wf.peaks))
                     if let t = tracks.first, let c = t.clips.first { fitClipToProject(c, on: t, matchKey: false) }
+                }
+            }
+            return
+        }
+        if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "fitbanner" {
+            newProject()
+            tempo = 116
+            if let dir = try? LibraryStorage.importsDirectory() {
+                let url = dir.appendingPathComponent("demo-loop-98.wav")
+                Self.writeTestLoop(to: url, bpm: 98, seconds: 8)
+                if let wf = WaveformLoader.load(url: url) {
+                    let asset = AudioAsset(url: url, duration: wf.duration,
+                                           sampleRate: wf.sampleRate, peaks: wf.peaks)
+                    addNamedTrack(name: "Loop", asset: asset)
+                    suggestFitAfterImport(asset: asset)
                 }
             }
             return

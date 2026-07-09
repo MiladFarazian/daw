@@ -14,12 +14,18 @@ struct EditorView: View {
             TransportBar()
             Divider()
             HStack(spacing: 0) {
-                ZStack {
+                ZStack(alignment: .top) {
                     TimelineView()
                     if project.tracks.isEmpty {
                         EmptyStateView()
                     }
+                    if let s = project.fitSuggestion {
+                        FitSuggestionBanner(suggestion: s)
+                            .padding(.top, 10)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                 }
+                .animation(.easeOut(duration: 0.25), value: project.fitSuggestion)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if project.showLoopBrowser {
@@ -207,6 +213,47 @@ struct PanelResizeHandle: View {
 }
 
 /// A floating "start your song" card shown over the (empty) timeline.
+/// Non-blocking banner after an import: "sounds like ~98 BPM — fit to 116?"
+struct FitSuggestionBanner: View {
+    @EnvironmentObject var project: ProjectStore
+    let suggestion: ProjectStore.FitSuggestion
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "wand.and.rays").foregroundStyle(.tint)
+            Text(message)
+                .font(.callout)
+                .lineLimit(1)
+            Button("Fit") { project.acceptFitSuggestion(suggestion, matchKey: false) }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            if project.scaleLockEnabled && suggestion.keyRoot != nil {
+                Button("Fit + Key") { project.acceptFitSuggestion(suggestion, matchKey: true) }
+                    .controlSize(.small)
+            }
+            Button { project.fitSuggestion = nil } label: {
+                Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Keep it as is")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.regularMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(.separator, lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+    }
+
+    private var message: String {
+        var s = "\(suggestion.clipName) sounds like ~\(Int(suggestion.srcBPM.rounded())) BPM"
+        if let root = suggestion.keyRoot {
+            s += " in \(noteName(root))\(suggestion.keyMinor ? " minor" : " major")"
+        }
+        s += " — fit to \(Int(project.tempo.rounded()))?"
+        return s
+    }
+}
+
 struct EmptyStateView: View {
     @EnvironmentObject var project: ProjectStore
 
