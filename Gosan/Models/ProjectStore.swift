@@ -2241,6 +2241,75 @@ final class ProjectStore: ObservableObject {
         }
     }
 
+    /// Fit a clip to the project: detect its tempo (and key), time-stretch it to the
+    /// project tempo, and — when `matchKey` and scale lock is on — pitch-shift it into
+    /// the project key by the smallest interval. Renames the clip with what it did.
+    func fitClipToProject(_ clip: Clip, on track: Track, matchKey: Bool) {
+        let url = clip.asset.url, offset = clip.offset, duration = clip.duration
+        let targetBPM = tempo
+        let wantKey = matchKey && scaleLockEnabled
+        let targetRoot = scaleLockRoot
+        let baseName = clip.name
+        isImporting = true
+        Task.detached(priority: .userInitiated) {
+            let analysis = AudioAnalysis.analyze(url: url, offset: offset, duration: duration)
+            guard let srcBPM = analysis.bpm, let dir = try? LibraryStorage.importsDirectory() else {
+                await MainActor.run {
+                    self.isImporting = false
+                    self.lastError = "Couldn't hear a steady tempo in this clip — try Time Stretch with a manual rate instead."
+                }
+                return
+            }
+            let rate = AudioAnalysis.foldedRate(srcBPM: srcBPM, targetBPM: targetBPM)
+
+            var workURL = url, workOffset = offset, workDuration = duration
+            if abs(rate - 1) > 0.005 {
+                guard let stretched = ClipProcessing.timeStretch(url: workURL, offset: workOffset,
+                                                                 duration: workDuration,
+                                                                 rate: Float(rate), outputDir: dir) else {
+                    await MainActor.run { self.isImporting = false; self.lastError = "Time-stretch failed." }
+                    return
+                }
+                workURL = stretched; workOffset = 0; workDuration = duration / rate
+            }
+
+            var semis = 0
+            if wantKey, let key = analysis.key {
+                semis = AudioAnalysis.semitoneShift(from: key.root, to: targetRoot)
+                if semis != 0,
+                   let shifted = ClipProcessing.pitchShift(url: workURL, offset: workOffset,
+                                                           duration: workDuration,
+                                                           semitones: Float(semis), outputDir: dir) {
+                    workURL = shifted; workOffset = 0
+                }
+            }
+
+            guard workURL != url, let waveform = WaveformLoader.load(url: workURL) else {
+                await MainActor.run {
+                    self.isImporting = false
+                    self.lastError = String(format: "Already a match — detected ~%.0f BPM%@. Nothing to change.",
+                                            srcBPM, analysis.key.map { ", key \(noteName($0.root))\($0.minor ? "m" : "")" } ?? "")
+                }
+                return
+            }
+            let asset = AudioAsset(url: workURL, duration: waveform.duration,
+                                   sampleRate: waveform.sampleRate, peaks: waveform.peaks)
+            var label = String(format: "fit %.0f→%.0f", srcBPM, targetBPM)
+            if semis != 0 { label += String(format: ", %+d st", semis) }
+            await MainActor.run {
+                self.recordUndo()
+                self.updateClip(clip, on: track) {
+                    $0.asset = asset
+                    $0.offset = 0
+                    $0.duration = asset.duration
+                    $0.customName = "\(baseName) (\(label))"
+                }
+                self.engine.prepare(tracks: self.effectiveTracks())
+                self.isImporting = false
+            }
+        }
+    }
+
     /// Bake a time-stretch (rate < 1 = slower/longer; pitch preserved) into the clip.
     func timeStretchClip(_ clip: Clip, on track: Track, rate: Float) {
         let url = clip.asset.url, offset = clip.offset, duration = clip.duration
@@ -2516,6 +2585,35 @@ final class ProjectStore: ObservableObject {
 
     private static let projectType = UTType(filenameExtension: "gosan") ?? .json
 
+    /// Dev-only: write a mono drum-machine loop at `bpm` (kick each beat, hat on the off-8ths)
+    /// for the fit-to-project smoke demo.
+    private static func writeTestLoop(to url: URL, bpm: Double, seconds: Double, sampleRate: Double = 44_100) {
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1),
+              let file = try? AVAudioFile(forWriting: url, settings: format.settings),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(seconds * sampleRate)) else { return }
+        buffer.frameLength = buffer.frameCapacity
+        let n = Int(buffer.frameLength)
+        if let ch = buffer.floatChannelData?[0] {
+            for i in 0..<n { ch[i] = 0 }
+            let beat = 60.0 / bpm
+            var t = 0.0
+            while Int(t * sampleRate) < n {
+                let kick = Int(t * sampleRate)
+                for i in 0..<Int(0.08 * sampleRate) where kick + i < n {
+                    let env = exp(-Double(i) / (0.02 * sampleRate))
+                    ch[kick + i] += Float(sin(2 * .pi * 60 * Double(i) / sampleRate) * env) * 0.9
+                }
+                let hat = Int((t + beat / 2) * sampleRate)
+                for i in 0..<Int(0.02 * sampleRate) where hat + i < n {
+                    let env = exp(-Double(i) / (0.004 * sampleRate))
+                    ch[hat + i] += Float(sin(2 * .pi * 4000 * Double(i) / sampleRate) * env) * 0.3
+                }
+                t += beat
+            }
+        }
+        try? file.write(from: buffer)
+    }
+
     /// Dev-only: write a mono sine tone (for the vocal-tuning smoke demo).
     private static func writeTestTone(to url: URL, freq: Double, seconds: Double, sampleRate: Double = 44_100) {
         guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1),
@@ -2567,6 +2665,20 @@ final class ProjectStore: ObservableObject {
             newProject(); tempo = 120; startFullSong(key: 0, vibe: SongVibe.all[2]); undo(); return
         }
         // Vocal-tuning runtime smoke: load a slightly-sharp tone and tune it → a "(tuned)" track appears.
+        if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "fit" {
+            newProject()
+            tempo = 116
+            if let dir = try? LibraryStorage.importsDirectory() {
+                let url = dir.appendingPathComponent("demo-loop-98.wav")
+                Self.writeTestLoop(to: url, bpm: 98, seconds: 8)
+                if let wf = WaveformLoader.load(url: url) {
+                    addNamedTrack(name: "Loop", asset: AudioAsset(url: url, duration: wf.duration,
+                                                                  sampleRate: wf.sampleRate, peaks: wf.peaks))
+                    if let t = tracks.first, let c = t.clips.first { fitClipToProject(c, on: t, matchKey: false) }
+                }
+            }
+            return
+        }
         if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "tune" {
             newProject()
             if let dir = try? LibraryStorage.importsDirectory() {

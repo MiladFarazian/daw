@@ -250,6 +250,12 @@ func beatTimes(base: Double, points: [TempoPoint], until: TimeInterval) -> [Time
 
 enum MusicScale: Int, Codable { case major, minor }
 
+/// Display name for a pitch class (0 = C … 11 = B). Pure.
+func noteName(_ pitchClass: Int) -> String {
+    let names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    return names[((pitchClass % 12) + 12) % 12]
+}
+
 /// Snap a MIDI pitch to the nearest tone in `root`+`scale` (pitch class–based). Pure.
 func snapToScale(_ pitch: Int, root: Int, scale: MusicScale) -> Int {
     let steps = scale == .major ? [0, 2, 4, 5, 7, 9, 11] : [0, 2, 3, 5, 7, 8, 10]

@@ -120,6 +120,13 @@ struct ClipLaneView: View {
                         Button { project.reverseClip(clip, on: track) } label: {
                             Label("Reverse", systemImage: "arrow.uturn.backward")
                         }
+                        Button {
+                            project.fitClipToProject(clip, on: track, matchKey: true)
+                        } label: {
+                            Label(project.scaleLockEnabled ? "Fit to Project (tempo + key)"
+                                                           : "Fit to Project Tempo",
+                                  systemImage: "wand.and.rays")
+                        }
                         Menu {
                             Button("0.5× (slower, 2× longer)") { project.timeStretchClip(clip, on: track, rate: 0.5) }
                             Button("0.75× speed") { project.timeStretchClip(clip, on: track, rate: 0.75) }

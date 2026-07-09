@@ -22,7 +22,7 @@ verify:
 		Gosan/Audio/ProjectPackage.swift Gosan/Audio/ClipBuffer.swift Gosan/Audio/ClipProcessing.swift \
 		Gosan/Audio/MIDISupport.swift Gosan/Audio/PluginHost.swift Gosan/Audio/Sidechain.swift \
 		Gosan/Audio/MusicalTyping.swift Gosan/Audio/Loudness.swift Gosan/Audio/MIDIFile.swift \
-			Gosan/Audio/PitchTune.swift \
+			Gosan/Audio/PitchTune.swift Gosan/Audio/AudioAnalysis.swift \
 		Gosan/Audio/AudioExporter.swift tools/AudioChecks.swift \
 		-o $(TMPDIR)gosan-audiochecks -framework AVFoundation -framework AudioToolbox
 	$(TMPDIR)gosan-audiochecks

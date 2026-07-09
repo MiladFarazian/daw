@@ -501,6 +501,84 @@ struct AudioChecks {
         check("vocal tuning snaps a sharp note toward the scale",
               tunedURL != nil && tunedHz > 435 && tunedHz < 445 && abs(tunedHz - 440) < abs(448 - 440))
 
+        // W19) Audio analysis: tempo + key detection and the fit-to-project math.
+        // A 132 BPM "drum loop": 60 Hz kick thump on each beat + 4 kHz hat ticks on the off-8ths.
+        let asr = 44_100.0
+        let beatDur = 60.0 / 132.0
+        let drumTotal = Int(asr * 12)
+        var drums = [Float](repeating: 0, count: drumTotal)
+        var beatT = 0.0
+        while Int(beatT * asr) < drumTotal {
+            let kick = Int(beatT * asr)
+            let kickLen = Int(0.08 * asr)
+            for i in 0..<kickLen where kick + i < drumTotal {
+                let env = exp(-Double(i) / (0.02 * asr))
+                drums[kick + i] += Float(sin(2 * .pi * 60 * Double(i) / asr) * env) * 0.9
+            }
+            let hat = Int((beatT + beatDur / 2) * asr)
+            let hatLen = Int(0.02 * asr)
+            for i in 0..<hatLen where hat + i < drumTotal {
+                let env = exp(-Double(i) / (0.004 * asr))
+                drums[hat + i] += Float(sin(2 * .pi * 4000 * Double(i) / asr) * env) * 0.3
+            }
+            beatT += beatDur
+        }
+        let bpm = AudioAnalysis.detectBPM(drums, sampleRate: asr) ?? 0
+
+        // Key: a C-major arpeggio (C3 E3 G3 C4) vs an A-minor one (A2 C3 E3 A3), looped 10s.
+        func arpSignal(_ midis: [Int]) -> [Float] {
+            var out = [Float](repeating: 0, count: Int(asr * 10))
+            let noteDur = 0.25
+            let steps = Int(10.0 / noteDur)
+            for k in 0..<steps {
+                let m = midis[k % midis.count]
+                let f = 440.0 * pow(2.0, (Double(m) - 69) / 12.0)
+                let start = Int(Double(k) * noteDur * asr)
+                let len = Int(noteDur * asr * 0.9)
+                for i in 0..<len where start + i < out.count {
+                    out[start + i] += Float(sin(2 * .pi * f * Double(i) / asr)) * 0.5
+                }
+            }
+            return out
+        }
+        let cMajKey = AudioAnalysis.detectKey(arpSignal([48, 52, 55, 60]), sampleRate: asr)
+        let aMinKey = AudioAnalysis.detectKey(arpSignal([45, 48, 52, 57]), sampleRate: asr)
+        let silentBPM = AudioAnalysis.detectBPM([Float](repeating: 0, count: 44_100 * 6), sampleRate: asr)
+        print(String(format: "   (analysis: bpm %.1f; C-arp %@, A-arp %@)", bpm,
+                     cMajKey.map { "\($0.root)\($0.minor ? "m" : "M")" } ?? "nil",
+                     aMinKey.map { "\($0.root)\($0.minor ? "m" : "M")" } ?? "nil"))
+        check("audio analysis detects tempo from a drum loop", abs(bpm - 132) < 2 && silentBPM == nil)
+        check("audio analysis detects major and minor keys",
+              cMajKey?.root == 0 && cMajKey?.minor == false
+                  && aMinKey?.root == 9 && aMinKey?.minor == true)
+
+        // End-to-end through the file wrapper: write the drum loop to disk and analyze it.
+        let drumURL = tmp.appendingPathComponent("drums132.wav")
+        try? FileManager.default.removeItem(at: drumURL)
+        let drumFormat = AVAudioFormat(standardFormatWithSampleRate: asr, channels: 1)!
+        do {   // scope the writer so it flushes before the reader opens
+            let drumFile = try AVAudioFile(forWriting: drumURL, settings: drumFormat.settings)
+            let drumBuf = AVAudioPCMBuffer(pcmFormat: drumFormat, frameCapacity: AVAudioFrameCount(drumTotal))!
+            drumBuf.frameLength = AVAudioFrameCount(drumTotal)
+            for i in 0..<drumTotal { drumBuf.floatChannelData![0][i] = drums[i] }
+            try drumFile.write(from: drumBuf)
+        }
+        let fileAnalysis = AudioAnalysis.analyze(url: drumURL, offset: 0, duration: 12)
+        print(String(format: "   (file analyze: bpm %.1f)", fileAnalysis.bpm ?? -1))
+        check("file-based analysis matches the in-memory result",
+              abs((fileAnalysis.bpm ?? 0) - 132) < 2)
+
+        // Fit math: octave folding never doubles the speed; semitone shifts take the short way.
+        let rate1 = AudioAnalysis.foldedRate(srcBPM: 98, targetBPM: 116)     // straight 116/98
+        let rate2 = AudioAnalysis.foldedRate(srcBPM: 196, targetBPM: 100)    // folds 196→98 first
+        let shiftUp = AudioAnalysis.semitoneShift(from: 9, to: 0)            // A → C = +3
+        let shiftDown = AudioAnalysis.semitoneShift(from: 2, to: 9)          // D → A = −5, not +7
+        print(String(format: "   (fit: rate 98→116 %.3f, 196→100 %.3f, shifts %+d/%+d)",
+                     rate1, rate2, shiftUp, shiftDown))
+        check("fit-to-project math folds octaves and picks the smallest shift",
+              abs(rate1 - 116.0 / 98.0) < 1e-9 && abs(rate2 - 100.0 / 98.0) < 1e-9
+                  && shiftUp == 3 && shiftDown == -5)
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]
