@@ -77,11 +77,17 @@ enum AudioAnalysis {
         guard zero > 0 else { return nil }
 
         // Score each candidate period with its harmonics so the true beat beats
-        // both the half-tempo (bar) and double-tempo (subdivision) peaks.
+        // both the half-tempo (bar) and double-tempo (subdivision) peaks — and weight
+        // by a log-normal tempo prior around 120 BPM (Ellis-style). The prior kills
+        // NON-octave sub-multiples (×2.5, ×1.5 lags that ride a subdivision grid);
+        // octave misses stay harmless because callers fold octaves anyway.
         var bestLag = -1
         var bestScore: Float = 0
         for lag in minLag...maxLag {
-            let score = ac(lag) + 0.5 * ac(lag * 2) + 0.33 * ac(lag * 3)
+            let bpmAtLag = rate * 60.0 / Double(lag)
+            let oct = log2(bpmAtLag / 120.0)
+            let prior = Float(exp(-(oct * oct) / (2 * 0.4 * 0.4)))
+            let score = (ac(lag) + 0.5 * ac(lag * 2) + 0.33 * ac(lag * 3)) * prior
             if score > bestScore { bestScore = score; bestLag = lag }
         }
         guard bestLag > 0, ac(bestLag) > zero * 0.05 else { return nil }
@@ -179,6 +185,35 @@ enum AudioAnalysis {
         return (best.root, best.minor)
     }
 
+    // MARK: - Spectral balance
+
+    /// Energy shares in three bands (low < 250 Hz · mid 250–4k · high > 4k), summing to 1.
+    /// One-pole lowpasses — crude but monotone, deterministic, and plenty for comparison bars.
+    static func bandBalance(_ x: [Float], sampleRate: Double) -> (low: Float, mid: Float, high: Float)? {
+        guard x.count > 1024, sampleRate > 8000 else { return nil }
+        func lowpassed(_ input: [Float], cutoff: Double) -> [Float] {
+            let a = Float(1 - exp(-2 * Double.pi * cutoff / sampleRate))
+            var y: Float = 0
+            var out = [Float](repeating: 0, count: input.count)
+            for i in 0..<input.count { y += a * (input[i] - y); out[i] = y }
+            return out
+        }
+        func energy(_ v: [Float]) -> Float {
+            var s: Float = 0
+            for e in v { s += e * e }
+            return s
+        }
+        let eLow = energy(lowpassed(x, cutoff: 250))
+        let eLowMid = energy(lowpassed(x, cutoff: 4000))
+        let eTotal = energy(x)
+        let low = eLow
+        let mid = max(0, eLowMid - eLow)
+        let high = max(0, eTotal - eLowMid)
+        let sum = low + mid + high
+        guard sum > 0 else { return nil }
+        return (low / sum, mid / sum, high / sum)
+    }
+
     // MARK: - Fit math
 
     /// The time-stretch rate that conforms a loop at `srcBPM` to `targetBPM`, folding the
@@ -224,4 +259,124 @@ enum AudioAnalysis {
         guard !mono.isEmpty else { return (nil, nil) }
         return (detectBPM(mono, sampleRate: sr), detectKey(mono, sampleRate: sr))
     }
+}
+
+// MARK: - Reference Match (E3 — score your track against a reference you love)
+
+/// One dimension of a reference comparison, ready for display.
+struct MatchDimension: Identifiable {
+    let id = UUID()
+    let name: String
+    let yours: String
+    let reference: String
+    let score: Double        // 0…1
+    let tip: String?         // nil when close enough to leave alone
+}
+
+enum ReferenceMatch {
+
+    /// Everything we measure about one piece of audio.
+    struct Metrics {
+        var bpm: Double?
+        var key: (root: Int, minor: Bool)?
+        var lufs: Double?
+        var balance: (low: Float, mid: Float, high: Float)?
+    }
+
+    /// Measure a file (mono-mixed; analysis capped at 60 s, loudness over the whole file).
+    static func metrics(url: URL, duration: TimeInterval) -> Metrics {
+        let a = AudioAnalysis.analyze(url: url, offset: 0, duration: min(duration, 60))
+        var m = Metrics(bpm: a.bpm, key: a.key, lufs: Loudness.integratedLUFS(url: url), balance: nil)
+        if let file = try? AVAudioFile(forReading: url) {
+            let sr = file.processingFormat.sampleRate
+            let want = AVAudioFrameCount(min(Double(file.length), 60 * sr))
+            if want > 0, let buf = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: want),
+               (try? file.read(into: buf, frameCount: want)) != nil {
+                m.balance = AudioAnalysis.bandBalance(PitchTune.monoSamples(buf), sampleRate: sr)
+            }
+        }
+        return m
+    }
+
+    /// Compare your metrics against the reference's — one row per measurable dimension.
+    /// Pure; every score is 0…1 and every tip is a concrete move, not a vibe.
+    static func compare(yours: Metrics, reference: Metrics) -> [MatchDimension] {
+        var dims: [MatchDimension] = []
+
+        if let y = yours.bpm, let r = reference.bpm {
+            let rate = AudioAnalysis.foldedRate(srcBPM: y, targetBPM: r)
+            let off = abs(log2(rate))
+            let score = max(0, 1 - off / 0.32)                      // ~25% off → 0
+            let tip: String? = off < 0.02 ? nil
+                : String(format: "Reference sits at ~%.0f BPM — try %@ toward %.0f.",
+                         r, rate > 1 ? "speeding up" : "slowing down", r)
+            dims.append(MatchDimension(name: "Tempo",
+                                       yours: String(format: "%.0f BPM", y),
+                                       reference: String(format: "%.0f BPM", r),
+                                       score: score, tip: tip))
+        }
+
+        if let y = yours.key, let r = reference.key {
+            let sameRoot = y.root == r.root
+            let relative = (y.minor && !r.minor && (y.root + 3) % 12 == r.root)
+                        || (!y.minor && r.minor && (r.root + 3) % 12 == y.root)
+            let score: Double = (sameRoot && y.minor == r.minor) ? 1.0 : relative ? 0.85 : 0.3
+            let shift = AudioAnalysis.semitoneShift(from: y.root, to: r.root)
+            let tip: String? = score >= 0.85 ? nil
+                : String(format: "Reference is in %@ %@ — transposing %+d st gets you there.",
+                         noteName(r.root), r.minor ? "minor" : "major", shift)
+            dims.append(MatchDimension(name: "Key",
+                                       yours: "\(noteName(y.root)) \(y.minor ? "minor" : "major")",
+                                       reference: "\(noteName(r.root)) \(r.minor ? "minor" : "major")",
+                                       score: score, tip: tip))
+        }
+
+        if let y = yours.lufs, let r = reference.lufs, y.isFinite, r.isFinite {
+            let diff = y - r
+            let score = max(0, 1 - abs(diff) / 12)
+            let tip: String? = abs(diff) < 1.5 ? nil
+                : diff < 0 ? String(format: "Reference is ~%.0f dB louder — push the master (or run a master pass).", -diff)
+                           : String(format: "You're ~%.0f dB hotter than the reference — ease the master back.", diff)
+            dims.append(MatchDimension(name: "Loudness",
+                                       yours: String(format: "%.1f LUFS", y),
+                                       reference: String(format: "%.1f LUFS", r),
+                                       score: score, tip: tip))
+        }
+
+        if let y = yours.balance, let r = reference.balance {
+            let dLow = Double(abs(y.low - r.low)), dMid = Double(abs(y.mid - r.mid)), dHigh = Double(abs(y.high - r.high))
+            let score = max(0, 1 - (dLow + dMid + dHigh) / 2 * 1.8)
+            var tip: String?
+            let diffs: [(name: String, gap: Float)] = [("lows", r.low - y.low),
+                                                       ("mids", r.mid - y.mid),
+                                                       ("highs", r.high - y.high)]
+            if let biggest = diffs.max(by: { abs($0.gap) < abs($1.gap) }), abs(biggest.gap) > 0.08 {
+                tip = biggest.gap > 0
+                    ? "Reference has noticeably more \(biggest.name) — bring yours up (EQ or arrangement)."
+                    : "Reference has fewer \(biggest.name) than you — carve some out."
+            }
+            func pct(_ b: (low: Float, mid: Float, high: Float)) -> String {
+                String(format: "%.0f · %.0f · %.0f %%", b.low * 100, b.mid * 100, b.high * 100)
+            }
+            dims.append(MatchDimension(name: "Balance (L·M·H)",
+                                       yours: pct(y), reference: pct(r),
+                                       score: score, tip: tip))
+        }
+
+        return dims
+    }
+
+    /// Headline number: the mean of whatever dimensions were measurable.
+    static func overall(_ dims: [MatchDimension]) -> Double {
+        guard !dims.isEmpty else { return 0 }
+        return dims.map(\.score).reduce(0, +) / Double(dims.count)
+    }
+}
+
+/// Payload for the Reference Match sheet.
+struct ReferenceMatchResult: Identifiable {
+    let id = UUID()
+    let referenceName: String
+    let dimensions: [MatchDimension]
+    let overall: Double
 }

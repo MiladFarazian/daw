@@ -596,6 +596,35 @@ struct AudioChecks {
               abs(rate1 - 116.0 / 98.0) < 1e-9 && abs(rate2 - 100.0 / 98.0) < 1e-9
                   && shiftUp == 3 && shiftDown == -5)
 
+        // W20) Reference match: band balance separates registers; scoring is sane.
+        func refTone(_ freq: Double, seconds: Double = 3) -> [Float] {
+            var out = [Float](repeating: 0, count: Int(asr * seconds))
+            for i in 0..<out.count { out[i] = Float(sin(2 * .pi * freq * Double(i) / asr)) * 0.4 }
+            return out
+        }
+        let lowBal = AudioAnalysis.bandBalance(refTone(100), sampleRate: asr)
+        let midBal = AudioAnalysis.bandBalance(refTone(1000), sampleRate: asr)
+        let highBal = AudioAnalysis.bandBalance(refTone(8000), sampleRate: asr)
+        print(String(format: "   (balance: 100Hz low %.2f · 1kHz mid %.2f · 8kHz high %.2f)",
+                     lowBal?.low ?? -1, midBal?.mid ?? -1, highBal?.high ?? -1))
+        check("band balance separates low / mid / high",
+              (lowBal?.low ?? 0) > 0.7 && (midBal?.mid ?? 0) > 0.7 && (highBal?.high ?? 0) > 0.7)
+
+        let mSelf = ReferenceMatch.Metrics(bpm: 120, key: (0, false), lufs: -14, balance: (0.4, 0.45, 0.15))
+        let mFar = ReferenceMatch.Metrics(bpm: 140, key: (7, false), lufs: -9, balance: (0.2, 0.5, 0.3))
+        let sameDims = ReferenceMatch.compare(yours: mSelf, reference: mSelf)
+        let diffDims = ReferenceMatch.compare(yours: mSelf, reference: mFar)
+        let sameScore = ReferenceMatch.overall(sameDims), diffScore = ReferenceMatch.overall(diffDims)
+        let relDims = ReferenceMatch.compare(yours: .init(bpm: nil, key: (9, true), lufs: nil, balance: nil),
+                                             reference: .init(bpm: nil, key: (0, false), lufs: nil, balance: nil))
+        print(String(format: "   (match: self %.2f · far %.2f · relative-key %.2f)",
+                     sameScore, diffScore, relDims.first?.score ?? -1))
+        check("reference match scores identity high, mismatch lower, with concrete tips",
+              sameDims.count == 4 && sameScore > 0.95 && sameDims.allSatisfy { $0.tip == nil }
+                  && diffScore < sameScore - 0.2 && diffDims.contains { $0.tip != nil })
+        check("relative keys count as a near-match",
+              relDims.first.map { $0.score >= 0.85 && $0.tip == nil } == true)
+
         // X) Volume automation (1 → 0 over the clip) fades the export out.
         var autoTrack = Track(name: "Auto", colorIndex: 0)
         autoTrack.clips = [Clip(asset: asset, startTime: 0.0)]

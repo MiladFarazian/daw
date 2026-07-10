@@ -44,6 +44,11 @@ struct EditorView: View {
             project.importAudio(urls: urls)
             return true
         }
+        .fileImporter(isPresented: $project.showReferenceImporter,
+                      allowedContentTypes: [.audio],
+                      allowsMultipleSelection: false) { result in
+            if case .success(let urls) = result, let url = urls.first { project.matchAgainstReference(url: url) }
+        }
         .fileImporter(isPresented: $project.showMIDIImporter,
                       allowedContentTypes: [UTType(filenameExtension: "mid") ?? .midi, .midi],
                       allowsMultipleSelection: false) { result in
@@ -95,6 +100,8 @@ struct EditorView: View {
                 TournamentView()
                     .environmentObject(project)
                     .environmentObject(preview)
+            case .referenceMatch(let result):
+                ReferenceMatchView(result: result)
                     .environmentObject(project.taste)
             }
         }

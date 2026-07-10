@@ -204,6 +204,7 @@ struct TransportBar: View {
                         Button("Each track (stems)…") { project.exportStems() }
                         Divider()
                         Button("Analyze Loudness (LUFS)…") { project.analyzeLoudness() }
+                        Button("Match a Reference…") { project.showReferenceImporter = true }
                     } label: {
                         if project.isExporting { ProgressView().controlSize(.small) }
                         else { Image(systemName: "square.and.arrow.up") }

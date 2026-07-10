@@ -83,6 +83,7 @@ enum EditorSheet: Identifiable {
     case extendClip(UUID)
     case regenerateSection(UUID)
     case tournament
+    case referenceMatch(ReferenceMatchResult)
 
     var id: String {
         switch self {
@@ -104,6 +105,7 @@ enum EditorSheet: Identifiable {
         case .extendClip(let id): return "extend-\(id.uuidString)"
         case .regenerateSection(let id): return "regen-\(id.uuidString)"
         case .tournament: return "tournament"
+        case .referenceMatch(let r): return "refmatch-\(r.id.uuidString)"
         }
     }
 }

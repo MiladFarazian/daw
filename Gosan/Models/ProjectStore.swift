@@ -13,6 +13,7 @@ final class ProjectStore: ObservableObject {
     @Published var isPlaying = false
     @Published var currentTime: TimeInterval = 0
     @Published var showImporter = false
+    @Published var showReferenceImporter = false
     @Published var showMIDIImporter = false
     @Published var isImporting = false
     @Published var pixelsPerSecond: Double = 80
@@ -2548,6 +2549,44 @@ final class ProjectStore: ObservableObject {
         exportRange(from: 0, duration: totalDuration, name: name, aac: aac, normalize: normalize)
     }
 
+    /// E3 · Reference Match Meter: render the mix, measure it and the reference
+    /// (tempo · key · loudness · spectral balance), and show the comparison sheet.
+    func matchAgainstReference(url: URL) {
+        guard !tracks.isEmpty, !isExporting else { return }
+        let snapshot = tracksWithLivePluginState()
+        let duration = totalDuration, mv = masterVolume
+        let refName = url.deletingPathExtension().lastPathComponent
+        let scoped = url.startAccessingSecurityScopedResource()
+        isExporting = true
+        Task.detached(priority: .userInitiated) {
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("refmix-\(UUID().uuidString).wav")
+            do {
+                try AudioExporter.render(tracks: snapshot, duration: duration, to: tmp, masterVolume: mv)
+                let yours = ReferenceMatch.metrics(url: tmp, duration: duration)
+                let refDur = (try? AVAudioFile(forReading: url))
+                    .map { Double($0.length) / $0.processingFormat.sampleRate } ?? 60
+                let ref = ReferenceMatch.metrics(url: url, duration: refDur)
+                try? FileManager.default.removeItem(at: tmp)
+                let dims = ReferenceMatch.compare(yours: yours, reference: ref)
+                await MainActor.run {
+                    self.isExporting = false
+                    guard !dims.isEmpty else {
+                        self.lastError = "Couldn't measure enough in common between your mix and the reference (is either one silent?)."
+                        return
+                    }
+                    self.activeSheet = .referenceMatch(ReferenceMatchResult(
+                        referenceName: refName, dimensions: dims, overall: ReferenceMatch.overall(dims)))
+                }
+            } catch {
+                await MainActor.run {
+                    self.isExporting = false
+                    self.lastError = "Reference match failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
     /// Render the mix and report its integrated loudness (LUFS) + peak — for hitting
     /// streaming targets (≈ −14 LUFS).
     func analyzeLoudness() {
@@ -2677,6 +2716,51 @@ final class ProjectStore: ObservableObject {
         try? file.write(from: buffer)
     }
 
+    /// Dev-only: a groove (kick + hats) with a sine arpeggio on top — a "mix" with a
+    /// tempo, a key, a loudness, and a spectral tilt (for the reference-match demo).
+    private static func writeTestMix(to url: URL, bpm: Double, rootMidi: Int, minor: Bool,
+                                     gain: Float, hatGain: Float, seconds: Double,
+                                     sampleRate: Double = 44_100) {
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1),
+              let file = try? AVAudioFile(forWriting: url, settings: format.settings),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(seconds * sampleRate)) else { return }
+        buffer.frameLength = buffer.frameCapacity
+        let n = Int(buffer.frameLength)
+        guard let ch = buffer.floatChannelData?[0] else { return }
+        for i in 0..<n { ch[i] = 0 }
+        let beat = 60.0 / bpm
+        var t = 0.0
+        while Int(t * sampleRate) < n {
+            let kick = Int(t * sampleRate)
+            for i in 0..<Int(0.08 * sampleRate) where kick + i < n {
+                let env = exp(-Double(i) / (0.02 * sampleRate))
+                ch[kick + i] += Float(sin(2 * .pi * 60 * Double(i) / sampleRate) * env) * (gain * 0.7)
+            }
+            let hat = Int((t + beat / 2) * sampleRate)
+            for i in 0..<Int(0.02 * sampleRate) where hat + i < n {
+                let env = exp(-Double(i) / (0.004 * sampleRate))
+                ch[hat + i] += Float(sin(2 * .pi * 6000 * Double(i) / sampleRate) * env) * hatGain
+            }
+            t += beat
+        }
+        // Arpeggio: root · third · fifth · octave, one note per half-beat.
+        let steps = [0, minor ? 3 : 4, 7, 12]
+        var k = 0
+        var at = 0.0
+        while Int(at * sampleRate) < n {
+            let midi = rootMidi + steps[k % steps.count]
+            let f = 440.0 * pow(2.0, (Double(midi) - 69.0) / 12.0)
+            let start = Int(at * sampleRate)
+            let len = Int(beat / 2 * 0.9 * sampleRate)
+            for i in 0..<len where start + i < n {
+                ch[start + i] += Float(sin(2 * .pi * f * Double(i) / sampleRate)) * gain
+            }
+            k += 1
+            at += beat / 2
+        }
+        try? file.write(from: buffer)
+    }
+
     /// Dev-only: write a mono sine tone (for the vocal-tuning smoke demo).
     private static func writeTestTone(to url: URL, freq: Double, seconds: Double, sampleRate: Double = 44_100) {
         guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1),
@@ -2738,6 +2822,24 @@ final class ProjectStore: ObservableObject {
                     addNamedTrack(name: "Loop", asset: AudioAsset(url: url, duration: wf.duration,
                                                                   sampleRate: wf.sampleRate, peaks: wf.peaks))
                     if let t = tracks.first, let c = t.clips.first { fitClipToProject(c, on: t, matchKey: false) }
+                }
+            }
+            return
+        }
+        if ProcessInfo.processInfo.environment["GOSAN_OPEN"] == "refmatch" {
+            newProject()
+            tempo = 116
+            if let dir = try? LibraryStorage.importsDirectory() {
+                let mixURL = dir.appendingPathComponent("demo-mix.wav")
+                let refURL = dir.appendingPathComponent("demo-reference.wav")
+                Self.writeTestMix(to: mixURL, bpm: 116, rootMidi: 60, minor: false,
+                                  gain: 0.3, hatGain: 0.1, seconds: 10)
+                Self.writeTestMix(to: refURL, bpm: 132, rootMidi: 57, minor: true,
+                                  gain: 0.7, hatGain: 0.5, seconds: 10)
+                if let wf = WaveformLoader.load(url: mixURL) {
+                    addNamedTrack(name: "My Mix", asset: AudioAsset(url: mixURL, duration: wf.duration,
+                                                                    sampleRate: wf.sampleRate, peaks: wf.peaks))
+                    matchAgainstReference(url: refURL)
                 }
             }
             return
